@@ -263,3 +263,106 @@ publish actions on shared state. Write the files, hand the user the commands.
   - The **last main commit** — `git log --first-parent main -1 --format='%ai %h %s'`. A comment after the last release but before a fix on main may already be addressed there but unreleased.
   - The **current branch's tip** — your own unmerged work obviously can't be what the comment is reacting to.
   Always disambiguate "released," "merged-but-unreleased," and "in-progress" before agreeing that a user-reported problem is unfixed (or that a fix is incomplete). A user saying "your fix only covers X" about a recent PR is usually pointing at the *released* shortcomings — your in-flight branch may already address them but they have no way to know that.
+
+## RULE-1: Cave-Man Protocol (DEADLY · L1 Hook 강제)
+
+**모든 소스 코드 접근 전 codegraph 우선 사용.**
+
+### ❌ 자동 차단 (PreToolUse hook)
+- `find` / `ls -r` / `grep -r` / `rg` / `fd` (bash)
+- `Get-ChildItem -Recurse` / `Select-String -Path *` (PowerShell)
+- `cat .cs` / `head .py` / `tail .ts` (bash 소스 출력)
+- **codegraph 미사용 후 소스 코드 Read** (자동 차단)
+
+### ✅ 올바른 순서
+```
+1. codegraph_context / codegraph_search → 심볼 위치
+2. codegraph_impact / codegraph_callers → 영향 범위
+3. codegraph_node / codegraph_explore → 소스 코드
+4. (보완 시만) Read / Glob / Grep
+```
+
+차단 hook: `.claude/hooks/cave-man-guard*.sh`, `codegraph-gate.sh`
+위반 로그: `.claude/state/violation-count.log`
+
+## RULE-2: /doc-context 즉시 실행
+- cxt 파일 = 사용자의 직접 지시
+- 재확인·요약 금지, 즉시 작업 착수
+- cxt 2행 `<!-- BLK: BLK-XXX -->` 의무
+- cxt 3행 `<!-- CAVE-MAN-REMINDER: ... -->` 의무 (L5 외부 이전)
+
+## RULE-3: RIPER 상태 추적
+`.claude/memory-bank/.riper-state` 파일에 기록.
+- /riper:research|innovate|plan|execute|review
+- PLAN_FILE 부재 시 EXECUTE 진입 차단
+
+## RULE-4: PRD Spatial Mapping (PLAN 단계 BLK 좌표 강제)
+모든 Action Item에 BLK 좌표 + 파일 경로 필수.
+- 기존: `[BLK-XXX] Assets/.../File.cs 내 대상`
+- 신규: `[NEW-BLK] + 절대경로`
+- 금지: 위치 없는 추상 지시 ("ExplosionSystem 수정")
+
+## RULE-5: EXECUTE Scope Lock
+- BLK 좌표 → `Read(offset+limit)` 또는 `grep -A -B` 최소 로드
+- 파일 전체 Read 금지 (1,000자 이상 = 실패)
+- 자가검증: "내가 건드리는 좌표가 PLAN의 BLK와 일치?"
+
+## RULE-6: 게이트 (규모별 차등)
+| 규모 | quality-sentinel | reporter |
+|------|-----------------|---------|
+| 소형 (단일 파일, 플랜 없음) | 선택 | 기본 |
+| 중·대형 (멀티파일, 플랜 존재) | 필수 | 필수 |
+
+## RULE-7: 소스 코드 쓰기 전 승인
+.cs/.py/.ts/.js 등 수정 전 사용자 승인.
+`write-approval-reminder.sh` 자동 알림.
+
+## RULE-8: 컴팩션 전 메모리 저장
+/compact 실행 전 `/memory:save` 필수. 복원: `/memory:recall`
+
+## Plan Scope Lock 필드 (PLAN 단계 모든 스텝에 포함)
+- **Symbol**: `ClassName.MethodName`
+- **CodeGraph**: codegraph_search/context 결과
+- **File**: 절대 경로 (dictionary 크로스 검증)
+- **Scope**: `Lines [N-M]`
+- **BLK target**: `[BLK-XXX]` 또는 `[인프라]`
+- **Action**: insert/replace/delete/append
+- **Success criterion**: 관찰 가능 결과
+- Max 10 steps
+
+## Wiki Second Brain
+`D:\Fork\WIKI\obsidian\`
+- 설계 결정 전 Atomic Note 조회
+- 충돌 시 `[WIKI-CONFLICT]` 경고 + 중단
+- 참조 시 파일명 인용
+
+## 메모리 아키텍처
+- L1: CLAUDE.md + session-start.sh (세션 주입)
+- L2: `.claude/memory-bank/.riper-state` (RIPER)
+- L3: `/memory:save|recall` (장기)
+- L4: `manage/dictionary.md` (구조 인덱스)
+- L5: `D:\Fork\WIKI\obsidian\` (Single Source of Truth)
+- 코드 인텔리전스: codegraph MCP (실시간 심볼 그래프)
+
+## 에이전트 라우팅 (3-Tier Studio)
+| Tier | 에이전트 | 모델 | 담당 |
+|------|---------|------|------|
+| 1 | producer, creative-director, technical-director | Opus | 의사결정 |
+| 2 | lead-programmer, unity-specialist | Sonnet | 구현 총괄 |
+| 3 | quality-sentinel, reporter, writer, 도메인 전문가 | Sonnet | 실행·검증 |
+
+## Claude vs trae
+| 측면 | Claude | trae |
+|------|--------|------|
+| Memory | `.claude/memory-bank/` | `.trae/memory-bank/` |
+| Instruction | CLAUDE.md | AGENTS.md |
+| Role | Dev, debug | Infrastructure, CI/CD |
+| Validation | 사용자 승인 | validate-cxt hook |
+| Context | Direct tools | context-sharer skill |
+| RIPER | 참여 | 금지 |
+
+## 워크플로
+```
+[소형] codegraph → Edit/Write → 완료
+[중·대형] /riper:research → innovate → plan → execute → review → quality-sentinel → reporter
+```

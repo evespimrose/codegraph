@@ -41,6 +41,7 @@
     "jsonc-parser": "^3.3.1",
     "picomatch": "^4.0.3",
     "sisteransi": "^1.0.5",
+    "sqlite-vec": "^0.1.9",
     "tree-sitter-wasms": "^0.1.11",
     "web-tree-sitter": "^0.25.3"
   },

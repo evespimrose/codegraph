@@ -1,0 +1,17 @@
+MODE=PLAN
+TASK=마크다운 벡터DB(sqlite-vec + MiniLM 임베딩)를 codegraph.db에 통합하고 codegraph MCP 커맨드 output에 편입. 통합 원본=D:\Fork\codegraph-mdast (db/embed/parse/search 6개 .mjs, 단 scan.mjs·cli.mjs 누락 → TS 재구현 필요).
+
+확정 결정사항:
+1) DB 토폴로지: 별도 mdast.db가 아니라 codegraph.db 단일 파일에 mdast_metadata + mdast_vectors(vec0 FLOAT[384]) 통합. vec0는 확장 로드 후에만 생성(스키마에 무조건 넣으면 안 됨).
+2) 의존성: sqlite-vec + @xenova/transformers를 optionalDependencies로, lazy require, 옵트인(예: CODEGRAPH_DOCS=1 / --with-docs). 미설치 시 벡터검색만 graceful skip(코드 그래프는 정상).
+3) 출력 노출: 신규 codegraph_docs(전용 하이브리드 검색) + handleContext(1차 노출) + handleNode/handleImpact(governing 문서 있을 때만 관련성 게이트). search/callers/callees/trace 제외.
+
+호스트 핵심 사실:
+- 백엔드 node:sqlite 단일(NodeSqliteAdapter, src/db/sqlite-adapter.ts). DatabaseSync가 allowExtension 없이 생성됨 → 확장 로드 경로 추가 필요.
+- 스키마 src/db/schema.sql 1곳 db.exec, 버전/마이그레이션 src/db/migrations.ts(CURRENT_SCHEMA_VERSION=4 → v5 추가).
+- 인덱스 파이프라인 indexAll src/extraction/index.ts:595, storeExtractionResult:1251. .md는 현재 미인덱싱.
+- MCP 핸들러/포매터 src/mcp/tools.ts: tools배열:418, getStaticTools:639, getTools:736, allowlist:716, handleSearch:1136, handleContext:1170, handleImpact:1497, handleNode:2923, formatImpact:3488, formatNodeDetails:3538, formatTrail:2968. server-instructions.ts가 에이전트 가이드 단일 소스.
+- 빌드 copy-assets가 schema.sql/wasm을 dist로 복사(release bundle은 build-bundle.sh).
+PLAN_FILE=.claude/memory-bank/mdAddOn/plans/mdAddOn-2026-06-02-markdown-vectordb-integration.md
+BRANCH=mdAddOn
+STARTED=2026-06-02

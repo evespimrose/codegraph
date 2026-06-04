@@ -419,8 +419,12 @@ program
   .description('Initialize CodeGraph in a project directory and build the initial index')
   .option('-i, --index', 'Deprecated: indexing now runs by default; flag accepted for backward compatibility')
   .option('-v, --verbose', 'Show detailed worker lifecycle and memory info')
-  .action(async (pathArg: string | undefined, options: { index?: boolean; verbose?: boolean }) => {
+  .option('--with-docs', 'Also index Markdown docs into the vector store (requires the optional @xenova/transformers dep); persists the choice for this project')
+  .action(async (pathArg: string | undefined, options: { index?: boolean; verbose?: boolean; withDocs?: boolean }) => {
     const projectPath = path.resolve(pathArg || process.cwd());
+    // --with-docs opts this process into Markdown indexing; indexAll then
+    // persists the flag to project_metadata so MCP-server runs pick it up.
+    if (options.withDocs) process.env.CODEGRAPH_DOCS = '1';
     const clack = await importESM('@clack/prompts');
 
     clack.intro('Initializing CodeGraph');
@@ -536,8 +540,12 @@ program
   .option('-f, --force', 'Force full re-index even if already indexed')
   .option('-q, --quiet', 'Suppress progress output')
   .option('-v, --verbose', 'Show detailed worker lifecycle and memory info')
-  .action(async (pathArg: string | undefined, options: { force?: boolean; quiet?: boolean; verbose?: boolean }) => {
+  .option('--with-docs', 'Also index Markdown docs into the vector store (requires the optional @xenova/transformers dep); persists the choice for this project')
+  .action(async (pathArg: string | undefined, options: { force?: boolean; quiet?: boolean; verbose?: boolean; withDocs?: boolean }) => {
     const projectPath = resolveProjectPath(pathArg);
+    // --with-docs opts this process into Markdown indexing; indexAll then
+    // persists the flag to project_metadata so MCP-server runs pick it up.
+    if (options.withDocs) process.env.CODEGRAPH_DOCS = '1';
 
     try {
       if (!isInitialized(projectPath)) {

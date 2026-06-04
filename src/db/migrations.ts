@@ -9,7 +9,7 @@ import { SqliteDatabase } from './sqlite-adapter';
 /**
  * Current schema version
  */
-export const CURRENT_SCHEMA_VERSION = 4;
+export const CURRENT_SCHEMA_VERSION = 5;
 
 /**
  * Migration definition
@@ -62,6 +62,28 @@ const migrations: Migration[] = [
       db.exec(`
         DROP INDEX IF EXISTS idx_edges_source;
         DROP INDEX IF EXISTS idx_edges_target;
+      `);
+    },
+  },
+  {
+    version: 5,
+    description: 'Add mdast_metadata for the optional Markdown docs vector store',
+    up: (db) => {
+      // Plain metadata table only. The companion vec0 vector table
+      // (mdast_vectors) is created at runtime after sqlite-vec loads — it
+      // cannot live in a migration, which runs on every open() regardless of
+      // whether the extension is available.
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS mdast_metadata (
+          id              INTEGER PRIMARY KEY,
+          file_path       TEXT UNIQUE NOT NULL,
+          blk_tags        TEXT,
+          code_refs       TEXT,
+          content_summary TEXT,
+          content_hash    TEXT,
+          last_updated    TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_mdast_file_path ON mdast_metadata(file_path);
       `);
     },
   },

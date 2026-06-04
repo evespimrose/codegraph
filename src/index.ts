@@ -23,6 +23,7 @@ import {
   FindRelevantContextOptions,
 } from './types';
 import { DatabaseConnection, getDatabasePath } from './db';
+import { indexMarkdown } from './docs/indexer';
 import { QueryBuilder } from './db/queries';
 import {
   isInitialized,
@@ -380,6 +381,16 @@ export class CodeGraph {
           const after = this.queries.getNodeAndEdgeCount();
           result.nodesCreated = after.nodes - before.nodes;
           result.edgesCreated = after.edges - before.edges;
+        }
+
+        // Markdown docs (opt-in): index .md into the vector store AFTER code
+        // indexing + resolution, so a doc's code_refs/BLK resolve against real
+        // nodes. Gated by resolveDocsEnabled (a no-op when off) and best-effort:
+        // any failure is swallowed so docs never break the code index.
+        if (result.success) {
+          try {
+            await indexMarkdown(this.db.getDb(), this.projectRoot);
+          } catch { /* docs are best-effort; never fail the code index */ }
         }
 
         return result;

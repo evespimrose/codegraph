@@ -149,3 +149,25 @@ CREATE TABLE IF NOT EXISTS project_metadata (
     value TEXT NOT NULL,
     updated_at INTEGER NOT NULL
 );
+
+-- =============================================================================
+-- Markdown docs (optional — populated only when the docs feature is enabled
+-- via CODEGRAPH_DOCS / `--with-docs`)
+-- =============================================================================
+
+-- Markdown document metadata. Its companion vector table `mdast_vectors`
+-- (a `vec0` virtual table over FLOAT[384] embeddings) is created at RUNTIME,
+-- only after the sqlite-vec extension loads — it is intentionally NOT declared
+-- here, because `vec0` is unknown until the extension is loaded and this
+-- `db.exec(schema)` would throw on a connection without it.
+CREATE TABLE IF NOT EXISTS mdast_metadata (
+    id              INTEGER PRIMARY KEY,
+    file_path       TEXT UNIQUE NOT NULL,
+    blk_tags        TEXT,            -- 'BLK-XXX' parsed from line 2, or NULL
+    code_refs       TEXT,            -- JSON array of code file paths this doc governs
+    content_summary TEXT,
+    content_hash    TEXT,            -- content hash of raw file → incremental scan
+    last_updated    TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_mdast_file_path ON mdast_metadata(file_path);

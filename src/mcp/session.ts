@@ -16,7 +16,8 @@ import * as path from 'path';
 import { JsonRpcRequest, JsonRpcNotification, JsonRpcTransport, ErrorCodes } from './transport';
 import { MCPEngine } from './engine';
 import { tools } from './tools';
-import { SERVER_INSTRUCTIONS } from './server-instructions';
+import { getServerInstructions } from './server-instructions';
+import { docsEnvOverride } from '../docs/config';
 import { CodeGraphPackageVersion } from './version';
 
 /**
@@ -170,7 +171,7 @@ export class MCPSession {
       protocolVersion: PROTOCOL_VERSION,
       capabilities: { tools: {} },
       serverInfo: SERVER_INFO,
-      instructions: SERVER_INSTRUCTIONS,
+      instructions: getServerInstructions(docsEnvOverride() === true),
     });
 
     if (explicitPath) {

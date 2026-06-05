@@ -24,7 +24,8 @@ import { HOST_PPID_ENV } from '../extraction/wasm-runtime-flags';
 import { DaemonHello, MAX_HELLO_LINE_BYTES } from './daemon';
 import { CodeGraphPackageVersion } from './version';
 import { SERVER_INFO, PROTOCOL_VERSION } from './session';
-import { SERVER_INSTRUCTIONS } from './server-instructions';
+import { getServerInstructions } from './server-instructions';
+import { docsEnvOverride } from '../docs/config';
 import { getStaticTools } from './tools';
 import type { MCPEngine } from './engine';
 
@@ -226,7 +227,7 @@ export async function runLocalHandshakeProxy(deps: LocalHandshakeDeps): Promise<
       let msg: JsonRpc; try { msg = JSON.parse(line) as JsonRpc; } catch { routeToDaemon(line); continue; }
       if (msg.method === 'initialize') {
         clientInitId = msg.id;
-        writeClient({ jsonrpc: '2.0', id: msg.id, result: { protocolVersion: PROTOCOL_VERSION, capabilities: { tools: {} }, serverInfo: SERVER_INFO, instructions: SERVER_INSTRUCTIONS } });
+        writeClient({ jsonrpc: '2.0', id: msg.id, result: { protocolVersion: PROTOCOL_VERSION, capabilities: { tools: {} }, serverInfo: SERVER_INFO, instructions: getServerInstructions(docsEnvOverride() === true) } });
         routeToDaemon(line); // prime the daemon so it resolves the project (its reply is suppressed below)
       } else if (msg.method === 'tools/list') {
         writeClient({ jsonrpc: '2.0', id: msg.id, result: { tools: getStaticTools() } });

@@ -1275,6 +1275,57 @@ export class ToolHandler {
   }
 
   /**
+   * Build the context "## Related docs" section via SEMANTIC search over the
+   * project's indexed Markdown. Returns '' when the docs feature is off /
+   * unavailable / nothing matches, so context output stays byte-identical to
+   * before this feature on every code-only project. Context is the PRIMARY
+   * doc-surfacing call; node/impact use the narrower governing-doc gate.
+   */
+  private async buildRelatedDocsSection(task: string, cg: CodeGraph): Promise<string> {
+    try {
+      const res = await searchDocs(cg.getDb(), task, { topk: 3, codeLimit: 4 });
+      if (!res.enabled || !res.available || res.hits.length === 0) return '';
+      const lines: string[] = ['', '', '## Related docs', ''];
+      for (const h of res.hits) {
+        const blk = h.blk ? ` [${h.blk}]` : '';
+        const summary = h.summary ? ` — ${h.summary}` : '';
+        lines.push(`- **${h.file}**${blk}${summary}`);
+        if (h.symbols.length > 0) {
+          const syms = h.symbols.slice(0, 4).map(s => `\`${s.symbol}\``).join(', ');
+          lines.push(`  - governs: ${syms}`);
+        }
+      }
+      return lines.join('\n');
+    } catch {
+      return '';
+    }
+  }
+
+  /**
+   * Build a governing-doc relevance-gate section for node/impact: docs whose
+   * frontmatter `code_refs` govern any of `filePaths`. Pure metadata (no
+   * embeddings), capped at `cap` docs. Returns '' when the feature is off or NO
+   * doc governs the file(s) — so node/impact output is byte-identical to before
+   * whenever there is no governing doc. The narrow, low-noise counterpart to
+   * context's broad semantic surface.
+   */
+  private buildGoverningDocsSection(heading: string, cg: CodeGraph, filePaths: string[], cap: number): string {
+    try {
+      const docs = findGoverningDocs(cg.getDb(), filePaths);
+      if (docs.length === 0) return '';
+      const lines: string[] = ['', '', heading, ''];
+      for (const d of docs.slice(0, cap)) {
+        const blk = d.blk ? ` [${d.blk}]` : '';
+        const summary = d.summary ? ` — ${d.summary}` : '';
+        lines.push(`- **${d.file}**${blk}${summary}`);
+      }
+      return lines.join('\n');
+    } catch {
+      return '';
+    }
+  }
+
+  /**
    * Handle codegraph_context
    */
   private async handleContext(args: Record<string, unknown>): Promise<ToolResult> {
@@ -1412,13 +1463,17 @@ export class ToolHandler {
       smallRepoTail = `\n\n---\n> **This project is small** (${sizeQualifier} indexed files). The entry points and code above cover the relevant surface — **do NOT call codegraph_explore as a follow-up; its content will largely duplicate this response**. If you need a specific flow, call \`codegraph_trace from→to\`. If you need one specific symbol's body, call \`codegraph_node <name>\`.${routingClause} Otherwise, answer from what is above.`;
     }
 
+    // Related docs (semantic) — appended at the tail; '' when the docs feature
+    // is off or nothing matches, so code-only projects stay byte-identical.
+    const relatedDocs = await this.buildRelatedDocsSection(task, cg);
+
     // buildContext returns string when format is 'markdown'
     if (typeof context === 'string') {
-      return this.textResult(this.truncateOutput(context + flowTrace + reminder + smallRepoRouteInline + smallRepoTail));
+      return this.textResult(this.truncateOutput(context + flowTrace + reminder + smallRepoRouteInline + relatedDocs + smallRepoTail));
     }
 
     // If it returns TaskContext, format it
-    return this.textResult(this.truncateOutput(this.formatTaskContext(context) + flowTrace + reminder + smallRepoRouteInline + smallRepoTail));
+    return this.textResult(this.truncateOutput(this.formatTaskContext(context) + flowTrace + reminder + smallRepoRouteInline + relatedDocs + smallRepoTail));
   }
 
   /**
@@ -1641,7 +1696,11 @@ export class ToolHandler {
       roots: allMatches.nodes.map(n => n.id),
     };
 
-    const formatted = this.formatImpact(symbol, mergedImpact) + allMatches.note;
+    // Governing docs for the affected files (gate: '' unless a doc's code_refs
+    // govern one of them, so docs-off / no-governing output is byte-identical).
+    const affectedFiles = [...new Set([...mergedNodes.values()].map(n => n.filePath))];
+    const relatedDocs = this.buildGoverningDocsSection('### Related docs', cg, affectedFiles, 3);
+    const formatted = this.formatImpact(symbol, mergedImpact) + allMatches.note + relatedDocs;
     return this.textResult(this.truncateOutput(formatted));
   }
 
@@ -3062,7 +3121,9 @@ export class ToolHandler {
     }
 
     const trail = this.formatTrail(cg, match.node);
-    const formatted = this.formatNodeDetails(match.node, code, outline) + trail + match.note;
+    // Governing docs for this symbol's file (gate: '' unless a doc governs it).
+    const relatedDocs = this.buildGoverningDocsSection('### Related docs', cg, [match.node.filePath], 2);
+    const formatted = this.formatNodeDetails(match.node, code, outline) + trail + match.note + relatedDocs;
     return this.textResult(this.truncateOutput(formatted));
   }
 

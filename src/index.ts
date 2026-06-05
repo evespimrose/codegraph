@@ -23,6 +23,7 @@ import {
   FindRelevantContextOptions,
 } from './types';
 import { DatabaseConnection, getDatabasePath } from './db';
+import type { SqliteDatabase } from './db/sqlite-adapter';
 import { indexMarkdown } from './docs/indexer';
 import { QueryBuilder } from './db/queries';
 import {
@@ -312,6 +313,18 @@ export class CodeGraph {
    */
   getProjectRoot(): string {
     return this.projectRoot;
+  }
+
+  /**
+   * Get the underlying SQLite database handle.
+   *
+   * Exposed for the optional Markdown docs feature (hybrid search + the
+   * governing-doc relevance gate), which queries the shared codegraph.db
+   * directly. Returns the same live connection the code graph uses — callers
+   * must NOT close it.
+   */
+  getDb(): SqliteDatabase {
+    return this.db.getDb();
   }
 
   // ===========================================================================

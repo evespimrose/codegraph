@@ -21,6 +21,8 @@ import {
 } from '../sync/worktree';
 import type { PendingFile } from '../sync';
 import type { Node, Edge, SearchResult, Subgraph, TaskContext, NodeKind } from '../types';
+import { searchDocs, findGoverningDocs, type DocHit } from '../docs/search';
+import { resolveDocsEnabled, docsEnvOverride } from '../docs/config';
 import { createHash } from 'crypto';
 import {
   constants as fsConstants,
@@ -467,6 +469,31 @@ export const tools: ToolDefinition[] = [
     },
   },
   {
+    name: 'codegraph_docs',
+    description: "Semantic search over the project's Markdown documentation (design docs, specs, ADRs). Returns ranked docs with a compact summary plus the code symbols each doc governs (via frontmatter code_refs), so you can jump from intent to implementation. Opt-in: requires indexing with `--with-docs` (or CODEGRAPH_DOCS=1) and the optional @xenova/transformers dependency.",
+    inputSchema: {
+      type: 'object',
+      properties: {
+        query: {
+          type: 'string',
+          description: 'Natural-language description of the documentation you are looking for.',
+        },
+        topk: {
+          type: 'number',
+          description: 'Maximum number of documents to return (default: 8).',
+          default: 8,
+        },
+        codeLimit: {
+          type: 'number',
+          description: 'Maximum code symbols to resolve per document hit (default: 8).',
+          default: 8,
+        },
+        projectPath: projectPathProperty,
+      },
+      required: ['query'],
+    },
+  },
+  {
     name: 'codegraph_callers',
     description: 'List functions that call <symbol>. For deep flow use codegraph_trace.',
     inputSchema: {
@@ -637,10 +664,14 @@ export const tools: ToolDefinition[] = [
  * note in a description only adds once `cg` is loaded; the schemas are static).
  */
 export function getStaticTools(): ToolDefinition[] {
+  // No engine here, so the persisted docs flag is unreadable — gate the opt-in
+  // codegraph_docs tool on the env override only. Once a project opens,
+  // ToolHandler.getTools() is authoritative and honors the persisted flag.
+  const base = docsEnvOverride() === true ? tools : tools.filter(t => t.name !== 'codegraph_docs');
   const raw = process.env.CODEGRAPH_MCP_TOOLS;
-  if (!raw || !raw.trim()) return tools;
+  if (!raw || !raw.trim()) return base;
   const allow = new Set(raw.split(',').map(s => s.trim().replace(/^codegraph_/, '')).filter(Boolean));
-  return allow.size ? tools.filter(t => allow.has(t.name.replace(/^codegraph_/, ''))) : tools;
+  return allow.size ? base.filter(t => allow.has(t.name.replace(/^codegraph_/, ''))) : base;
 }
 
 /**
@@ -728,6 +759,20 @@ export class ToolHandler {
   }
 
   /**
+   * Whether to advertise the opt-in codegraph_docs tool. With a loaded project
+   * this honors the persisted/env docs flag; without one (static surface) it can
+   * only see the env override. Any failure resolves to "off" so the default
+   * tool surface never gains a tool by accident.
+   */
+  private docsToolEnabled(): boolean {
+    try {
+      return this.cg ? resolveDocsEnabled(this.cg.getDb()) : docsEnvOverride() === true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
    * Get tool definitions with dynamic descriptions based on project size.
    * The codegraph_explore tool description includes a budget recommendation
    * scaled to the number of indexed files. Honors the CODEGRAPH_MCP_TOOLS
@@ -738,6 +783,12 @@ export class ToolHandler {
     let visible = allow
       ? tools.filter(t => allow.has(t.name.replace(/^codegraph_/, '')))
       : tools;
+    // codegraph_docs is opt-in: only advertise it when the docs feature is
+    // enabled, so the default (docs off) tool surface is byte-identical to
+    // before this feature existed — zero regression on every code-only repo.
+    if (!this.docsToolEnabled()) {
+      visible = visible.filter(t => t.name !== 'codegraph_docs');
+    }
     if (!this.cg) return visible;
 
     try {
@@ -775,7 +826,11 @@ export class ToolHandler {
         'codegraph_trace',
       ]);
       if (stats.fileCount < TINY_REPO_FILE_THRESHOLD) {
-        visible = visible.filter(t => TINY_REPO_CORE_TOOLS.has(t.name));
+        // codegraph_docs is already gated by docsToolEnabled() above, so when it
+        // reaches here the feature is on — keep it visible even on tiny repos.
+        visible = visible.filter(
+          t => TINY_REPO_CORE_TOOLS.has(t.name) || t.name === 'codegraph_docs'
+        );
       }
 
       return visible.map(tool => {
@@ -1120,6 +1175,8 @@ export class ToolHandler {
           result = await this.handleFiles(args); break;
         case 'codegraph_trace':
           result = await this.handleTrace(args); break;
+        case 'codegraph_docs':
+          result = await this.handleDocs(args); break;
         default:
           return this.errorResult(`Unknown tool: ${toolName}`);
       }
@@ -1162,6 +1219,59 @@ export class ToolHandler {
 
     const formatted = this.formatSearchResults(ranked);
     return this.textResult(this.truncateOutput(formatted));
+  }
+
+  /**
+   * Handle codegraph_docs — semantic search over the project's Markdown docs.
+   * Opt-in: when the docs feature is off or its optional deps are missing, this
+   * returns an actionable how-to-enable message rather than failing.
+   */
+  private async handleDocs(args: Record<string, unknown>): Promise<ToolResult> {
+    const query = this.validateString(args.query, 'query');
+    if (typeof query !== 'string') return query;
+
+    const cg = this.getCodeGraph(args.projectPath as string | undefined);
+    const topk = clamp(Number(args.topk) || 8, 1, 50);
+    const codeLimit = clamp(Number(args.codeLimit) || 8, 0, 100);
+
+    const res = await searchDocs(cg.getDb(), query, { topk, codeLimit });
+
+    if (!res.enabled) {
+      return this.textResult(
+        'The Markdown docs feature is off for this project.\n' +
+        'Enable it by re-indexing with docs: `codegraph index --with-docs` (or set ' +
+        'CODEGRAPH_DOCS=1), and install the optional embeddings dependency: ' +
+        '`npm i @xenova/transformers`.'
+      );
+    }
+    if (!res.available) {
+      const why = res.warnings.length ? res.warnings.join(' ') : 'documentation search is unavailable.';
+      return this.textResult(`The Markdown docs feature is enabled, but ${why}`);
+    }
+    if (res.hits.length === 0) {
+      return this.textResult(`No documentation matched "${query}".`);
+    }
+
+    return this.textResult(this.truncateOutput(this.formatDocs(query, res.hits)));
+  }
+
+  /** Render doc hits as compact markdown: file + BLK, summary, governed symbols. */
+  private formatDocs(query: string, hits: DocHit[]): string {
+    const lines: string[] = [`# Docs matching "${query}"`, ''];
+    for (const h of hits) {
+      const blk = h.blk ? ` [${h.blk}]` : '';
+      lines.push(`## ${h.file}${blk}`);
+      if (h.summary) lines.push(h.summary);
+      if (h.symbols.length) {
+        lines.push('', 'Governs:');
+        for (const s of h.symbols) {
+          const sig = s.signature ? ` — ${s.signature}` : '';
+          lines.push(`- \`${s.symbol}\` (${s.kind}) ${s.file}:${s.line}${sig}`);
+        }
+      }
+      lines.push('');
+    }
+    return lines.join('\n').trimEnd();
   }
 
   /**

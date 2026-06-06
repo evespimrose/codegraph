@@ -26,6 +26,7 @@ import { Command } from 'commander';
 import * as path from 'path';
 import * as fs from 'fs';
 import { getCodeGraphDir, isInitialized } from '../directory';
+import { resolveDocsEnabled } from '../docs/config';
 import { detectWorktreeIndexMismatch, worktreeMismatchWarning } from '../sync/worktree';
 import { createShimmerProgress } from '../ui/shimmer-progress';
 import { getGlyphs } from '../ui/glyphs';
@@ -284,6 +285,13 @@ type IndexResult = {
   edgesCreated: number;
   errors: Array<{ message: string; filePath?: string; severity: string; code?: string }>;
   durationMs: number;
+  docs?: {
+    enabled: boolean;
+    available: boolean;
+    scanned: number;
+    indexed: number;
+    skipped: number;
+  };
 };
 
 /**
@@ -320,6 +328,15 @@ function printIndexResult(clack: typeof import('@clack/prompts'), result: IndexR
     clack.log.error(`Indexing failed ${getGlyphs().dash} all ${formatNumber(result.filesErrored)} files had errors`);
   } else {
     clack.log.warn('No files found to index');
+  }
+
+  // Markdown docs (opt-in): report the re-index summary when the feature ran.
+  if (result.docs?.enabled) {
+    if (result.docs.available) {
+      clack.log.info(`Markdown: ${formatNumber(result.docs.indexed)} indexed, ${formatNumber(result.docs.skipped)} unchanged of ${formatNumber(result.docs.scanned)} docs`);
+    } else {
+      clack.log.warn(`Markdown docs enabled but unavailable ${getGlyphs().dash} install @xenova/transformers to embed docs`);
+    }
   }
 
   if (hasErrors) {
@@ -700,6 +717,15 @@ program
       const changes = cg.getChangedFiles();
       const backend = cg.getBackend();
       const journalMode = cg.getJournalMode();
+      // Markdown docs count — only when the opt-in feature is enabled (else
+      // null, so code-only projects render exactly as before).
+      let docsCount: number | null = null;
+      try {
+        if (resolveDocsEnabled(cg.getDb())) {
+          const row = cg.getDb().prepare('SELECT count(*) AS c FROM mdast_metadata').get() as { c: number } | undefined;
+          docsCount = row?.c ?? 0;
+        }
+      } catch { /* mdast_metadata absent (pre-v5 DB) — leave null */ }
 
       // JSON output mode
       if (options.json) {
@@ -712,6 +738,7 @@ program
           dbSizeBytes: stats.dbSizeBytes,
           backend,
           journalMode,
+          docsIndexed: docsCount,
           nodesByKind: stats.nodesByKind,
           languages: Object.entries(stats.filesByLanguage).filter(([, count]) => count > 0).map(([lang]) => lang),
           pendingChanges: {
@@ -741,6 +768,9 @@ program
       console.log(`  Files:     ${formatNumber(stats.fileCount)}`);
       console.log(`  Nodes:     ${formatNumber(stats.nodeCount)}`);
       console.log(`  Edges:     ${formatNumber(stats.edgeCount)}`);
+      if (docsCount !== null) {
+        console.log(`  Docs:      ${formatNumber(docsCount)} markdown`);
+      }
       console.log(`  DB Size:   ${(stats.dbSizeBytes / 1024 / 1024).toFixed(2)} MB`);
       // Surface the active SQLite backend (node:sqlite — Node's built-in real
       // SQLite, full WAL + FTS5, no native build).

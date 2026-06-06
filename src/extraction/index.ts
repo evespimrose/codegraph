@@ -70,6 +70,18 @@ export interface IndexResult {
   edgesCreated: number;
   errors: ExtractionError[];
   durationMs: number;
+  /**
+   * Markdown docs indexing summary — present only when the opt-in docs feature
+   * actually ran (enabled). Undefined on code-only / docs-off runs, so the
+   * default output is unchanged.
+   */
+  docs?: {
+    enabled: boolean;
+    available: boolean;
+    scanned: number;
+    indexed: number;
+    skipped: number;
+  };
 }
 
 /**

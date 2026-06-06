@@ -3205,6 +3205,16 @@ export class ToolHandler {
       `**Database size:** ${(stats.dbSizeBytes / 1024 / 1024).toFixed(2)} MB`,
     );
 
+    // Markdown docs (opt-in): surface the indexed-doc count only when the docs
+    // feature is enabled, so the default status output is byte-identical on
+    // code-only projects.
+    try {
+      if (resolveDocsEnabled(cg.getDb())) {
+        const row = cg.getDb().prepare('SELECT count(*) AS c FROM mdast_metadata').get() as { c: number } | undefined;
+        lines.push(`**Docs indexed:** ${row?.c ?? 0} markdown`);
+      }
+    } catch { /* mdast_metadata absent — skip */ }
+
     // Surface the active SQLite backend (node:sqlite, Node's built-in real
     // SQLite — full WAL + FTS5, no native build).
     lines.push(`**Backend:** node:sqlite (Node built-in) — full WAL + FTS5`);

@@ -88,6 +88,18 @@ describe('MCP docs gating (node / impact / context)', () => {
     const node = await text('codegraph_node', { symbol: 'fooFn' });
     expect(node).not.toContain('Related docs');
   });
+
+  it('codegraph_status reports the indexed-doc count when the feature is enabled', async () => {
+    insertGoverningDoc('docs/foo.md', ['src/foo.ts']);
+    setDocsEnabled(cg.getDb(), true);
+    const status = await text('codegraph_status', {});
+    expect(status).toContain('Docs indexed:');
+  });
+
+  it('codegraph_status omits the doc count when the feature is off (byte-identical default)', async () => {
+    const status = await text('codegraph_status', {});
+    expect(status).not.toContain('Docs indexed:');
+  });
 });
 
 describe('getServerInstructions (opt-in instructions gate)', () => {

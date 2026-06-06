@@ -402,7 +402,18 @@ export class CodeGraph {
         // any failure is swallowed so docs never break the code index.
         if (result.success) {
           try {
-            await indexMarkdown(this.db.getDb(), this.projectRoot);
+            const docs = await indexMarkdown(this.db.getDb(), this.projectRoot);
+            // Surface the summary to callers (CLI index/init reporting) only
+            // when the feature actually ran, so docs-off runs stay unchanged.
+            if (docs.enabled) {
+              result.docs = {
+                enabled: docs.enabled,
+                available: docs.available,
+                scanned: docs.scanned,
+                indexed: docs.indexed,
+                skipped: docs.skipped,
+              };
+            }
           } catch { /* docs are best-effort; never fail the code index */ }
         }
 

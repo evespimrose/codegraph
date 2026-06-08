@@ -1,5 +1,5 @@
 MODE=EXECUTE
-TASK=마크다운 벡터DB(sqlite-vec + MiniLM 임베딩)를 codegraph.db에 통합하고 codegraph MCP 커맨드 output에 편입. 10 스텝 순차 실행.
-PLAN_FILE=.claude/memory-bank/mdAddOn/plans/mdAddOn-2026-06-02-markdown-vectordb-integration.md
+TASK=CodeGraph Markdown-AST Integration (Phase A~E)
+PLAN_FILE=.claude/memory-bank/mdAddOn/plans/mdAddOn-2026-06-08-ast-integration.md
 BRANCH=mdAddOn
-STARTED=2026-06-02
+STARTED=2026-06-08

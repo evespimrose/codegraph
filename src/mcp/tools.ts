@@ -21,7 +21,7 @@ import {
 } from '../sync/worktree';
 import type { PendingFile } from '../sync';
 import type { Node, Edge, SearchResult, Subgraph, TaskContext, NodeKind } from '../types';
-import { searchDocs, findGoverningDocs, type DocHit } from '../docs/search';
+import { searchDocs, findGoverningDocs, findBacklinks, type DocHit } from '../docs/search';
 import { resolveDocsEnabled, docsEnvOverride } from '../docs/config';
 import { createHash } from 'crypto';
 import {
@@ -655,6 +655,21 @@ export const tools: ToolDefinition[] = [
       required: ['from', 'to'],
     },
   },
+  {
+    name: 'codegraph_backlinks',
+    description: 'Find both forward links (documents the target references) and backlinks (documents that reference the target) for a given Markdown document. Useful for structural Zettelkasten exploration.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        filePath: {
+          type: 'string',
+          description: 'Path to the Markdown file (e.g., "docs/architecture.md")',
+        },
+        projectPath: projectPathProperty,
+      },
+      required: ['filePath'],
+    },
+  },
 ];
 
 /**
@@ -1177,6 +1192,8 @@ export class ToolHandler {
           result = await this.handleTrace(args); break;
         case 'codegraph_docs':
           result = await this.handleDocs(args); break;
+        case 'codegraph_backlinks':
+          result = await this.handleBacklinks(args); break;
         default:
           return this.errorResult(`Unknown tool: ${toolName}`);
       }
@@ -1253,6 +1270,43 @@ export class ToolHandler {
     }
 
     return this.textResult(this.truncateOutput(this.formatDocs(query, res.hits)));
+  }
+
+  /**
+   * Handle codegraph_backlinks
+   */
+  private async handleBacklinks(args: Record<string, unknown>): Promise<ToolResult> {
+    const filePath = this.validateString(args.filePath, 'filePath');
+    if (typeof filePath !== 'string') return filePath;
+
+    const cg = this.getCodeGraph(args.projectPath as string | undefined);
+    
+    const res = findBacklinks(cg.getDb(), filePath);
+    if (!res) {
+      return this.textResult(
+        `No links found for "${filePath}". Either the file is not indexed, ` +
+        'the docs feature is off (`CODEGRAPH_DOCS=1` missing), or it has no links.'
+      );
+    }
+
+    const lines: string[] = [`# Links for "${res.file}"`, ''];
+    
+    lines.push('## Forward Links (Documents this file references)');
+    if (res.forwardLinks.length > 0) {
+      for (const link of res.forwardLinks) lines.push(`- ${link}`);
+    } else {
+      lines.push('None.');
+    }
+    lines.push('');
+
+    lines.push('## Backlinks (Documents that reference this file)');
+    if (res.backLinks.length > 0) {
+      for (const link of res.backLinks) lines.push(`- ${link}`);
+    } else {
+      lines.push('None.');
+    }
+
+    return this.textResult(lines.join('\n'));
   }
 
   /** Render doc hits as compact markdown: file + BLK, summary, governed symbols. */

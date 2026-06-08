@@ -38,6 +38,7 @@ export const NODE_KINDS = [
   'export',
   'route',
   'component',
+  'concept',
 ] as const;
 
 export type NodeKind = (typeof NODE_KINDS)[number];
@@ -57,7 +58,8 @@ export type EdgeKind =
   | 'returns'         // Function returns type
   | 'instantiates'    // Creates instance of class
   | 'overrides'       // Method overrides parent method
-  | 'decorates';      // Decorator applied to symbol
+  | 'decorates'       // Decorator applied to symbol
+  | 'governs';        // Markdown doc governs a symbol
 
 /**
  * Supported programming languages. See NODE_KINDS for why this is a

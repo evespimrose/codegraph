@@ -500,6 +500,26 @@ export class TreeSitterExtractor {
   }
 
   /**
+   * Add 'governs' references from // [BLK-XXX] markers inside a node's text.
+   */
+  private extractBlkReferences(node: SyntaxNode, nodeId: string): void {
+    const text = this.source.substring(node.startIndex, node.endIndex);
+    for (const match of text.matchAll(/\/\/\s*\[(BLK-[\w.-]+)\]/g)) {
+      if (match[1]) {
+        this.unresolvedReferences.push({
+          fromNodeId: nodeId,
+          referenceName: match[1],
+          referenceKind: 'governs',
+          line: node.startPosition.row + 1,
+          column: node.startPosition.column,
+          filePath: this.filePath,
+          language: this.language,
+        });
+      }
+    }
+  }
+
+  /**
    * Find first named child whose type is in the given list.
    * Used to locate inner type nodes (e.g. enum_specifier inside a typedef).
    */
@@ -660,6 +680,8 @@ export class TreeSitterExtractor {
     });
     if (!funcNode) return;
 
+    this.extractBlkReferences(node, funcNode.id);
+
     // Extract type annotations (parameter types and return type)
     this.extractTypeAnnotations(node, funcNode.id);
 
@@ -796,6 +818,8 @@ export class TreeSitterExtractor {
         });
       }
     }
+
+    this.extractBlkReferences(node, methodNode.id);
 
     // Extract type annotations (parameter types and return type)
     this.extractTypeAnnotations(node, methodNode.id);

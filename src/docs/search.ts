@@ -83,12 +83,17 @@ export interface SearchDocsResult {
   warnings: string[];
 }
 
-/** A doc that governs one or more queried code files (relevance gate). */
 export interface GoverningDoc {
   file: string;
   blk: string | null;
   summary: string;
   codeRefs: string[];
+}
+
+export interface DocLinksResult {
+  file: string;
+  forwardLinks: string[];
+  backLinks: string[];
 }
 
 export interface SearchDocsOptions {
@@ -244,6 +249,50 @@ export function findGoverningDocs(db: SqliteDatabase, filePaths: string[]): Gove
   }
 }
 
+/**
+ * Finds both forward links (documents the target references) and backlinks
+ * (documents that reference the target) for a given Markdown file.
+ * Requires the docs feature to be enabled and the file to be indexed.
+ */
+export function findBacklinks(db: SqliteDatabase, filePath: string): DocLinksResult | null {
+  if (!resolveDocsEnabled(db)) return null;
+  const target = normPath(filePath);
+  if (!target) return null;
+
+  try {
+    // 1. Get forward links (what target references)
+    const forwardRow = db
+      .prepare('SELECT doc_links FROM mdast_metadata WHERE file_path = ?')
+      .get(target) as { doc_links: string | null } | undefined;
+    
+    if (!forwardRow) return null; // Document not found in DB
+
+    const forwardLinks = parseRefs(forwardRow.doc_links);
+
+    // 2. Get backlinks (who references target)
+    // Fast path: JSON text search with LIKE, then strict verification.
+    const backRows = db
+      .prepare('SELECT file_path, doc_links FROM mdast_metadata WHERE doc_links LIKE ?')
+      .all('%"' + target + '"%') as Array<{ file_path: string; doc_links: string | null }>;
+    
+    const backLinks: string[] = [];
+    for (const row of backRows) {
+      const links = parseRefs(row.doc_links);
+      if (links.some(l => pathMatches(l, target))) {
+        backLinks.push(row.file_path);
+      }
+    }
+
+    return {
+      file: target,
+      forwardLinks,
+      backLinks
+    };
+  } catch {
+    return null;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // internals
 // ---------------------------------------------------------------------------
@@ -253,6 +302,7 @@ interface MetaRow {
   file_path: string;
   blk_tags: string | null;
   code_refs: string | null;
+  doc_links: string | null;
   content_summary: string | null;
 }
 

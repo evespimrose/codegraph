@@ -165,6 +165,7 @@ CREATE TABLE IF NOT EXISTS mdast_metadata (
     file_path       TEXT UNIQUE NOT NULL,
     blk_tags        TEXT,            -- 'BLK-XXX' parsed from line 2, or NULL
     code_refs       TEXT,            -- JSON array of code file paths this doc governs
+    doc_links       TEXT,            -- JSON array of document paths this doc references
     content_summary TEXT,
     content_hash    TEXT,            -- content hash of raw file → incremental scan
     last_updated    TEXT

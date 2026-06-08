@@ -17,7 +17,7 @@ import { createHash } from 'crypto';
 import type { SqliteDatabase } from '../db/sqlite-adapter';
 import { EMBED_DIM, resolveDocsEnabled, setDocsEnabled } from './config';
 import { loadVecExtension, floatBlob } from './vec';
-import { parseDoc } from './parse';
+import { parseDoc, extractBlkTags } from './parse';
 import { embed, isEmbedAvailable } from './embed';
 import { listMarkdownFiles } from './scan-files';
 
@@ -80,16 +80,22 @@ export async function indexMarkdown(
 
   const selHash = db.prepare('SELECT content_hash FROM mdast_metadata WHERE file_path = ?');
   const upMeta = db.prepare(
-    `INSERT INTO mdast_metadata (file_path, blk_tags, code_refs, content_summary, content_hash, last_updated)
-     VALUES (?, ?, ?, ?, ?, datetime('now'))
+    `INSERT INTO mdast_metadata (file_path, blk_tags, code_refs, doc_links, content_summary, content_hash, last_updated)
+     VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
      ON CONFLICT(file_path) DO UPDATE SET
        blk_tags=excluded.blk_tags, code_refs=excluded.code_refs,
+       doc_links=excluded.doc_links,
        content_summary=excluded.content_summary, content_hash=excluded.content_hash,
        last_updated=excluded.last_updated`
   );
   const getId = db.prepare('SELECT id FROM mdast_metadata WHERE file_path = ?');
   const delVec = db.prepare('DELETE FROM mdast_vectors WHERE rowid = ?');
   const insVec = db.prepare('INSERT INTO mdast_vectors(rowid, embedding) VALUES(?, ?)');
+  const insNode = db.prepare(`
+    INSERT OR REPLACE INTO nodes 
+    (id, kind, name, qualified_name, file_path, language, start_line, end_line, start_column, end_column, updated_at)
+    VALUES (?, 'concept', ?, ?, ?, 'markdown', ?, ?, 0, 0, ?)
+  `);
 
   const files = listMarkdownFiles(projectRoot);
   result.scanned = files.length;
@@ -111,6 +117,7 @@ export async function indexMarkdown(
     }
 
     const parsed = parseDoc(raw);
+    const blkTags = extractBlkTags(raw);
     if (!parsed.blk && GOVERNED_DIRS.some((d) => rel.startsWith(d))) {
       pushWarn(result, opts, `${rel}: missing line-2 <!-- BLK: BLK-XXX --> tag`);
     }
@@ -132,6 +139,7 @@ export async function indexMarkdown(
         rel,
         parsed.blk,
         parsed.codeRefs ? JSON.stringify(parsed.codeRefs) : null,
+        parsed.docLinks ? JSON.stringify(parsed.docLinks) : null,
         parsed.summary,
         hash
       );
@@ -139,6 +147,12 @@ export async function indexMarkdown(
       const rowid = BigInt(row.id);
       delVec.run(rowid);             // drop any stale vector for this rowid
       insVec.run(rowid, floatBlob(vec));
+      
+      const now = Date.now();
+      for (const t of blkTags) {
+        const nodeId = createHash('sha1').update(`${rel}::${t.tag}`).digest('hex');
+        insNode.run(nodeId, t.tag, t.tag, rel, t.line, t.line, now);
+      }
     })();
     result.indexed++;
   }

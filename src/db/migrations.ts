@@ -9,7 +9,7 @@ import { SqliteDatabase } from './sqlite-adapter';
 /**
  * Current schema version
  */
-export const CURRENT_SCHEMA_VERSION = 5;
+export const CURRENT_SCHEMA_VERSION = 8;
 
 /**
  * Migration definition
@@ -86,6 +86,25 @@ const migrations: Migration[] = [
         CREATE INDEX IF NOT EXISTS idx_mdast_file_path ON mdast_metadata(file_path);
       `);
     },
+  },
+  {
+    version: 6,
+    description: 'Add doc_links to mdast_metadata for Zettelkasten structural link exploration (Obsidian Bridge)',
+    up: (db) => {
+      db.exec(`
+        ALTER TABLE mdast_metadata ADD COLUMN doc_links TEXT;
+      `);
+    },
+  },
+  {
+    version: 7,
+    description: "Verify 'concept' node kind is allowed (no schema changes needed, enforced by TS types)",
+    up: (db) => {},
+  },
+  {
+    version: 8,
+    description: "Verify 'governs' edge kind is allowed (no schema changes needed, enforced by TS types)",
+    up: (db) => {},
   },
 ];
 

@@ -523,8 +523,7 @@ export class GraphTraverser {
 
     // Get all incoming edges (things that depend on this node)
     const incomingEdges = this.queries.getIncomingEdges(nodeId);
-    if (incomingEdges.length === 0) return;
-    const sources = this.queries.getNodesByIds(incomingEdges.map((e) => e.source));
+    const sources = incomingEdges.length > 0 ? this.queries.getNodesByIds(incomingEdges.map((e) => e.source)) : new Map();
 
     for (const edge of incomingEdges) {
       const sourceNode = sources.get(edge.source);
@@ -532,6 +531,20 @@ export class GraphTraverser {
         nodes.set(sourceNode.id, sourceNode);
         edges.push(edge);
         this.getImpactRecursive(sourceNode.id, maxDepth, currentDepth + 1, nodes, edges, visited);
+      }
+    }
+
+    // Also follow outgoing 'governs' edges so that modifying a code symbol
+    // impacts the concept/documentation it governs.
+    const outgoingGovernEdges = this.queries.getOutgoingEdges(nodeId, ['governs']);
+    const targets = outgoingGovernEdges.length > 0 ? this.queries.getNodesByIds(outgoingGovernEdges.map((e) => e.target)) : new Map();
+
+    for (const edge of outgoingGovernEdges) {
+      const targetNode = targets.get(edge.target);
+      if (targetNode && !nodes.has(targetNode.id)) {
+        nodes.set(targetNode.id, targetNode);
+        edges.push(edge);
+        this.getImpactRecursive(targetNode.id, maxDepth, currentDepth + 1, nodes, edges, visited);
       }
     }
   }

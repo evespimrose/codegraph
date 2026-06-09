@@ -665,6 +665,11 @@ export const tools: ToolDefinition[] = [
           type: 'string',
           description: 'Path to the Markdown file (e.g., "docs/architecture.md")',
         },
+        depth: {
+          type: 'number',
+          description: 'How many levels of backlinks to traverse recursively (default: 1, max: 5)',
+          default: 1,
+        },
         projectPath: projectPathProperty,
       },
       required: ['filePath'],
@@ -1281,7 +1286,8 @@ export class ToolHandler {
 
     const cg = this.getCodeGraph(args.projectPath as string | undefined);
     
-    const res = findBacklinks(cg.getDb(), filePath);
+    const depth = clamp(Number(args.depth) || 1, 1, 5);
+    const res = findBacklinks(cg.getDb(), filePath, depth);
     if (!res) {
       return this.textResult(
         `No links found for "${filePath}". Either the file is not indexed, ` +

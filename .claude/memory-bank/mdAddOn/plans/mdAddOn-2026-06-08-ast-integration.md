@@ -70,11 +70,11 @@
 ---
 
 ## 구현 순서 (Checklist)
-- [ ] Phase A: `parse.ts` — `[BLK]` 태그 파서 함수 작성
-- [ ] Phase B: Migration v7/v8 스키마 검증 및 필요시 마이그레이션 추가
-- [ ] Phase C: `indexer.ts` — concept 노드 및 governs 엣지 등록 로직
-- [ ] Phase D: `tools.ts` — `codegraph_node`, `codegraph_impact` 쿼리 확장
-- [ ] Phase E: `search.ts` — `findBacklinks` 재귀 순회 강화
+- [x] Phase A: `parse.ts` — `[BLK]` 태그 파서 함수 작성
+- [x] Phase B: Migration v7/v8 스키마 검증 및 필요시 마이그레이션 추가
+- [x] Phase C: `indexer.ts` — concept 노드 및 governs 엣지 등록 로직
+- [x] Phase D: `tools.ts` — `codegraph_node`, `codegraph_impact` 쿼리 확장
+- [x] Phase E: `search.ts` — `findBacklinks` 재귀 순회 강화
 - [ ] 검증: `D:\Fork\RX_1\manage\dictionary.md` 재인덱싱 후 `codegraph_node BLK-001` 질의 테스트
 
 ## 의존성 (Dependencies)

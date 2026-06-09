@@ -32,9 +32,10 @@ export function extractBlkTags(raw: string): BlkTag[] {
   const re = /(?:<!--\s*BLK:\s*(BLK-[\w.-]+)\s*-->|\[BLK:\s*(BLK-[\w.-]+)\]|\/\/\s*\[(BLK-[\w.-]+)\])/gi;
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
+    if (!line) continue;
     let match;
     while ((match = re.exec(line)) !== null) {
-      const tag = match[1] || match[2] || match[3];
+      const tag: string = match[1] ?? match[2] ?? match[3] ?? '';
       if (tag) {
         tags.push({ tag, line: i + 1 });
       }
@@ -82,7 +83,7 @@ export function parseDoc(raw: string): ParsedDoc {
     .replace(/<!--[\s\S]*?-->/g, ' '); // drop comments
 
   // Extract WikiLinks [[Link]] or [[Link|Alias]]
-  const wikiLinks = [...cleanBody.matchAll(/\[\[(.*?)\]\]/g)].map(m => (m[1] || '').split('|')[0].trim());
+  const wikiLinks = [...cleanBody.matchAll(/\[\[(.*?)\]\]/g)].map(m => (m[1] ?? '').split('|')[0]?.trim() ?? '');
   
   // Extract Markdown links [Text](Link)
   const mdLinks = [...cleanBody.matchAll(/\[.*?\]\((.*?)\)/g)].map(m => (m[1] || '').trim());

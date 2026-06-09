@@ -254,7 +254,7 @@ export function findGoverningDocs(db: SqliteDatabase, filePaths: string[]): Gove
  * (documents that reference the target) for a given Markdown file.
  * Requires the docs feature to be enabled and the file to be indexed.
  */
-export function findBacklinks(db: SqliteDatabase, filePath: string): DocLinksResult | null {
+export function findBacklinks(db: SqliteDatabase, filePath: string, maxDepth: number = 1): DocLinksResult | null {
   if (!resolveDocsEnabled(db)) return null;
   const target = normPath(filePath);
   if (!target) return null;
@@ -269,19 +269,25 @@ export function findBacklinks(db: SqliteDatabase, filePath: string): DocLinksRes
 
     const forwardLinks = parseRefs(forwardRow.doc_links);
 
-    // 2. Get backlinks (who references target)
-    // Fast path: JSON text search with LIKE, then strict verification.
-    const backRows = db
-      .prepare('SELECT file_path, doc_links FROM mdast_metadata WHERE doc_links LIKE ?')
-      .all('%"' + target + '"%') as Array<{ file_path: string; doc_links: string | null }>;
+    // 2. Get backlinks (who references target) recursively using CTE
+    const sql = `
+      WITH RECURSIVE chain(file_path, depth) AS (
+        SELECT file_path, 1 FROM mdast_metadata
+        WHERE doc_links LIKE ?
+        UNION
+        SELECT m.file_path, c.depth + 1
+        FROM mdast_metadata m
+        JOIN chain c ON m.doc_links LIKE '%"' || c.file_path || '"%'
+        WHERE c.depth < ?
+      )
+      SELECT DISTINCT file_path FROM chain;
+    `;
     
-    const backLinks: string[] = [];
-    for (const row of backRows) {
-      const links = parseRefs(row.doc_links);
-      if (links.some(l => pathMatches(l, target))) {
-        backLinks.push(row.file_path);
-      }
-    }
+    const backRows = db
+      .prepare(sql)
+      .all('%"' + target + '"%', maxDepth) as Array<{ file_path: string }>;
+    
+    const backLinks = backRows.map(row => row.file_path);
 
     return {
       file: target,

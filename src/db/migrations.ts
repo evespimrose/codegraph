@@ -99,12 +99,12 @@ const migrations: Migration[] = [
   {
     version: 7,
     description: "Verify 'concept' node kind is allowed (no schema changes needed, enforced by TS types)",
-    up: (db) => {},
+    up: (_db) => {},
   },
   {
     version: 8,
     description: "Verify 'governs' edge kind is allowed (no schema changes needed, enforced by TS types)",
-    up: (db) => {},
+    up: (_db) => {},
   },
 ];
 

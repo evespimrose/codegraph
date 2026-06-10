@@ -1,0 +1,53 @@
+---
+name: sync-global-codegraph
+description: >
+  Use when the user wants to update/sync the globally-installed `codegraph` command with THIS
+  project's current source — e.g. "전역 codegraph 최신화", "글로벌 codegraph 동기화",
+  "전역에 반영", "sync global codegraph", or invokes /sync-global-codegraph. Rebuilds the project
+  and reinstalls it globally as a REAL copy (npm pack + npm install -g), then verifies global == project
+  by file hash. Use this instead of `npm link` — cross-volume junctions are unstable on this machine.
+  Trigger on: "전역 codegraph 최신화/동기화", "global codegraph 갱신", "sync-global-codegraph".
+---
+
+# sync-global-codegraph
+
+이 프로젝트를 재빌드해 **전역 `codegraph` 명령**을 프로젝트 루트의 최신 빌드로 교체한다.
+`npm link`(junction)이 이 머신에서 불안정하므로 **`npm pack` + `npm install -g`(실제 복사)** 방식을 쓴다.
+
+## 실행 프로토콜
+
+```
+1. 스크립트 1줄 실행 (이 스킬의 scripts/sync-global.ps1, 절대경로)
+2. 출력의 verify 해시표·버전·종료코드로 결과 보고
+3. 코드 구현·다른 파일 수정 없음 — 스크립트 실행과 보고만
+```
+
+### 실행 (한 줄)
+
+PowerShell 도구로 이 스킬 디렉터리의 스크립트를 절대경로로 호출한다:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File "D:\Unity\codegraph\.claude\skills\sync-global-codegraph\scripts\sync-global.ps1"
+```
+
+### 스크립트가 하는 일 (sync-global.ps1)
+
+1. `git rev-parse --show-toplevel`로 repo 루트 확정 → `npm run build` *(실패 시 전역 미변경, exit 1)*
+2. 실행 중 codegraph 프로세스 정지 *(전역 폴더 파일 잠금 방지)*
+3. `npm pack` → tarball
+4. `npm install -g <tarball>` *(실제 복사 — junction 없음)* → tarball 삭제
+5. 검증: `dist/bin/codegraph.js`·`dist/index.js`·`dist/db/schema.sql` 해시가 전역과 일치하는지 + `codegraph --version`
+
+### 결과 해석 (종료코드)
+
+| 출력 | 코드 | 의미 |
+|------|------|------|
+| `OK  global codegraph = <ver> (matches project root)` | 0 | 동기화 성공 |
+| `BUILD FAILED - global UNCHANGED` | 1 | 소스 컴파일 실패 → 전역 그대로. 빌드 에러부터 수정 |
+| `MISMATCH  global not fully updated` | 2 | install 미반영(잠금 등) → 에이전트 종료 후 재실행 |
+
+## 주의
+
+- **복사 설치**라서 프로젝트를 수정할 때마다 이 스킬을 다시 실행해야 전역에 반영된다.
+- 끝의 `Exit code 255`나 stderr 경고는 npm deprecation 경고를 PowerShell이 NativeCommandError로 감싸는 quirk일 뿐 **실패가 아니다** — 판단은 항상 **verify 해시·버전**으로 한다.
+- 다른 머신/CI에는 적용 안 됨(이 PC의 전역 npm 한정).

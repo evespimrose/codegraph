@@ -562,7 +562,11 @@ program
     const projectPath = resolveProjectPath(pathArg);
     // --with-docs opts this process into Markdown indexing; indexAll then
     // persists the flag to project_metadata so MCP-server runs pick it up.
-    if (options.withDocs) process.env.CODEGRAPH_DOCS = '1';
+    // --force implies --with-docs: a force re-index wipes the whole graph
+    // (concept nodes included), so it must also rebuild the docs/concept layer
+    // rather than leave it permanently empty until a doc's content changes.
+    // When the docs deps are absent this is a graceful no-op (warn only).
+    if (options.withDocs || options.force) process.env.CODEGRAPH_DOCS = '1';
 
     try {
       if (!isInitialized(projectPath)) {

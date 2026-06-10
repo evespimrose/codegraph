@@ -1731,5 +1731,26 @@ export class QueryBuilder {
       this.db.exec('DELETE FROM nodes');
       this.db.exec('DELETE FROM files');
     })();
+    // Docs vector store (opt-in feature): concept nodes are wiped above with
+    // the rest of `nodes`, but the docs pass skips any doc whose content hash
+    // is unchanged — so without clearing its metadata a force re-index would
+    // never regenerate them. Clearing `mdast_metadata` (the hash gate) is what
+    // forces re-embedding; that alone is sufficient for concept regeneration.
+    // Done OUTSIDE the main transaction and per-table best-effort: `mdast_vectors`
+    // is a vec0 virtual table whose extension may not be loaded on this
+    // connection yet (clear runs before the docs pass loads it), and a missing
+    // module must not abort the whole wipe. The docs indexer drops each doc's
+    // stale vector by rowid before re-inserting, so a skipped vector clear here
+    // is harmless.
+    for (const t of ['mdast_metadata', 'mdast_vectors'] as const) {
+      try {
+        const exists = this.db
+          .prepare(`SELECT 1 FROM sqlite_master WHERE name = ?`)
+          .get(t);
+        if (exists) this.db.exec(`DELETE FROM ${t}`);
+      } catch {
+        /* vec0 module not loaded or table absent — non-fatal */
+      }
+    }
   }
 }

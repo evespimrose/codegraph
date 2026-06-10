@@ -26,18 +26,42 @@ export interface BlkTag {
   line: number;
 }
 
+/** A single BLK id, e.g. `BLK-001` / `BLK-INLINE`. */
+const BLK_ID = String.raw`BLK-[\w.-]+`;
+/** One-or-more comma-separated BLK ids — a cell/comment may carry several. */
+const BLK_LIST = String.raw`${BLK_ID}(?:\s*,\s*${BLK_ID})*`;
+
 export function extractBlkTags(raw: string): BlkTag[] {
   const tags: BlkTag[] = [];
   const lines = raw.split(/\r?\n/);
-  const re = /(?:<!--\s*BLK:\s*(BLK-[\w.-]+)\s*-->|\[BLK:\s*(BLK-[\w.-]+)\]|\/\/\s*\[(BLK-[\w.-]+)\])/gi;
+  // Four sites where a BLK id is *declared* (not merely mentioned in prose):
+  //   1) <!-- BLK: ids -->  HTML comment (cxt line-2 convention; multi-id ok)
+  //   2) [BLK: ids]         inline bracket form (multi-id ok)
+  //   3) // [BLK-XXX]       code-comment form (single id)
+  //   4) | ids |            a markdown table cell whose content is *only* BLK
+  //                         ids — the dictionary.md catalog form. Pipe-bounded
+  //                         so a prose "see BLK-001" never matches; the closing
+  //                         `|` is a lookahead, so adjacent BLK cells in one row
+  //                         both resolve (the shared pipe is not consumed).
+  const re = new RegExp(
+    `<!--\\s*BLK:\\s*(${BLK_LIST})\\s*-->` +
+      `|\\[BLK:\\s*(${BLK_LIST})\\]` +
+      `|//\\s*\\[(${BLK_ID})\\]` +
+      `|\\|\\s*(${BLK_LIST})\\s*(?=\\|)`,
+    'gi'
+  );
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     if (!line) continue;
-    let match;
+    let match: RegExpExecArray | null;
     while ((match = re.exec(line)) !== null) {
-      const tag: string = match[1] ?? match[2] ?? match[3] ?? '';
-      if (tag) {
-        tags.push({ tag, line: i + 1 });
+      const captured = match[1] ?? match[2] ?? match[3] ?? match[4] ?? '';
+      for (const part of captured.split(',')) {
+        const tag = part.trim();
+        // Drop the `BLK-XXX` (all-X) placeholder used in format docs/examples.
+        if (tag && !/^BLK-X+$/i.test(tag)) {
+          tags.push({ tag, line: i + 1 });
+        }
       }
     }
   }

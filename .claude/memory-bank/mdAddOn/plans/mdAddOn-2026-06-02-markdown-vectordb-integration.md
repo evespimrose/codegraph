@@ -4,7 +4,7 @@
 - **Date**: 2026-06-02
 - **Mode**: PLAN (RIPER) — 본 문서 승인 전 소스 수정 금지
 - **통합 원본**: `D:\Fork\codegraph-mdast` (`db/embed/parse/search/watch/mcp` 6개 `.mjs`; **`scan.mjs`·`cli.mjs` 누락** → TS 재구현)
-- **호스트**: `D:\Fork\codegraph` (`@colbymchenry/codegraph`)
+- **호스트**: `D:\Fork\codegraph` (`@evespimrose/codegraph`)
 
 ---
 

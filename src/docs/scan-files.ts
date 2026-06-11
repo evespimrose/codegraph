@@ -24,15 +24,17 @@ function gitMarkdownFiles(root: string): string[] | null {
   try {
     // --cached + --others --exclude-standard = tracked AND untracked-not-ignored,
     // matching what the code scanner considers "visible".
+    // -c core.quotepath=false: emit non-ASCII paths as-is instead of \octal escapes.
+    // -z: NUL-terminated output so paths with any whitespace are safe.
     const out = execFileSync(
       'git',
-      ['-C', root, 'ls-files', '--cached', '--others', '--exclude-standard'],
+      ['-C', root, '-c', 'core.quotepath=false', 'ls-files', '-z', '--cached', '--others', '--exclude-standard'],
       { encoding: 'utf-8', maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'ignore'] }
     );
     const files: string[] = [];
-    for (const line of out.split('\n')) {
-      const rel = line.trim();
-      if (rel && MD_EXT.test(rel)) files.push(path.resolve(root, rel));
+    for (const rel of out.split('\0')) {
+      const trimmed = rel.trim();
+      if (trimmed && MD_EXT.test(trimmed)) files.push(path.resolve(root, trimmed));
     }
     // Dedup (a path can appear in both cached and others lists in edge cases).
     return [...new Set(files)];

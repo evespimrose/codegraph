@@ -9,6 +9,10 @@ and adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixes
+
+- File names containing non-ASCII characters (Korean, Chinese, Japanese, etc.) are now indexed correctly in git-tracked projects.
+
 ### New Features
 
 - You can now index your project's Markdown documentation (design docs, specs, ADRs) alongside the code graph and search it by meaning with the new `codegraph_docs` tool — it returns the most relevant documents plus the code symbols each one governs, so you can jump straight from "what's the intent here" to the implementation. It's opt-in: index with `codegraph index --with-docs` (or set `CODEGRAPH_DOCS=1`) and install the optional embeddings dependency. Embeddings run entirely on your machine, and projects that don't opt in are completely unaffected.

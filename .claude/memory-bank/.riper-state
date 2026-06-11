@@ -1,5 +1,5 @@
 MODE=EXECUTE
-TASK=CodeGraph Markdown-AST Integration (Phase A~E)
-PLAN_FILE=.claude/memory-bank/mdAddOn/plans/mdAddOn-2026-06-08-ast-integration.md
-BRANCH=mdAddOn
-STARTED=2026-06-08
+TASK=비-ASCII(한글/한자) 파일명 인덱싱 누락 버그 수정. collectGitFiles에서 git ls-files 호출 시 core.quotePath=false 미적용으로 비-ASCII 파일명이 octal escape 시퀀스로 출력되어 인덱싱 실패.
+PLAN_FILE=.claude/memory-bank/Obsidian-Graph-Vector-DB/plans/Obsidian-Graph-Vector-DB-2026-06-11-non-ascii-filename-indexing.md
+BRANCH=Obsidian-Graph-Vector-DB
+STARTED=2026-06-11

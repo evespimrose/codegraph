@@ -4387,3 +4387,40 @@ void helperFunction(int count) {
     expect(getSupportedLanguages()).toContain('objc');
   });
 });
+
+describe('non-ASCII filenames', () => {
+  let tmpDir: string;
+
+  beforeEach(() => {
+    tmpDir = createTempDir();
+  });
+
+  afterEach(() => {
+    cleanupTempDir(tmpDir);
+  });
+
+  it('indexes files with Korean filenames in a git repo', () => {
+    const { execFileSync: exec } = require('child_process');
+    const gitOpts = { cwd: tmpDir, encoding: 'utf-8' as const, stdio: ['pipe', 'pipe', 'pipe'] as ['pipe', 'pipe', 'pipe'] };
+
+    exec('git', ['init'], gitOpts);
+    exec('git', ['config', 'user.email', 'test@test.com'], gitOpts);
+    exec('git', ['config', 'user.name', 'Test'], gitOpts);
+
+    const koreanFile = '인물_강은휘.ts';
+    fs.writeFileSync(path.join(tmpDir, koreanFile), 'export const x = 1;\n');
+    exec('git', ['add', '.'], gitOpts);
+    exec('git', ['commit', '-m', 'init'], gitOpts);
+
+    const files = scanDirectory(tmpDir);
+    expect(files).toContain(normalizePath(koreanFile));
+  });
+
+  it('indexes Korean files via filesystem walk (non-git project)', () => {
+    const koreanFile = '지명_낙양.ts';
+    fs.writeFileSync(path.join(tmpDir, koreanFile), 'export const y = 2;\n');
+
+    const files = scanDirectory(tmpDir);
+    expect(files).toContain(normalizePath(koreanFile));
+  });
+});

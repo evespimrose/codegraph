@@ -199,7 +199,7 @@ For any Windows-specific PR, bug, or implementation, validate it on the real Win
 
 ## Releases
 
-Released to npm and mirrored as [GitHub Releases](https://github.com/colbymchenry/codegraph/releases). `CHANGELOG.md` is the source of truth; GitHub Release notes are extracted from it.
+Released to npm and mirrored as [GitHub Releases](https://github.com/evespimrose/codegraph/releases). `CHANGELOG.md` is the source of truth; GitHub Release notes are extracted from it.
 
 ### Writing changelog entries
 

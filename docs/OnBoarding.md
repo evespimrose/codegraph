@@ -163,7 +163,7 @@ export const GOVERNED_DIRS = ['cxt/', 'docs/contextmd/', 'manage/'];  // indexer
 - **`codegraph status`** — 인덱싱된 문서 수 표시.
 - **비-ASCII 파일명 수정** — [scan-files.ts:31](../src/docs/scan-files.ts)에서 `git ls-files`에 `-c core.quotepath=false`(+`-z` NUL 종단). 한글/한자/일어 파일명이 octal 이스케이프되어 누락되던 버그 해결. (분석 보고서 §3.1에서 확진했던 그 버그.)
 - **`sync-global-codegraph` 스킬** — `npm pack` + `npm install -g`로 이 PC의 전역 `codegraph`를 프로젝트 빌드로 교체(junction 불안정 회피). 소스 수정 때마다 재실행 필요.
-- **패키지명** — `@colbymchenry/codegraph` → `@evespimrose/codegraph`.
+- **패키지명** — `@evespimrose/codegraph` → `@evespimrose/codegraph`.
 
 ---
 

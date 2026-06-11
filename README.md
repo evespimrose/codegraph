@@ -6,7 +6,7 @@
 
 **~25% cheaper · ~62% fewer tool calls · 100% local**
 
-### [Documentation & Website →](https://colbymchenry.github.io/codegraph/)
+### [Documentation & Website →](https://evespimrose.github.io/codegraph/)
 
 [![npm version](https://img.shields.io/npm/v/@evespimrose/codegraph.svg)](https://www.npmjs.com/package/@evespimrose/codegraph)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -33,10 +33,10 @@
 
 ```bash
 # macOS / Linux
-curl -fsSL https://raw.githubusercontent.com/colbymchenry/codegraph/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/evespimrose/codegraph/main/install.sh | sh
 
 # Windows (PowerShell)
-irm https://raw.githubusercontent.com/colbymchenry/codegraph/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/evespimrose/codegraph/main/install.ps1 | iex
 ```
 
 Already have Node? Use npm instead (works on any version):
@@ -232,7 +232,7 @@ agent writes src/Widget.ts
 
 The handful of cases where manual `codegraph sync` makes sense: the watcher is disabled (sandboxed environments, or `CODEGRAPH_NO_DAEMON=1`), or you're scripting against the index outside an agent session and want a pre-flight sync at the start of your script.
 
-→ Full deep-dive in [Guides → Indexing a Project](https://colbymchenry.github.io/codegraph/guides/indexing/#stay-fresh-automatically).
+→ Full deep-dive in [Guides → Indexing a Project](https://evespimrose.github.io/codegraph/guides/indexing/#stay-fresh-automatically).
 
 </details>
 
@@ -295,7 +295,7 @@ Each bridge emits edges tagged `provenance:'heuristic'` with `metadata.synthesiz
 ### 1. Run the Installer
 
 ```bash
-npx @colbymchenry/codegraph
+npx @evespimrose/codegraph
 ```
 
 The installer will:
@@ -628,7 +628,7 @@ is written):
 
 **MCP hits `database is locked`** — current builds shouldn't: CodeGraph bundles its own Node runtime and uses Node's built-in `node:sqlite` in WAL mode, where concurrent reads never block on a writer. If you still see it:
 
-- **You're on an old (pre-0.9) install.** Reinstall to get the bundled runtime — `curl -fsSL https://raw.githubusercontent.com/colbymchenry/codegraph/main/install.sh | sh` (macOS/Linux), `irm https://raw.githubusercontent.com/colbymchenry/codegraph/main/install.ps1 | iex` (Windows), or `npm i -g @evespimrose/codegraph@latest`.
+- **You're on an old (pre-0.9) install.** Reinstall to get the bundled runtime — `curl -fsSL https://raw.githubusercontent.com/evespimrose/codegraph/main/install.sh | sh` (macOS/Linux), `irm https://raw.githubusercontent.com/evespimrose/codegraph/main/install.ps1 | iex` (Windows), or `npm i -g @evespimrose/codegraph@latest`.
 - **`codegraph status` shows `Journal:` other than `wal`** — WAL couldn't be enabled on this filesystem (common on network shares and WSL2 `/mnt`), so reads can block on writes. Move the project (with its `.codegraph/` folder) onto a local disk.
 
 **MCP server not connecting** — Ensure the project is initialized/indexed, verify the path in your MCP config, and check that `codegraph serve --mcp` works from the command line.
@@ -637,11 +637,11 @@ is written):
 
 ## Star History
 
-<a href="https://www.star-history.com/?repos=colbymchenry%2Fcodegraph&type=date&legend=top-left">
+<a href="https://www.star-history.com/?repos=evespimrose%2Fcodegraph&type=date&legend=top-left">
  <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=colbymchenry/codegraph&type=date&theme=dark&legend=top-left" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=colbymchenry/codegraph&type=date&legend=top-left" />
-   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=colbymchenry/codegraph&type=date&legend=top-left" />
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=evespimrose/codegraph&type=date&theme=dark&legend=top-left" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=evespimrose/codegraph&type=date&legend=top-left" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=evespimrose/codegraph&type=date&legend=top-left" />
  </picture>
 </a>
 
@@ -655,6 +655,6 @@ MIT
 
 **Made for AI coding agents — Claude Code, Cursor, Codex CLI, opencode, Hermes Agent, Gemini CLI, Antigravity IDE, and Kiro**
 
-[Report Bug](https://github.com/colbymchenry/codegraph/issues) · [Request Feature](https://github.com/colbymchenry/codegraph/issues)
+[Report Bug](https://github.com/evespimrose/codegraph/issues) · [Request Feature](https://github.com/evespimrose/codegraph/issues)
 
 </div>

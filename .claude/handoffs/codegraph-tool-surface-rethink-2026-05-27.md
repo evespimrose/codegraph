@@ -20,7 +20,7 @@ Decide whether codegraph's 10-tool MCP surface should be cut down to ~2 core too
 
 ## Key findings (this session)
 
-- **PR #494 status**: 13 commits, all 1076 tests pass, https://github.com/colbymchenry/codegraph/pull/494. Already pushed:
+- **PR #494 status**: 13 commits, all 1076 tests pass, https://github.com/evespimrose/codegraph/pull/494. Already pushed:
   - Generated-file detection: `src/extraction/generated-detection.ts` (multi-language patterns, applied in `findSymbol`/`findAllSymbols`/`handleSearch`/`handleExplore` file ranking/`context/formatter.ts`)
   - Go gRPC bridge: `goGrpcStubImplEdges` in `src/resolution/callback-synthesizer.ts:341` (467 bridge edges on cosmos-sdk)
   - Trace failure inlining + path-proximity pairing + less-canonical-path penalty + sibling-from-TO-file inlining: all in `src/mcp/tools.ts` `handleTrace`
@@ -64,7 +64,7 @@ Decide whether codegraph's 10-tool MCP surface should be cut down to ~2 core too
 
 - branch `feat/go-multi-module-trace-quality`, last commit `ae5364c docs(mcp): pin empirical lower bound on tool gating after n=2 micro test`
 - uncommitted: clean
-- PR: https://github.com/colbymchenry/codegraph/pull/494 (13 commits, ready for review unless we land the tool-surface redesign)
+- PR: https://github.com/evespimrose/codegraph/pull/494 (13 commits, ready for review unless we land the tool-surface redesign)
 
 ## Open threads / TODO
 

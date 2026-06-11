@@ -3,7 +3,7 @@
 # `npm link`(junction)이 이 머신에서 불안정하므로 pack + `npm install -g`(복사) 방식 사용.
 # 종료코드: 0=동기화 성공, 1=빌드 실패(전역 미변경), 2=install 미반영(verify 불일치)
 
-$pkg = '@colbymchenry/codegraph'
+$pkg = '@evespimrose/codegraph'
 $repo = (git rev-parse --show-toplevel 2>$null)
 if (-not $repo) { $repo = (Get-Location).Path }
 Set-Location $repo
@@ -18,7 +18,7 @@ if ($LASTEXITCODE -ne 0) {
 
 Write-Host "[2/5] stop running codegraph processes (avoid file lock)" -ForegroundColor Cyan
 Get-CimInstance Win32_Process -Filter "Name='node.exe'" 2>$null |
-  Where-Object { $_.CommandLine -like '*@colbymchenry\codegraph*' -or $_.CommandLine -like '*.codegraph\bundles*' } |
+  Where-Object { $_.CommandLine -like '*@evespimrose\codegraph*' -or $_.CommandLine -like '*.codegraph\bundles*' } |
   ForEach-Object { try { Stop-Process -Id $_.ProcessId -Force -ErrorAction Stop; Write-Host "  killed PID $($_.ProcessId)" } catch {} }
 Start-Sleep -Milliseconds 700
 

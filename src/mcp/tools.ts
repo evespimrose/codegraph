@@ -1227,6 +1227,12 @@ export class ToolHandler {
     });
 
     if (results.length === 0) {
+      // Fallback: search mdast_metadata by basename/title when no code symbol matches.
+      // Allows `search "강은휘"` to find `character/인물_강은휘.md` without knowing the path.
+      if (!kind) {
+        const mdastHits = this.searchMdastByName(cg, query, limit);
+        if (mdastHits.length > 0) return this.textResult(mdastHits.join('\n'));
+      }
       return this.textResult(`No results found for "${query}"`);
     }
 
@@ -1241,6 +1247,47 @@ export class ToolHandler {
 
     const formatted = this.formatSearchResults(ranked);
     return this.textResult(this.truncateOutput(formatted));
+  }
+
+  /**
+   * Fallback: search mdast_metadata when no code symbol matched the query.
+   * Matches against file basename (without extension) and content_summary.
+   * Returns formatted lines ready for textResult.
+   */
+  private searchMdastByName(cg: CodeGraph, query: string, limit: number): string[] {
+    try {
+      const db = cg.getDb();
+      // Quick existence check — table may not exist on pre-docs projects.
+      const exists = db.prepare(
+        "SELECT 1 FROM sqlite_master WHERE name='mdast_metadata' LIMIT 1"
+      ).get();
+      if (!exists) return [];
+
+      const rows = db.prepare(
+        'SELECT file_path, content_summary FROM mdast_metadata'
+      ).all() as Array<{ file_path: string; content_summary: string | null }>;
+
+      const q = query.toLowerCase();
+      const matched = rows.filter(r => {
+        const base = r.file_path.split('/').pop()?.replace(/\.[^.]+$/, '').toLowerCase() ?? '';
+        const summary = (r.content_summary ?? '').toLowerCase();
+        return base.includes(q) || summary.includes(q);
+      });
+
+      if (matched.length === 0) return [];
+
+      const lines = [`## Markdown docs matching "${query}"`, ''];
+      for (const r of matched.slice(0, limit)) {
+        const summary = r.content_summary
+          ? ` — ${r.content_summary.slice(0, 120).trimEnd()}${r.content_summary.length > 120 ? '…' : ''}`
+          : '';
+        lines.push(`- **${r.file_path}**${summary}`);
+      }
+      lines.push('', `> Use \`codegraph_backlinks\` with the file path above to navigate links.`);
+      return lines;
+    } catch {
+      return [];
+    }
   }
 
   /**

@@ -420,6 +420,14 @@ export class CodeGraph {
                 const governs = linkGovernsEdges(this.db.getDb(), this.queries);
                 if (governs.linked > 0) result.docs.governsLinked = governs.linked;
               } catch { /* best-effort: governs failure never breaks the code index */ }
+              // Markdown-graph totals (concept nodes + governs edges) for the CLI
+              // index/init summary, reported distinctly from the code node/edge
+              // counts. Best-effort: a count failure never breaks the code index.
+              try {
+                const md = this.queries.getMarkdownGraphCounts();
+                result.docs.conceptNodes = md.nodes;
+                result.docs.governsEdges = md.edges;
+              } catch { /* non-fatal */ }
             }
           } catch { /* docs are best-effort; never fail the code index */ }
         }

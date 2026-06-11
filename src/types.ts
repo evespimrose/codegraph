@@ -62,6 +62,20 @@ export type EdgeKind =
   | 'governs';        // Markdown doc governs a symbol
 
 /**
+ * Node kinds belonging to the markdown graph (derived from Markdown docs via
+ * BLK markers), as opposed to the tree-sitter code graph. Used to report and
+ * filter the markdown layer distinctly from code nodes. Currently just
+ * `concept`.
+ */
+export const MARKDOWN_NODE_KINDS: readonly NodeKind[] = ['concept'];
+
+/**
+ * Edge kinds belonging to the markdown graph (concept → code symbol), as
+ * opposed to the code graph. Currently just `governs`.
+ */
+export const MARKDOWN_EDGE_KINDS: readonly EdgeKind[] = ['governs'];
+
+/**
  * Supported programming languages. See NODE_KINDS for why this is a
  * runtime-iterable const array.
  */
@@ -470,6 +484,19 @@ export interface GraphStats {
 
   /** File counts by language */
   filesByLanguage: Record<Language, number>;
+
+  /**
+   * Markdown-graph nodes (`language='markdown'`, e.g. `concept` nodes derived
+   * from BLK markers). A subset of `nodeCount`; surfaced separately so callers
+   * can report the markdown graph distinctly from the code graph.
+   */
+  markdownNodeCount: number;
+
+  /**
+   * Markdown-graph edges (`governs` — concept → code symbol). A subset of
+   * `edgeCount`; surfaced separately from the code graph for the same reason.
+   */
+  markdownEdgeCount: number;
 
   /** Database size in bytes */
   dbSizeBytes: number;

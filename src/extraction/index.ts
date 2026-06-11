@@ -83,6 +83,17 @@ export interface IndexResult {
     skipped: number;
     /** governs edges created by linkGovernsEdges after indexMarkdown */
     governsLinked?: number;
+    /**
+     * Total `concept` nodes in the markdown graph after this index (not the
+     * delta). Surfaced so the CLI can report markdown nodes distinctly from
+     * code nodes.
+     */
+    conceptNodes?: number;
+    /**
+     * Total `governs` edges in the markdown graph after this index (not the
+     * delta). Reported alongside conceptNodes, distinct from code edges.
+     */
+    governsEdges?: number;
   };
 }
 

@@ -12,6 +12,7 @@ import {
   UnresolvedReference,
   NodeKind,
   EdgeKind,
+  MARKDOWN_EDGE_KINDS,
   Language,
   GraphStats,
   SearchOptions,
@@ -1656,6 +1657,26 @@ export class QueryBuilder {
   }
 
   /**
+   * Count the markdown-graph nodes and edges — the layer derived from
+   * Markdown docs (concept nodes from BLK markers + governs edges), as opposed
+   * to the tree-sitter code graph. Nodes are identified by
+   * `language='markdown'` (kind-agnostic, robust to future markdown node
+   * kinds); edges by `kind` in {@link MARKDOWN_EDGE_KINDS}. Both columns are
+   * indexed, so this is cheap. Used by getStats and the index/init CLI summary
+   * to report the markdown graph distinctly from the code graph.
+   */
+  getMarkdownGraphCounts(): { nodes: number; edges: number } {
+    const placeholders = MARKDOWN_EDGE_KINDS.map(() => '?').join(', ');
+    return this.db
+      .prepare(
+        `SELECT
+           (SELECT COUNT(*) FROM nodes WHERE language = 'markdown') AS nodes,
+           (SELECT COUNT(*) FROM edges WHERE kind IN (${placeholders})) AS edges`
+      )
+      .get(...MARKDOWN_EDGE_KINDS) as { nodes: number; edges: number };
+  }
+
+  /**
    * Get graph statistics
    */
   getStats(): GraphStats {
@@ -1691,6 +1712,8 @@ export class QueryBuilder {
       filesByLanguage[row.language as Language] = row.count;
     }
 
+    const md = this.getMarkdownGraphCounts();
+
     return {
       nodeCount: counts.node_count,
       edgeCount: counts.edge_count,
@@ -1698,6 +1721,8 @@ export class QueryBuilder {
       nodesByKind,
       edgesByKind,
       filesByLanguage,
+      markdownNodeCount: md.nodes,
+      markdownEdgeCount: md.edges,
       dbSizeBytes: 0, // Set by caller using DatabaseConnection.getSize()
       lastUpdated: Date.now(),
     };

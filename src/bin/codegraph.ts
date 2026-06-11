@@ -33,6 +33,7 @@ import { getGlyphs } from '../ui/glyphs';
 
 import { buildNode25BlockBanner, buildNodeTooOldBanner, MIN_NODE_MAJOR } from './node-version-check';
 import { relaunchWithWasmRuntimeFlagsIfNeeded } from '../extraction/wasm-runtime-flags';
+import { MARKDOWN_NODE_KINDS, MARKDOWN_EDGE_KINDS, type NodeKind, type EdgeKind } from '../types';
 
 // Lazy-load heavy modules (CodeGraph, runInstaller) to keep CLI startup fast.
 async function loadCodeGraph(): Promise<typeof import('../index')> {
@@ -291,6 +292,10 @@ type IndexResult = {
     scanned: number;
     indexed: number;
     skipped: number;
+    /** Total concept nodes in the markdown graph (reported distinctly from code). */
+    conceptNodes?: number;
+    /** Total governs edges in the markdown graph (reported distinctly from code). */
+    governsEdges?: number;
   };
 };
 
@@ -331,9 +336,17 @@ function printIndexResult(clack: typeof import('@clack/prompts'), result: IndexR
   }
 
   // Markdown docs (opt-in): report the re-index summary when the feature ran.
+  // The concept-node / governs-edge totals are appended so the markdown graph
+  // reads distinctly from the code nodes/edges line above.
   if (result.docs?.enabled) {
     if (result.docs.available) {
-      clack.log.info(`Markdown: ${formatNumber(result.docs.indexed)} indexed, ${formatNumber(result.docs.skipped)} unchanged of ${formatNumber(result.docs.scanned)} docs`);
+      let line = `Markdown: ${formatNumber(result.docs.indexed)} indexed, ${formatNumber(result.docs.skipped)} unchanged of ${formatNumber(result.docs.scanned)} docs`;
+      const concepts = result.docs.conceptNodes ?? 0;
+      const governs = result.docs.governsEdges ?? 0;
+      if (concepts > 0 || governs > 0) {
+        line += ` ${getGlyphs().dash} ${formatNumber(concepts)} concept nodes, ${formatNumber(governs)} governs edges`;
+      }
+      clack.log.info(line);
     } else {
       clack.log.warn(`Markdown docs enabled but unavailable ${getGlyphs().dash} install @xenova/transformers to embed docs`);
     }
@@ -439,9 +452,14 @@ program
   .option('--with-docs', 'Also index Markdown docs into the vector store (requires the optional @xenova/transformers dep); persists the choice for this project')
   .action(async (pathArg: string | undefined, options: { index?: boolean; verbose?: boolean; withDocs?: boolean }) => {
     const projectPath = path.resolve(pathArg || process.cwd());
-    // --with-docs opts this process into Markdown indexing; indexAll then
-    // persists the flag to project_metadata so MCP-server runs pick it up.
-    if (options.withDocs) process.env.CODEGRAPH_DOCS = '1';
+    // init always builds a full index into a fresh DB — exactly like
+    // `index --force`, so it implies --with-docs: build the docs/concept layer
+    // now rather than leave it empty until a later --with-docs run. Graceful
+    // no-op when @xenova/transformers is absent (warn only). An explicit
+    // CODEGRAPH_DOCS=0 still wins, since resolveDocsEnabled honors the env.
+    if (options.withDocs || process.env.CODEGRAPH_DOCS === undefined) {
+      process.env.CODEGRAPH_DOCS = '1';
+    }
     const clack = await importESM('@clack/prompts');
 
     clack.intro('Initializing CodeGraph');
@@ -767,14 +785,21 @@ program
       }
       console.log();
 
-      // Index stats
+      // Markdown graph (concept nodes + governs edges) is the layer derived
+      // from docs; report it distinctly from the tree-sitter code graph. Only
+      // split the labels when a markdown graph actually exists, so plain code
+      // projects keep the original output.
+      const hasMarkdownGraph = stats.markdownNodeCount > 0 || stats.markdownEdgeCount > 0;
+      const codeNodes = stats.nodeCount - stats.markdownNodeCount;
+      const codeEdges = stats.edgeCount - stats.markdownEdgeCount;
+      const codeTag = hasMarkdownGraph ? `   ${chalk.dim('(code)')}` : '';
+
+      // Index stats — these counts are the code graph; the markdown graph is
+      // reported in its own section below.
       console.log(chalk.bold('Index Statistics:'));
       console.log(`  Files:     ${formatNumber(stats.fileCount)}`);
-      console.log(`  Nodes:     ${formatNumber(stats.nodeCount)}`);
-      console.log(`  Edges:     ${formatNumber(stats.edgeCount)}`);
-      if (docsCount !== null) {
-        console.log(`  Docs:      ${formatNumber(docsCount)} markdown`);
-      }
+      console.log(`  Nodes:     ${formatNumber(codeNodes)}${codeTag}`);
+      console.log(`  Edges:     ${formatNumber(codeEdges)}${codeTag}`);
       console.log(`  DB Size:   ${(stats.dbSizeBytes / 1024 / 1024).toFixed(2)} MB`);
       // Surface the active SQLite backend (node:sqlite — Node's built-in real
       // SQLite, full WAL + FTS5, no native build).
@@ -790,12 +815,35 @@ program
       console.log(`  Journal:   ${journalLabel}`);
       console.log();
 
-      // Node breakdown
-      console.log(chalk.bold('Nodes by Kind:'));
+      // Markdown graph — concept nodes + governs edges + doc count, kept
+      // distinct from the code graph above. Shown whenever docs exist in any
+      // form (indexed docs, or a concept/governs layer).
+      if (docsCount !== null || hasMarkdownGraph) {
+        console.log(chalk.bold('Markdown Graph:'));
+        if (docsCount !== null) {
+          console.log(`  Docs:      ${formatNumber(docsCount)} markdown`);
+        }
+        console.log(`  Concepts:  ${formatNumber(stats.markdownNodeCount)} nodes`);
+        console.log(`  Governs:   ${formatNumber(stats.markdownEdgeCount)} edges`);
+        console.log();
+      }
+
+      // Node breakdown — code kinds only; markdown kinds live in Markdown Graph.
+      console.log(chalk.bold(hasMarkdownGraph ? 'Nodes by Kind (code):' : 'Nodes by Kind:'));
       const nodesByKind = Object.entries(stats.nodesByKind)
-        .filter(([, count]) => count > 0)
+        .filter(([kind, count]) => count > 0 && !MARKDOWN_NODE_KINDS.includes(kind as NodeKind))
         .sort((a, b) => b[1] - a[1]);
       for (const [kind, count] of nodesByKind) {
+        console.log(`  ${kind.padEnd(15)} ${formatNumber(count)}`);
+      }
+      console.log();
+
+      // Edge breakdown — code kinds only; markdown 'governs' lives in Markdown Graph.
+      console.log(chalk.bold(hasMarkdownGraph ? 'Edges by Kind (code):' : 'Edges by Kind:'));
+      const edgesByKind = Object.entries(stats.edgesByKind)
+        .filter(([kind, count]) => count > 0 && !MARKDOWN_EDGE_KINDS.includes(kind as EdgeKind))
+        .sort((a, b) => b[1] - a[1]);
+      for (const [kind, count] of edgesByKind) {
         console.log(`  ${kind.padEnd(15)} ${formatNumber(count)}`);
       }
       console.log();

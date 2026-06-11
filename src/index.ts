@@ -25,6 +25,7 @@ import {
 import { DatabaseConnection, getDatabasePath } from './db';
 import type { SqliteDatabase } from './db/sqlite-adapter';
 import { indexMarkdown } from './docs/indexer';
+import { linkGovernsEdges } from './docs/governs-linker';
 import { QueryBuilder } from './db/queries';
 import {
   isInitialized,
@@ -413,6 +414,12 @@ export class CodeGraph {
                 indexed: docs.indexed,
                 skipped: docs.skipped,
               };
+              // Link governs edges: concept nodes now exist, resolve preserved refs.
+              // Barrier: no-op for projects without BLK markers or non-canonical docs.
+              try {
+                const governs = linkGovernsEdges(this.db.getDb(), this.queries);
+                if (governs.linked > 0) result.docs.governsLinked = governs.linked;
+              } catch { /* best-effort: governs failure never breaks the code index */ }
             }
           } catch { /* docs are best-effort; never fail the code index */ }
         }
@@ -504,6 +511,15 @@ export class CodeGraph {
               });
             });
           }
+        }
+
+        // Re-link governs edges: code changes may create new governs refs.
+        // Concept nodes persist from the last full index (or indexMarkdown run).
+        // Barrier: no-op for projects without BLK markers — returns {0,0} immediately.
+        if (result.filesAdded > 0 || result.filesModified > 0) {
+          try {
+            linkGovernsEdges(this.db.getDb(), this.queries);
+          } catch { /* best-effort: governs relink never breaks sync */ }
         }
 
         // Refresh planner stats + checkpoint the WAL after bulk writes.

@@ -81,6 +81,8 @@ export interface IndexResult {
     scanned: number;
     indexed: number;
     skipped: number;
+    /** governs edges created by linkGovernsEdges after indexMarkdown */
+    governsLinked?: number;
   };
 }
 

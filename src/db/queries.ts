@@ -1507,6 +1507,22 @@ export class QueryBuilder {
     }));
   }
 
+  getUnresolvedReferencesByKind(kind: string): UnresolvedReference[] {
+    const rows = this.db
+      .prepare('SELECT * FROM unresolved_refs WHERE reference_kind = ?')
+      .all(kind) as UnresolvedRefRow[];
+    return rows.map((row) => ({
+      fromNodeId: row.from_node_id,
+      referenceName: row.reference_name,
+      referenceKind: row.reference_kind as EdgeKind,
+      line: row.line,
+      column: row.col,
+      candidates: row.candidates ? safeJsonParse(row.candidates, undefined) : undefined,
+      filePath: row.file_path,
+      language: row.language as Language,
+    }));
+  }
+
   /**
    * Get the count of unresolved references without loading them into memory
    */

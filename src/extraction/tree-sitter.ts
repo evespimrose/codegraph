@@ -216,6 +216,19 @@ export class TreeSitterExtractor {
       // Push file node onto stack so top-level declarations get contains edges
       this.nodeStack.push(fileNode.id);
 
+      // BLK markers in the file header (before the first top-level declaration).
+      // Skip leading comment nodes — they ARE the markers we're looking for, so
+      // we need to find the first non-comment declaration as the upper bound.
+      let firstNonComment = this.tree.rootNode.firstNamedChild;
+      while (firstNonComment && firstNonComment.type.includes('comment')) {
+        firstNonComment = firstNonComment.nextNamedSibling ?? null;
+      }
+      this.extractBlkReferences(
+        this.tree.rootNode,
+        fileNode.id,
+        firstNonComment ? firstNonComment.startIndex : undefined
+      );
+
       // File-level package declaration (Kotlin/Java). Creates an implicit
       // `namespace` node wrapping every top-level declaration so their
       // qualifiedName carries the FQN — required for cross-file import
@@ -502,8 +515,8 @@ export class TreeSitterExtractor {
   /**
    * Add 'governs' references from // [BLK-XXX] markers inside a node's text.
    */
-  private extractBlkReferences(node: SyntaxNode, nodeId: string): void {
-    const text = this.source.substring(node.startIndex, node.endIndex);
+  private extractBlkReferences(node: SyntaxNode, nodeId: string, toIndex?: number): void {
+    const text = this.source.substring(node.startIndex, toIndex ?? node.endIndex);
     for (const match of text.matchAll(/\/\/\s*\[(BLK-[\w.-]+)\]/g)) {
       if (match[1]) {
         this.unresolvedReferences.push({
@@ -724,11 +737,16 @@ export class TreeSitterExtractor {
     // Extract decorators applied to the class (`@Foo class X {}`).
     this.extractDecoratorsFor(node, classNode.id);
 
-    // Push to stack and visit body
-    this.nodeStack.push(classNode.id);
+    // BLK markers in the class header (declaration up to body open-brace).
+    // Scan only up to the body start so markers inside methods are not
+    // double-attributed (extractFunction/extractMethod handle those).
     let body = this.extractor.resolveBody?.(node, this.extractor.bodyField)
       ?? getChildByField(node, this.extractor.bodyField);
     if (!body) body = node;
+    this.extractBlkReferences(node, classNode.id, body.startIndex);
+
+    // Push to stack and visit body
+    this.nodeStack.push(classNode.id);
 
     // Visit all children for methods and properties
     for (let i = 0; i < body.namedChildCount; i++) {

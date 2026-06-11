@@ -34,7 +34,11 @@ export interface MarkdownIndexResult {
 
 // Dirs whose docs are expected to carry a line-2 BLK tag; a missing BLK there
 // only warns (never aborts). README/CHANGELOG/etc. are fine without one.
-const GOVERNED_DIRS = ['cxt/', 'docs/contextmd/'];
+// Also used as the canonical-doc set for concept node creation: only docs
+// under these prefixes produce concept nodes (and become governs edge targets).
+// Projects that don't use BLK tags at all are unaffected — concept creation
+// is gated on blkTags being non-empty, so the guard is a no-op for them.
+export const GOVERNED_DIRS = ['cxt/', 'docs/contextmd/', 'manage/'];
 
 /** Create the vec0 vector table (idempotent). Requires sqlite-vec loaded. */
 export function ensureVectorTable(db: SqliteDatabase): void {
@@ -148,10 +152,17 @@ export async function indexMarkdown(
       delVec.run(rowid);             // drop any stale vector for this rowid
       insVec.run(rowid, floatBlob(vec));
       
-      const now = Date.now();
-      for (const t of blkTags) {
-        const nodeId = createHash('sha1').update(`${rel}::${t.tag}`).digest('hex');
-        insNode.run(nodeId, t.tag, t.tag, rel, t.line, t.line, now);
+      // concept nodes are only created for canonical docs (GOVERNED_DIRS).
+      // Non-canonical mentions (memory-bank, verification reports, etc.) are
+      // deliberately excluded to prevent duplicate / noisy concept nodes.
+      // Projects that don't use BLK tags produce empty blkTags → no-op.
+      const isCanonicalDoc = GOVERNED_DIRS.some((d) => rel.startsWith(d));
+      if (isCanonicalDoc) {
+        const now = Date.now();
+        for (const t of blkTags) {
+          const nodeId = createHash('sha1').update(`${rel}::${t.tag}`).digest('hex');
+          insNode.run(nodeId, t.tag, t.tag, rel, t.line, t.line, now);
+        }
       }
     })();
     result.indexed++;

@@ -1,5 +1,6 @@
-MODE=PLAN
+MODE=EXECUTE
 TASK=RX_1 governs edge / code→concept linking 수술 (검증보고서 0476a03 기준)
 PLAN_FILE=.claude/memory-bank/Obsidian-Graph-Vector-DB/plans/Obsidian-Graph-Vector-DB-2026-06-11-governs-edge-concept-linking.md
 BRANCH=Obsidian-Graph-Vector-DB
 STARTED=2026-06-11
+CANONICAL_DIRS=cxt/,docs/contextmd/,manage/

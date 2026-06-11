@@ -253,6 +253,10 @@ export function findGoverningDocs(db: SqliteDatabase, filePaths: string[]): Gove
  * Finds both forward links (documents the target references) and backlinks
  * (documents that reference the target) for a given Markdown file.
  * Requires the docs feature to be enabled and the file to be indexed.
+ *
+ * Forward links are recursively expanded up to maxDepth hops.
+ * Backlinks use basename-tolerant matching so [[인물_강은휘]] (stored as
+ * "인물_강은휘.md") resolves against "character/인물_강은휘.md".
  */
 export function findBacklinks(db: SqliteDatabase, filePath: string, maxDepth: number = 1): DocLinksResult | null {
   if (!resolveDocsEnabled(db)) return null;
@@ -260,34 +264,56 @@ export function findBacklinks(db: SqliteDatabase, filePath: string, maxDepth: nu
   if (!target) return null;
 
   try {
-    // 1. Get forward links (what target references)
-    const forwardRow = db
-      .prepare('SELECT doc_links FROM mdast_metadata WHERE file_path = ?')
-      .get(target) as { doc_links: string | null } | undefined;
-    
-    if (!forwardRow) return null; // Document not found in DB
+    // 1. Get forward links recursively up to maxDepth hops.
+    //    BFS: frontier = file_paths already in DB; each hop resolves the
+    //    stored basename links in doc_links to full file_path values via
+    //    basename-match, then recurses into those.
+    const visited = new Set<string>([target]);
+    const forwardLinks: string[] = [];
 
-    const forwardLinks = parseRefs(forwardRow.doc_links);
+    // Build a basename → full path map once for the whole DB.
+    const allDocs = db
+      .prepare('SELECT file_path, doc_links FROM mdast_metadata')
+      .all() as Array<{ file_path: string; doc_links: string | null }>;
+    const basenameIndex = new Map<string, string>(); // basename → file_path
+    for (const row of allDocs) {
+      basenameIndex.set(baseName(row.file_path), row.file_path);
+    }
+    const docLinksMap = new Map<string, string[]>(); // file_path → doc_links
+    for (const row of allDocs) {
+      docLinksMap.set(row.file_path, parseRefs(row.doc_links));
+    }
 
-    // 2. Get backlinks (who references target) recursively using CTE
-    const sql = `
-      WITH RECURSIVE chain(file_path, depth) AS (
-        SELECT file_path, 1 FROM mdast_metadata
-        WHERE doc_links LIKE ?
-        UNION
-        SELECT m.file_path, c.depth + 1
-        FROM mdast_metadata m
-        JOIN chain c ON m.doc_links LIKE '%"' || c.file_path || '"%'
-        WHERE c.depth < ?
-      )
-      SELECT DISTINCT file_path FROM chain;
-    `;
-    
-    const backRows = db
-      .prepare(sql)
-      .all('%"' + target + '"%', maxDepth) as Array<{ file_path: string }>;
-    
-    const backLinks = backRows.map(row => row.file_path);
+    let frontier = [target];
+    for (let depth = 0; depth < maxDepth && frontier.length > 0; depth++) {
+      const next: string[] = [];
+      for (const fp of frontier) {
+        const links = docLinksMap.get(fp) ?? [];
+        for (const link of links) {
+          // link is stored as basename (e.g. "인물_강은휘.md"); resolve to full path.
+          const resolved = basenameIndex.get(link) ?? basenameIndex.get(baseName(link)) ?? link;
+          if (!visited.has(resolved)) {
+            visited.add(resolved);
+            forwardLinks.push(resolved);
+            next.push(resolved);
+          }
+        }
+      }
+      frontier = next;
+    }
+
+    // 2. Get backlinks (who references target) — basename-tolerant.
+    //    A doc references target if any of its doc_links entries matches
+    //    the target's basename.
+    const targetBase = baseName(target);
+    const backLinks: string[] = [];
+    for (const row of allDocs) {
+      if (row.file_path === target) continue;
+      const links = parseRefs(row.doc_links);
+      if (links.some(l => l === target || l === targetBase || baseName(l) === targetBase)) {
+        backLinks.push(row.file_path);
+      }
+    }
 
     return {
       file: target,
@@ -297,6 +323,11 @@ export function findBacklinks(db: SqliteDatabase, filePath: string, maxDepth: nu
   } catch {
     return null;
   }
+}
+
+/** Extract the filename from a path (last segment). */
+function baseName(p: string): string {
+  return normPath(p).split('/').pop() ?? p;
 }
 
 // ---------------------------------------------------------------------------

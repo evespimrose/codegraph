@@ -27,16 +27,17 @@ description: >
 PowerShell 도구로 이 스킬 디렉터리의 스크립트를 절대경로로 호출한다:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File "D:\Unity\codegraph\.claude\skills\sync-global-codegraph\scripts\sync-global.ps1"
+powershell -NoProfile -ExecutionPolicy Bypass -File "D:\Fork\codegraph\.claude\skills\sync-global-codegraph\scripts\sync-global.ps1"
 ```
 
 ### 스크립트가 하는 일 (sync-global.ps1)
 
 1. `git rev-parse --show-toplevel`로 repo 루트 확정 → `npm run build` *(실패 시 전역 미변경, exit 1)*
-2. 실행 중 codegraph 프로세스 정지 *(전역 폴더 파일 잠금 방지)*
-3. `npm pack` → tarball
-4. `npm install -g <tarball>` *(실제 복사 — junction 없음)* → tarball 삭제
-5. 검증: `dist/bin/codegraph.js`·`dist/index.js`·`dist/db/schema.sql` 해시가 전역과 일치하는지 + `codegraph --version`
+2. 실행 중 codegraph MCP 프로세스 정지 — **어느 패키지든**(전역 충돌 패키지 포함) *(전역 폴더 잠금/EPERM 방지)*
+3. `codegraph` bin 소유자 점검: 다른 패키지(예: 업스트림 @colbymchenry)가 소유하면 `--force` 예약 + 깨진 이전 설치(dist 없는 반쪽) 정리
+4. `npm pack` → tarball
+5. `npm install -g <tarball>` *(필요 시 `--force`로 bin 재지정 — junction 없음)* → tarball 삭제
+6. 검증: `dist/bin/codegraph.js`·`dist/index.js`·`dist/db/schema.sql` 해시가 전역과 일치하는지 + `codegraph --version`
 
 ### 결과 해석 (종료코드)
 
@@ -44,10 +45,11 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "D:\Unity\codegraph\.claude\
 |------|------|------|
 | `OK  global codegraph = <ver> (matches project root)` | 0 | 동기화 성공 |
 | `BUILD FAILED - global UNCHANGED` | 1 | 소스 컴파일 실패 → 전역 그대로. 빌드 에러부터 수정 |
-| `MISMATCH  global not fully updated` | 2 | install 미반영(잠금 등) → 에이전트 종료 후 재실행 |
+| `MISMATCH  global not fully updated` | 2 | install 미반영(foreign bin 소유자/잠금) → 에이전트 종료 후 재실행 |
 
 ## 주의
 
 - **복사 설치**라서 프로젝트를 수정할 때마다 이 스킬을 다시 실행해야 전역에 반영된다.
 - 끝의 `Exit code 255`나 stderr 경고는 npm deprecation 경고를 PowerShell이 NativeCommandError로 감싸는 quirk일 뿐 **실패가 아니다** — 판단은 항상 **verify 해시·버전**으로 한다.
 - 다른 머신/CI에는 적용 안 됨(이 PC의 전역 npm 한정).
+- **Cross-scope bin 충돌**: 전역 `codegraph` bin을 다른 스코프 패키지가 소유하면(이 머신은 한때 업스트림 `@colbymchenry/codegraph` 소유) 평범한 `npm install -g`가 `EEXIST … \npm\codegraph`로 실패한다. 스크립트가 셔임 소유자를 보고 `--force`로 재지정한다. 충돌 패키지를 **완전히** 없애려면 수동 `npm uninstall -g @colbymchenry/codegraph`. 이력은 메모리 `global-codegraph-bin-conflict` 참조.

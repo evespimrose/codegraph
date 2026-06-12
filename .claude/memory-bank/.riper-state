@@ -1,6 +1,7 @@
-MODE=PLAN
-TASK=하이브리드 doc-graph — mdast_metadata.doc_links → doc 노드 + doc_link 엣지 승격 (순수-MD 게이트 + CODEGRAPH_DOC_GRAPH override)
+MODE=REVIEW
+TASK=하이브리드 doc-graph — mdast_metadata.doc_links → doc 노드 + doc_link 엣지 승격 (순수-MD 게이트 + CODEGRAPH_DOC_GRAPH override) — EXECUTE 9/9 완료, 빌드 그린, 신규 6/6 통과, 회귀 0(클린트리 베이스라인 동일)
 PLAN_FILE=.claude/memory-bank/Obsidian-Graph-Vector-DB/plans/Obsidian-Graph-Vector-DB-2026-06-11-doc-graph-hybrid.md
 BRANCH=Obsidian-Graph-Vector-DB
-STARTED=2026-06-11
+STARTED=2026-06-12
+EXECUTED=2026-06-12
 CANONICAL_DIRS=cxt/,docs/contextmd/,manage/

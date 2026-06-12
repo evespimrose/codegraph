@@ -26,6 +26,7 @@ import { DatabaseConnection, getDatabasePath } from './db';
 import type { SqliteDatabase } from './db/sqlite-adapter';
 import { indexMarkdown } from './docs/indexer';
 import { linkGovernsEdges } from './docs/governs-linker';
+import { linkDocEdges } from './docs/doc-links-linker';
 import { QueryBuilder } from './db/queries';
 import {
   isInitialized,
@@ -428,6 +429,15 @@ export class CodeGraph {
                 result.docs.conceptNodes = md.nodes;
                 result.docs.governsEdges = md.edges;
               } catch { /* non-fatal */ }
+              // Promote Obsidian/wiki doc_links into doc nodes + doc_link edges
+              // so callers/callees/impact follow them. Gated: pure-Markdown
+              // projects (or CODEGRAPH_DOC_GRAPH override) only — code projects
+              // get zero rows. Best-effort: never breaks the code index.
+              try {
+                const dl = linkDocEdges(this.db.getDb(), this.queries);
+                if (dl.nodes > 0) result.docs.docLinkNodes = dl.nodes;
+                if (dl.edges > 0) result.docs.docLinkEdges = dl.edges;
+              } catch { /* best-effort: doc-link promotion never breaks the code index */ }
             }
           } catch { /* docs are best-effort; never fail the code index */ }
         }
@@ -528,6 +538,10 @@ export class CodeGraph {
           try {
             linkGovernsEdges(this.db.getDb(), this.queries);
           } catch { /* best-effort: governs relink never breaks sync */ }
+          // Re-promote doc_links after edits (gated; no-op on code projects).
+          try {
+            linkDocEdges(this.db.getDb(), this.queries);
+          } catch { /* best-effort: doc-link relink never breaks sync */ }
         }
 
         // Refresh planner stats + checkpoint the WAL after bulk writes.

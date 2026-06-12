@@ -39,6 +39,7 @@ export const NODE_KINDS = [
   'route',
   'component',
   'concept',
+  'doc',
 ] as const;
 
 export type NodeKind = (typeof NODE_KINDS)[number];
@@ -59,21 +60,23 @@ export type EdgeKind =
   | 'instantiates'    // Creates instance of class
   | 'overrides'       // Method overrides parent method
   | 'decorates'       // Decorator applied to symbol
-  | 'governs';        // Markdown doc governs a symbol
+  | 'governs'         // Markdown doc governs a symbol
+  | 'doc_link';       // Markdown doc links to another doc (Obsidian/wiki link)
 
 /**
- * Node kinds belonging to the markdown graph (derived from Markdown docs via
- * BLK markers), as opposed to the tree-sitter code graph. Used to report and
- * filter the markdown layer distinctly from code nodes. Currently just
- * `concept`.
+ * Node kinds belonging to the markdown graph (derived from Markdown docs),
+ * as opposed to the tree-sitter code graph. Used to report and filter the
+ * markdown layer distinctly from code nodes. `concept` = a BLK marker;
+ * `doc` = one node per Markdown file (for Obsidian/wiki doc-link promotion).
  */
-export const MARKDOWN_NODE_KINDS: readonly NodeKind[] = ['concept'];
+export const MARKDOWN_NODE_KINDS: readonly NodeKind[] = ['concept', 'doc'];
 
 /**
- * Edge kinds belonging to the markdown graph (concept → code symbol), as
- * opposed to the code graph. Currently just `governs`.
+ * Edge kinds belonging to the markdown graph, as opposed to the code graph.
+ * `governs` = concept → code symbol; `doc_link` = doc → doc (a citing
+ * Markdown file links to a cited one — forward link; reverse = backlink).
  */
-export const MARKDOWN_EDGE_KINDS: readonly EdgeKind[] = ['governs'];
+export const MARKDOWN_EDGE_KINDS: readonly EdgeKind[] = ['governs', 'doc_link'];
 
 /**
  * Supported programming languages. See NODE_KINDS for why this is a

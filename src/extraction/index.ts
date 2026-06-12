@@ -94,6 +94,10 @@ export interface IndexResult {
      * delta). Reported alongside conceptNodes, distinct from code edges.
      */
     governsEdges?: number;
+    /** `doc` nodes promoted from Markdown files by linkDocEdges (pure-MD / override). */
+    docLinkNodes?: number;
+    /** `doc_link` edges (citing → cited) created by linkDocEdges. */
+    docLinkEdges?: number;
   };
 }
 

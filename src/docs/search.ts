@@ -28,6 +28,7 @@ import type { SqliteDatabase } from '../db/sqlite-adapter';
 import { resolveDocsEnabled } from './config';
 import { loadVecExtension, floatBlob } from './vec';
 import { embed, isEmbedAvailable } from './embed';
+import { baseName, parseRefs, normPath } from './links-util';
 
 /** Compact summary cap for inlined payloads (chars). */
 const SUMMARY_CAP = 200;
@@ -325,11 +326,6 @@ export function findBacklinks(db: SqliteDatabase, filePath: string, maxDepth: nu
   }
 }
 
-/** Extract the filename from a path (last segment). */
-function baseName(p: string): string {
-  return normPath(p).split('/').pop() ?? p;
-}
-
 // ---------------------------------------------------------------------------
 // internals
 // ---------------------------------------------------------------------------
@@ -388,22 +384,6 @@ function tableExists(db: SqliteDatabase, name: string): boolean {
   } catch {
     return false;
   }
-}
-
-/** Parse a `code_refs` JSON column into a string[] (defensive). */
-function parseRefs(json: string | null): string[] {
-  if (!json) return [];
-  try {
-    const v = JSON.parse(json);
-    return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [];
-  } catch {
-    return [];
-  }
-}
-
-/** Normalize a path for comparison: backslashes → '/', drop leading './'. */
-function normPath(p: string): string {
-  return p.replace(/\\/g, '/').replace(/^\.\//, '').trim();
 }
 
 /** Path equality with segment-boundary suffix tolerance (rel vs absolute). */

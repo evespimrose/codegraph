@@ -338,6 +338,7 @@ export function kindBonus(kind: Node['kind']): number {
     protocol: 9,
     enum_member: 3,
     concept: 10,
+    doc: 7,
   };
   return bonuses[kind] ?? 0;
 }

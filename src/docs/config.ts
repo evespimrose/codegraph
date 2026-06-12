@@ -39,6 +39,19 @@ export function docsEnvOverride(): boolean | undefined {
   return parseBool(process.env[DOCS_ENV_VAR]);
 }
 
+/**
+ * Env var that force-enables / force-disables doc-graph promotion (doc/doc_link
+ * nodes & edges). Independent of CODEGRAPH_DOCS: docs must be on for promotion
+ * to run, but this gates whether `doc_links` get promoted into the graph.
+ * Unset → auto-detect (pure-Markdown project). 1 → force on; 0 → force off.
+ */
+export const DOC_GRAPH_ENV_VAR = 'CODEGRAPH_DOC_GRAPH';
+
+/** The CODEGRAPH_DOC_GRAPH env override, or undefined when unset/unrecognized. */
+export function docGraphEnvOverride(): boolean | undefined {
+  return parseBool(process.env[DOC_GRAPH_ENV_VAR]);
+}
+
 /** Persist the docs-enabled flag in project_metadata (idempotent upsert). */
 export function setDocsEnabled(db: SqliteDatabase, enabled: boolean): void {
   db.prepare(

@@ -10,7 +10,7 @@ description: Use when the user asks whether a proposed change is worth doing - a
 **코드를 건드리기 전, 변경의 실제 가치를 검증한다.**
 
 구현 착수 전 토큰 효율을 최대화하는 것이 핵심 목적이다.
-분석 결과는 `docs/Try_{주제}.md`에 저장한다. 구현 착수는 하지 않는다.
+**메인 컨텍스트 출력은 0에 수렴**시킨다: 분석 본문은 `<프로젝트 루트>/docs/try/Try_{주제}.md` 파일에만 기록하고, 대화창에는 파일 경로 + 1~2줄 결론만 남긴다(비교 축 본문·표를 대화에 풀어쓰지 않는다). 구현 착수는 하지 않는다.
 
 ## State Update (MANDATORY — on invocation)
 
@@ -41,7 +41,10 @@ Use: `git rev-parse --abbrev-ref HEAD` for branch name.
 4. COMPARE 현상유지 vs 제안 — 아래 5개 축으로 비교
 5. RISK    단기 비용(마이그레이션 비용, 씬/prefab 영향 등) 명시
 6. RECOMMEND 조건부 추천 또는 반대 근거 제시
-7. WRITE   docs/Try_{주제}.md 저장
+7. WRITE   docs/try/Try_{주제}.md 저장 (docs/try/ 없으면 생성)
+8. REPORT  메인 컨텍스트엔 단 두 줄만 (그 외 일절 금지):
+              ✅ /try 완료 → docs/try/Try_{주제}.md — <제목>
+              결론: <1~2줄 핵심 판단>
 ```
 
 ## 5개 비교 축 (필수 — 하나라도 생략 금지)
@@ -54,7 +57,7 @@ Use: `git rev-parse --abbrev-ref HEAD` for branch name.
 | **단기 비용** | 마이그레이션 범위, 씬/prefab 재설정 필요 여부, namespace 변경 파급력 |
 | **현재 작업과의 연관성** | 미결 사항·플랜과의 연계, 착수 최적 타이밍 |
 
-## 출력 형식 (`docs/Try_{주제}.md`)
+## 파일에 기록할 출력 형식 (`docs/try/Try_{주제}.md`) — 대화창 아님, 파일 전용
 
 ```markdown
 # Try — {작업 제목}
@@ -87,7 +90,8 @@ Use: `git rev-parse --abbrev-ref HEAD` for branch name.
 
 ## 파일 저장 규칙
 
-- 경로: `docs/Try_{주제}.md`
+- 경로: `<프로젝트 루트>/docs/try/Try_{주제}.md` (docs/try/ 하위, 없으면 생성)
+- **메인 컨텍스트 출력 0 원칙**: 분석 본문·비교표는 파일에만. 대화창엔 경로 + 1~2줄 결론만.
 - 주제 명명: 영어 CamelCase + 한국어 허용 (예: `Try_ServiceLayerSplit.md`, `Try_DOTS도입.md`)
 - 이 파일은 분석 문서. 구현 착수는 별도 사용자 결재 후 producer 경유.
 
@@ -98,6 +102,7 @@ NEVER:
 - try 수행 중 코드 파일(.cs, .asmdef 등) 수정
 - 결재 없이 구현 착수
 - 분석 없이 추천만 제시
+- 분석 본문·비교표를 메인 컨텍스트에 출력 (파일 전용 — 대화창엔 경로+결론만)
 - 5개 비교 축 중 하나 이상 생략
 - bash find/grep -r/ls -r/rg/fd 탐색 (Cave-Man Protocol)
 

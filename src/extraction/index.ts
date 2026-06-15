@@ -189,20 +189,38 @@ const DEFAULT_IGNORE_PATTERNS: string[] = [
 ];
 
 /**
- * An `ignore` matcher seeded with the built-in defaults, merged with the project's
- * root .gitignore so a negation there (e.g. `!vendor/`) overrides a default. Shared
- * by both enumeration paths so behavior is identical with or without git — and so
- * the defaults apply to tracked files too (committing a dependency dir doesn't make
- * it project code; the explicit `.gitignore` negation is the only opt-in).
+ * An `ignore` matcher seeded with the built-in defaults, then layered with the
+ * project's root `.gitignore` (a negation there like `!vendor/` overrides a
+ * default) and finally the root `.codegraphignore` — an *additive* exclude layer
+ * in identical gitignore syntax, merged into the same matcher so it's a union
+ * (anything matched by either file is excluded). It is added last, so last-match-
+ * wins lets it also negation-override an earlier rule. Shared by both enumeration
+ * paths so behavior is identical with or without git — and so the defaults apply
+ * to tracked files too (committing a dependency dir doesn't make it project code;
+ * the explicit negation is the only opt-in).
+ *
+ * `opts.respectGitignore` (default true): when `false`, the root `.gitignore` is
+ * NOT merged — only the built-in defaults plus `.codegraphignore` apply.
+ * `.codegraphignore` is always honored regardless of this flag.
  */
-export function buildDefaultIgnore(rootDir: string): Ignore {
+export function buildDefaultIgnore(
+  rootDir: string,
+  opts?: { respectGitignore?: boolean }
+): Ignore {
   const ig = ignore().add(DEFAULT_IGNORE_PATTERNS);
-  try {
-    const rootGitignore = path.join(rootDir, '.gitignore');
-    if (fs.existsSync(rootGitignore)) ig.add(fs.readFileSync(rootGitignore, 'utf-8'));
-  } catch {
-    // Unreadable root .gitignore — the built-in defaults still apply.
-  }
+  // Both ignore files share one loader and one matcher — same gitignore syntax,
+  // same precedence rules. A missing or unreadable file is silently skipped; the
+  // patterns already added still apply.
+  const tryAdd = (fileName: string): void => {
+    try {
+      const p = path.join(rootDir, fileName);
+      if (fs.existsSync(p)) ig.add(fs.readFileSync(p, 'utf-8'));
+    } catch {
+      // Unreadable ignore file — earlier patterns still apply.
+    }
+  };
+  if (opts?.respectGitignore !== false) tryAdd('.gitignore');
+  tryAdd('.codegraphignore'); // additive exclude layer, always last
   return ig;
 }
 
@@ -262,7 +280,7 @@ function collectGitFiles(repoDir: string, prefix: string, files: Set<string>): v
  * embedded (nested, non-submodule) git repos. Returns null on failure
  * (non-git project) so callers can fall back to a filesystem walk.
  */
-function getGitVisibleFiles(rootDir: string): Set<string> | null {
+function getGitVisibleFiles(rootDir: string, opts?: ScanOptions): Set<string> | null {
   try {
     // Check if the project directory is gitignored by a parent repo.
     // When rootDir lives inside a parent git repo that ignores it,
@@ -293,7 +311,8 @@ function getGitVisibleFiles(rootDir: string): Set<string> | null {
     // Apply built-in default ignores uniformly — to tracked files too, since
     // committing a dependency/build dir doesn't make it project code. A
     // `.gitignore` negation (e.g. `!vendor/`) is the explicit opt-in. (issue #407)
-    const ig = buildDefaultIgnore(rootDir);
+    // `.codegraphignore` is always layered in here (see buildDefaultIgnore).
+    const ig = buildDefaultIgnore(rootDir, opts);
     return new Set([...files].filter((f) => !ig.ignores(f)));
   } catch {
     return null;
@@ -359,12 +378,31 @@ function getGitChangedFiles(rootDir: string): GitChanges | null {
  * levels), then keeps files with a supported source extension. For non-git
  * projects, falls back to a filesystem walk that parses .gitignore itself.
  */
+/**
+ * Options shared by the directory scanners and the file watcher.
+ */
+export interface ScanOptions {
+  /**
+   * When `false`, the project's root `.gitignore` is NOT consulted (built-in
+   * defaults and `.codegraphignore` still apply). Default `true`. On the git
+   * fast path this only relaxes the post-filter — `git ls-files` itself still
+   * honors .gitignore (re-including git-ignored files is out of scope, §1.3-C).
+   */
+  respectGitignore?: boolean;
+}
+
 export function scanDirectory(
   rootDir: string,
-  onProgress?: (current: number, file: string) => void
+  onProgress?: (current: number, file: string) => void,
+  opts?: ScanOptions
 ): string[] {
-  // Fast path: use git to get all visible files (respects .gitignore everywhere)
-  const gitFiles = getGitVisibleFiles(rootDir);
+  // Fast path: use git to get all visible files (respects .gitignore everywhere).
+  // --no-gitignore (respectGitignore:false) bypasses it: `git ls-files` always
+  // honors .gitignore at the git level, so it can never surface a git-ignored
+  // path. The filesystem walk instead applies ONLY the built-in defaults +
+  // .codegraphignore (root/nested .gitignore skipped — see scanDirectoryWalk),
+  // making .codegraphignore an independent ignore spec rather than additive.
+  const gitFiles = opts?.respectGitignore === false ? null : getGitVisibleFiles(rootDir, opts);
   if (gitFiles) {
     const files: string[] = [];
     let count = 0;
@@ -378,8 +416,8 @@ export function scanDirectory(
     return files;
   }
 
-  // Fallback: walk filesystem for non-git projects
-  return scanDirectoryWalk(rootDir, onProgress);
+  // Fallback: walk filesystem for non-git projects (or when --no-gitignore set)
+  return scanDirectoryWalk(rootDir, onProgress, opts);
 }
 
 /**
@@ -388,9 +426,11 @@ export function scanDirectory(
  */
 export async function scanDirectoryAsync(
   rootDir: string,
-  onProgress?: (current: number, file: string) => void
+  onProgress?: (current: number, file: string) => void,
+  opts?: ScanOptions
 ): Promise<string[]> {
-  const gitFiles = getGitVisibleFiles(rootDir);
+  // --no-gitignore bypasses the git fast path (see scanDirectory for why).
+  const gitFiles = opts?.respectGitignore === false ? null : getGitVisibleFiles(rootDir, opts);
   if (gitFiles) {
     const files: string[] = [];
     let count = 0;
@@ -408,7 +448,7 @@ export async function scanDirectoryAsync(
     return files;
   }
 
-  return scanDirectoryWalk(rootDir, onProgress);
+  return scanDirectoryWalk(rootDir, onProgress, opts);
 }
 
 /**
@@ -416,7 +456,8 @@ export async function scanDirectoryAsync(
  */
 function scanDirectoryWalk(
   rootDir: string,
-  onProgress?: (current: number, file: string) => void
+  onProgress?: (current: number, file: string) => void,
+  opts?: ScanOptions
 ): string[] {
   const files: string[] = [];
   let count = 0;
@@ -470,8 +511,11 @@ function scanDirectoryWalk(
 
     // This directory's own .gitignore (if present) applies to everything below it.
     // The root's .gitignore is already merged into the seeded base matcher (so a
-    // negation there can override a built-in default), so skip it here.
-    const own = dir === rootDir ? null : loadIgnore(dir);
+    // negation there can override a built-in default), so skip it here. When
+    // respectGitignore is false, nested .gitignores are skipped too, so all
+    // paths honor the toggle identically.
+    const own =
+      dir === rootDir || opts?.respectGitignore === false ? null : loadIgnore(dir);
     const active = own ? [...matchers, own] : matchers;
 
     let entries: fs.Dirent[];
@@ -525,8 +569,9 @@ function scanDirectoryWalk(
   }
 
   // Seed a base matcher with the built-in default ignores (merged with the root
-  // .gitignore so a negation can override). Nested .gitignores still layer per-dir.
-  walk(rootDir, [{ dir: rootDir, ig: buildDefaultIgnore(rootDir) }]);
+  // .gitignore so a negation can override, unless respectGitignore is false) plus
+  // the root .codegraphignore. Nested .gitignores still layer per-dir (above).
+  walk(rootDir, [{ dir: rootDir, ig: buildDefaultIgnore(rootDir, opts) }]);
   return files;
 }
 
@@ -624,7 +669,8 @@ export class ExtractionOrchestrator {
   async indexAll(
     onProgress?: (progress: IndexProgress) => void,
     signal?: AbortSignal,
-    verbose?: boolean
+    verbose?: boolean,
+    scanOpts?: ScanOptions
   ): Promise<IndexResult> {
     await initGrammars();
     const startTime = Date.now();
@@ -653,7 +699,7 @@ export class ExtractionOrchestrator {
         total: 0,
         currentFile: file,
       });
-    });
+    }, scanOpts);
 
     // Detect frameworks once per indexAll run using the scanned file list.
     // Names are passed to each parse call so framework-specific extractors
@@ -1355,7 +1401,10 @@ export class ExtractionOrchestrator {
    * changes. This works in non-git projects and catches committed changes from
    * `git pull`/`checkout`/`merge`/`rebase` that `git status` cannot see.
    */
-  async sync(onProgress?: (progress: IndexProgress) => void): Promise<SyncResult> {
+  async sync(
+    onProgress?: (progress: IndexProgress) => void,
+    scanOpts?: ScanOptions
+  ): Promise<SyncResult> {
     await initGrammars(); // Initialize WASM runtime (grammars loaded lazily below)
     const startTime = Date.now();
     let filesChecked = 0;
@@ -1381,7 +1430,7 @@ export class ExtractionOrchestrator {
     // whether or not the project uses git, and crucially also catches committed
     // changes from `git pull`/`checkout`/`merge`/`rebase` — which `git status`
     // cannot see, because the working tree is clean afterward.
-    const currentFiles = scanDirectory(this.rootDir);
+    const currentFiles = scanDirectory(this.rootDir, undefined, scanOpts);
     filesChecked = currentFiles.length;
     const currentSet = new Set(currentFiles);
 

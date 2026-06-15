@@ -121,6 +121,13 @@ export interface IndexOptions {
 
   /** Enable verbose logging (worker lifecycle, memory, timeouts) */
   verbose?: boolean;
+
+  /**
+   * When `false`, the project's root `.gitignore` is not consulted while
+   * scanning (built-in defaults and `.codegraphignore` still apply). Maps to the
+   * CLI `--no-gitignore` flag. Default `true`.
+   */
+  respectGitignore?: boolean;
 }
 
 /**
@@ -347,7 +354,9 @@ export class CodeGraph {
       }
       try {
         const before = this.queries.getNodeAndEdgeCount();
-        const result = await this.orchestrator.indexAll(options.onProgress, options.signal, options.verbose);
+        const result = await this.orchestrator.indexAll(options.onProgress, options.signal, options.verbose, {
+          respectGitignore: options.respectGitignore,
+        });
 
         // Re-detect frameworks now that the index is populated. The resolver
         // is constructed with createResolver() before any files exist, so
@@ -404,7 +413,9 @@ export class CodeGraph {
         // any failure is swallowed so docs never break the code index.
         if (result.success) {
           try {
-            const docs = await indexMarkdown(this.db.getDb(), this.projectRoot);
+            const docs = await indexMarkdown(this.db.getDb(), this.projectRoot, {
+              respectGitignore: options.respectGitignore,
+            });
             // Surface the summary to callers (CLI index/init reporting) only
             // when the feature actually ran, so docs-off runs stay unchanged.
             if (docs.enabled) {
@@ -482,7 +493,9 @@ export class CodeGraph {
         return { filesChecked: 0, filesAdded: 0, filesModified: 0, filesRemoved: 0, nodesUpdated: 0, durationMs: 0 };
       }
       try {
-        const result = await this.orchestrator.sync(options.onProgress);
+        const result = await this.orchestrator.sync(options.onProgress, {
+          respectGitignore: options.respectGitignore,
+        });
 
         // Cross-file finalization (e.g. NestJS RouterModule prefixes). Run on
         // every sync that touched files so edits to `app.module.ts` propagate

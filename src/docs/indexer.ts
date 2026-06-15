@@ -55,7 +55,7 @@ export function ensureVectorTable(db: SqliteDatabase): void {
 export async function indexMarkdown(
   db: SqliteDatabase,
   projectRoot: string,
-  opts: { onWarn?: (msg: string) => void } = {}
+  opts: { onWarn?: (msg: string) => void; respectGitignore?: boolean } = {}
 ): Promise<MarkdownIndexResult> {
   const result: MarkdownIndexResult = {
     enabled: false, available: false, scanned: 0, indexed: 0, skipped: 0, warnings: [],
@@ -101,7 +101,7 @@ export async function indexMarkdown(
     VALUES (?, 'concept', ?, ?, ?, 'markdown', ?, ?, 0, 0, ?)
   `);
 
-  const files = listMarkdownFiles(projectRoot);
+  const files = listMarkdownFiles(projectRoot, { respectGitignore: opts.respectGitignore });
   result.scanned = files.length;
 
   for (const abs of files) {

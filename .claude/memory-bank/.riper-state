@@ -1,7 +1,6 @@
-MODE=REVIEW
-TASK=하이브리드 doc-graph — mdast_metadata.doc_links → doc 노드 + doc_link 엣지 승격 (순수-MD 게이트 + CODEGRAPH_DOC_GRAPH override) — EXECUTE 9/9 완료, 빌드 그린, 신규 6/6 통과, 회귀 0(클린트리 베이스라인 동일)
-PLAN_FILE=.claude/memory-bank/Obsidian-Graph-Vector-DB/plans/Obsidian-Graph-Vector-DB-2026-06-11-doc-graph-hybrid.md
+MODE=EXECUTE
+TASK=try_001.md 기준 하이브리드 검색·엣지 영속화 로드맵 + try_002 제안A(.codegraphignore 합집합 + gitignore 토글)를 Phase 0에 편입
+PLAN_FILE=.claude/memory-bank/Obsidian-Graph-Vector-DB/plans/Obsidian-Graph-Vector-DB-2026-06-15-hybrid-search-codegraphignore.md
 BRANCH=Obsidian-Graph-Vector-DB
-STARTED=2026-06-12
-EXECUTED=2026-06-12
+STARTED=2026-06-15
 CANONICAL_DIRS=cxt/,docs/contextmd/,manage/

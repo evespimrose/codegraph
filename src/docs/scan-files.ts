@@ -9,6 +9,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { execFileSync } from 'child_process';
+import type { Ignore } from 'ignore';
+import { buildDefaultIgnore, type ScanOptions } from '../extraction/index';
 
 const MD_EXT = /\.(md|markdown|mdx)$/i;
 const SKIP_DIRS = new Set([
@@ -16,8 +18,22 @@ const SKIP_DIRS = new Set([
 ]);
 
 /** Absolute paths of Markdown files under root, respecting .gitignore when possible. */
-export function listMarkdownFiles(root: string): string[] {
-  return gitMarkdownFiles(root) ?? walkMarkdown(root);
+export function listMarkdownFiles(root: string, opts?: ScanOptions): string[] {
+  // Apply the same ignore matcher the code scanner uses. With respectGitignore
+  // false it drops root .gitignore (built-in defaults + .codegraphignore only),
+  // so .codegraphignore acts as an independent spec, not an additive layer.
+  const ig = buildDefaultIgnore(root, opts);
+  // --no-gitignore: skip the git fast path entirely — `git ls-files` always
+  // honors .gitignore at the git level, so a git-ignored doc dir (e.g. an
+  // ignored docs/) would never be listed and could not be re-included. Walk the
+  // filesystem instead, pruning via the matcher. Otherwise prefer git.
+  const found = opts?.respectGitignore === false
+    ? walkMarkdown(root, ig)
+    : (gitMarkdownFiles(root) ?? walkMarkdown(root, ig));
+  return found.filter((abs) => {
+    const rel = path.relative(root, abs).split(path.sep).join('/');
+    return rel !== '' && !rel.startsWith('..') && !ig.ignores(rel);
+  });
 }
 
 function gitMarkdownFiles(root: string): string[] | null {
@@ -43,7 +59,7 @@ function gitMarkdownFiles(root: string): string[] | null {
   }
 }
 
-function walkMarkdown(root: string): string[] {
+function walkMarkdown(root: string, ig?: Ignore): string[] {
   const files: string[] = [];
   const stack = [root];
   while (stack.length) {
@@ -57,7 +73,16 @@ function walkMarkdown(root: string): string[] {
     for (const e of entries) {
       const full = path.join(dir, e.name);
       if (e.isDirectory()) {
-        if (!SKIP_DIRS.has(e.name) && !e.name.startsWith('.')) stack.push(full);
+        if (SKIP_DIRS.has(e.name) || e.name.startsWith('.')) continue;
+        // Prune directories the matcher excludes (built-in defaults +
+        // .codegraphignore) so a large vendored tree like Unity's Library/ isn't
+        // walked in full just to be dropped by the post-filter. (Only matters on
+        // the --no-gitignore walk path, where git isn't doing the pruning.)
+        if (ig) {
+          const rel = path.relative(root, full).split(path.sep).join('/');
+          if (rel && ig.ignores(rel + '/')) continue;
+        }
+        stack.push(full);
       } else if (e.isFile() && MD_EXT.test(e.name)) {
         files.push(full);
       }

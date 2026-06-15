@@ -43,6 +43,14 @@ export interface WatchOptions {
    * Callback when a sync errors (for logging/diagnostics).
    */
   onSyncError?: (error: Error) => void;
+
+  /**
+   * When `false`, the project's root `.gitignore` is not consulted when building
+   * the watcher's ignore matcher (built-in defaults and `.codegraphignore` still
+   * apply). Keep this aligned with the value passed to the indexer so watch scope
+   * and index scope never diverge. Default `true`.
+   */
+  respectGitignore?: boolean;
 }
 
 /**
@@ -136,6 +144,7 @@ export class FileWatcher {
   private readonly syncFn: () => Promise<{ filesChanged: number; durationMs: number }>;
   private readonly onSyncComplete?: WatchOptions['onSyncComplete'];
   private readonly onSyncError?: WatchOptions['onSyncError'];
+  private readonly respectGitignore: boolean;
 
   constructor(
     projectRoot: string,
@@ -147,6 +156,7 @@ export class FileWatcher {
     this.debounceMs = options.debounceMs ?? 2000;
     this.onSyncComplete = options.onSyncComplete;
     this.onSyncError = options.onSyncError;
+    this.respectGitignore = options.respectGitignore ?? true;
   }
 
   /**
@@ -170,7 +180,9 @@ export class FileWatcher {
     // Reuse the indexer's ignore set so the watcher and indexer agree on scope.
     // chokidar only registers an inotify watch on directories that pass this
     // filter — that's the #276 fix.
-    this.ignoreMatcher = buildDefaultIgnore(this.projectRoot);
+    this.ignoreMatcher = buildDefaultIgnore(this.projectRoot, {
+      respectGitignore: this.respectGitignore,
+    });
 
     try {
       this.watcher = chokidar.watch(this.projectRoot, {

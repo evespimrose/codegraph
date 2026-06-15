@@ -576,7 +576,8 @@ program
   .option('-q, --quiet', 'Suppress progress output')
   .option('-v, --verbose', 'Show detailed worker lifecycle and memory info')
   .option('--with-docs', 'Also index Markdown docs into the vector store (requires the optional @xenova/transformers dep); persists the choice for this project')
-  .action(async (pathArg: string | undefined, options: { force?: boolean; quiet?: boolean; verbose?: boolean; withDocs?: boolean }) => {
+  .option('--no-gitignore', 'Ignore the project root .gitignore when scanning (built-in defaults and .codegraphignore still apply)')
+  .action(async (pathArg: string | undefined, options: { force?: boolean; quiet?: boolean; verbose?: boolean; withDocs?: boolean; gitignore?: boolean }) => {
     const projectPath = resolveProjectPath(pathArg);
     // --with-docs opts this process into Markdown indexing; indexAll then
     // persists the flag to project_metadata so MCP-server runs pick it up.
@@ -599,7 +600,7 @@ program
       if (options.quiet) {
         // Quiet mode: no UI, just run
         if (options.force) cg.clear();
-        const result = await cg.indexAll();
+        const result = await cg.indexAll({ respectGitignore: options.gitignore });
         if (!result.success) process.exit(1);
         cg.destroy();
         return;
@@ -619,12 +620,14 @@ program
         result = await cg.indexAll({
           onProgress: createVerboseProgress(),
           verbose: true,
+          respectGitignore: options.gitignore,
         });
       } else {
         process.stdout.write(`${colors.dim}${getGlyphs().rail}${colors.reset}\n`);
         const progress = createShimmerProgress();
         result = await cg.indexAll({
           onProgress: progress.onProgress,
+          respectGitignore: options.gitignore,
         });
         await progress.stop();
       }
@@ -650,7 +653,8 @@ program
   .command('sync [path]')
   .description('Sync changes since last index')
   .option('-q, --quiet', 'Suppress output (for git hooks)')
-  .action(async (pathArg: string | undefined, options: { quiet?: boolean }) => {
+  .option('--no-gitignore', 'Ignore the project root .gitignore when scanning (built-in defaults and .codegraphignore still apply)')
+  .action(async (pathArg: string | undefined, options: { quiet?: boolean; gitignore?: boolean }) => {
     const projectPath = resolveProjectPath(pathArg);
 
     try {
@@ -665,7 +669,7 @@ program
       const cg = await CodeGraph.open(projectPath);
 
       if (options.quiet) {
-        await cg.sync();
+        await cg.sync({ respectGitignore: options.gitignore });
         cg.destroy();
         return;
       }
@@ -678,6 +682,7 @@ program
 
       const result = await cg.sync({
         onProgress: progress.onProgress,
+        respectGitignore: options.gitignore,
       });
 
       await progress.stop();
@@ -922,29 +927,65 @@ program
         return aGen - bGen;
       });
 
+      // Thin-result semantic fallback. When lexical search returns very little,
+      // supplement with a meaning-based Markdown search so natural-language
+      // queries (and pure-Markdown projects whose graph has no code symbols)
+      // aren't a dead end. searchDocs is internally gated — opt-in flag +
+      // sqlite-vec + embeddings — and a silent no-op otherwise, so code projects
+      // and docs-off projects are unaffected (lexical results stand alone). The
+      // embedding-model cold start is paid only on this thin path, never when
+      // lexical already answered. (try_001 §2.1 / plan Step 7.)
+      const THIN_THRESHOLD = 3;
+      let docHits: Awaited<ReturnType<typeof import('../docs/search')['searchDocs']>>['hits'] = [];
+      if (rawResults.length < THIN_THRESHOLD) {
+        try {
+          const { searchDocs } = await import('../docs/search');
+          const docResult = await searchDocs(cg.getDb(), search, { topk: limit });
+          docHits = docResult.hits;
+        } catch { /* best-effort: semantic fallback never breaks lexical search */ }
+      }
+
       if (options.json) {
-        console.log(JSON.stringify(results, null, 2));
+        // Backward-compatible: emit the plain results array unless the semantic
+        // fallback actually contributed hits, in which case widen to an object.
+        if (docHits.length > 0) {
+          console.log(JSON.stringify({ results, docs: docHits }, null, 2));
+        } else {
+          console.log(JSON.stringify(results, null, 2));
+        }
       } else {
-        if (results.length === 0) {
+        if (results.length === 0 && docHits.length === 0) {
           info(`No results found for "${search}"`);
         } else {
-          console.log(chalk.bold(`\nSearch Results for "${search}":\n`));
+          if (results.length > 0) {
+            console.log(chalk.bold(`\nSearch Results for "${search}":\n`));
 
-          for (const result of results) {
-            const node = result.node;
-            const location = `${node.filePath}:${node.startLine}`;
-            const score = chalk.dim(`(${(result.score * 100).toFixed(0)}%)`);
+            for (const result of results) {
+              const node = result.node;
+              const location = `${node.filePath}:${node.startLine}`;
+              const score = chalk.dim(`(${(result.score * 100).toFixed(0)}%)`);
 
-            console.log(
-              chalk.cyan(node.kind.padEnd(12)) +
-              chalk.white(node.name) +
-              ' ' + score
-            );
-            console.log(chalk.dim(`  ${location}`));
-            if (node.signature) {
-              console.log(chalk.dim(`  ${node.signature}`));
+              console.log(
+                chalk.cyan(node.kind.padEnd(12)) +
+                chalk.white(node.name) +
+                ' ' + score
+              );
+              console.log(chalk.dim(`  ${location}`));
+              if (node.signature) {
+                console.log(chalk.dim(`  ${node.signature}`));
+              }
+              console.log();
             }
-            console.log();
+          }
+
+          if (docHits.length > 0) {
+            console.log(chalk.bold(`\nRelated documentation (semantic) for "${search}":\n`));
+            for (const hit of docHits) {
+              const blk = hit.blk ? ' ' + chalk.dim(`[${hit.blk}]`) : '';
+              console.log(chalk.blue('doc'.padEnd(12)) + chalk.white(hit.file) + blk);
+              if (hit.summary) console.log(chalk.dim(`  ${hit.summary}`));
+              console.log();
+            }
           }
         }
       }
@@ -952,6 +993,114 @@ program
       cg.destroy();
     } catch (err) {
       error(`Search failed: ${err instanceof Error ? err.message : String(err)}`);
+      process.exit(1);
+    }
+  });
+
+/**
+ * codegraph backlinks <file>
+ *
+ * Surfaces the Markdown doc graph (backlinks + forward links) on the CLI —
+ * previously MCP-only. No-op message on projects without the docs graph.
+ */
+program
+  .command('backlinks <file>')
+  .description('Show Markdown backlinks and forward links for a doc (requires the docs feature)')
+  .option('-p, --path <path>', 'Project path')
+  .option('-d, --depth <number>', 'Forward-link traversal depth', '1')
+  .option('-j, --json', 'Output as JSON')
+  .action(async (file: string, options: { path?: string; depth?: string; json?: boolean }) => {
+    const projectPath = resolveProjectPath(options.path);
+
+    try {
+      if (!isInitialized(projectPath)) {
+        error(`CodeGraph not initialized in ${projectPath}`);
+        process.exit(1);
+      }
+
+      const { default: CodeGraph } = await loadCodeGraph();
+      const cg = await CodeGraph.open(projectPath);
+
+      const { findBacklinks } = await import('../docs/search');
+      const depth = parseInt(options.depth || '1', 10);
+      const result = findBacklinks(cg.getDb(), file, depth);
+
+      if (options.json) {
+        console.log(JSON.stringify(result ?? { file, forwardLinks: [], backLinks: [] }, null, 2));
+      } else if (!result) {
+        info('Docs graph is not enabled for this project (enable with --with-docs or CODEGRAPH_DOC_GRAPH).');
+      } else {
+        console.log(chalk.bold(`\nBacklinks for ${result.file}:\n`));
+        if (result.backLinks.length === 0) {
+          info('No backlinks found.');
+        } else {
+          for (const b of result.backLinks) console.log('  ' + chalk.cyan('<-') + ' ' + b);
+        }
+        if (result.forwardLinks.length > 0) {
+          console.log(chalk.bold('\nForward links:\n'));
+          for (const f of result.forwardLinks) console.log('  ' + chalk.blue('->') + ' ' + f);
+        }
+        console.log();
+      }
+
+      cg.destroy();
+    } catch (err) {
+      error(`Backlinks failed: ${err instanceof Error ? err.message : String(err)}`);
+      process.exit(1);
+    }
+  });
+
+/**
+ * codegraph docs <query>
+ *
+ * Semantic (vector) search over indexed Markdown — previously MCP-only.
+ * Graceful no-op message when the docs feature isn't enabled/available.
+ */
+program
+  .command('docs <query>')
+  .description('Semantic search over indexed Markdown docs (requires the docs feature)')
+  .option('-p, --path <path>', 'Project path')
+  .option('-l, --limit <number>', 'Maximum results', '10')
+  .option('-j, --json', 'Output as JSON')
+  .action(async (query: string, options: { path?: string; limit?: string; json?: boolean }) => {
+    const projectPath = resolveProjectPath(options.path);
+
+    try {
+      if (!isInitialized(projectPath)) {
+        error(`CodeGraph not initialized in ${projectPath}`);
+        process.exit(1);
+      }
+
+      const { default: CodeGraph } = await loadCodeGraph();
+      const cg = await CodeGraph.open(projectPath);
+
+      const limit = parseInt(options.limit || '10', 10);
+      const { searchDocs } = await import('../docs/search');
+      const result = await searchDocs(cg.getDb(), query, { topk: limit });
+
+      if (options.json) {
+        console.log(JSON.stringify(result, null, 2));
+      } else if (!result.enabled) {
+        info('Docs feature is not enabled for this project (index with --with-docs).');
+      } else if (result.hits.length === 0) {
+        info(`No documentation matches for "${query}".`);
+        for (const w of result.warnings) info(w);
+      } else {
+        console.log(chalk.bold(`\nDocumentation matches for "${query}":\n`));
+        for (const hit of result.hits) {
+          const blk = hit.blk ? ' ' + chalk.dim(`[${hit.blk}]`) : '';
+          console.log(
+            chalk.blue('doc'.padEnd(12)) + chalk.white(hit.file) + blk +
+            ' ' + chalk.dim(`(d=${hit.distance})`)
+          );
+          if (hit.summary) console.log(chalk.dim(`  ${hit.summary}`));
+          console.log();
+        }
+      }
+
+      cg.destroy();
+    } catch (err) {
+      error(`Docs search failed: ${err instanceof Error ? err.message : String(err)}`);
       process.exit(1);
     }
   });

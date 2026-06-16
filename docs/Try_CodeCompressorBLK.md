@@ -118,3 +118,28 @@
 - 이 결론은 이전 [docs/Try_AtomImport_DLC_vs_Workflow.md](Try_AtomImport_DLC_vs_Workflow.md)의 "압축 프록시는 워크플로우 프로젝트" 판정과 일관(Headroom HR1/HR2 P3-보류, HR5/HR6 워크플로우).
 - 사용자가 진짜로 원하는 게 "대형 파일 읽기 시 다이어트"라면, 그건 codecompressor가 아니라 **codegraph 검색 채택률↑**(trace/explore/node로 Read 회피)이 정답 — 별도 측정 가능.
 - B 착수는 별도 결재 후 producer 경유. 본 문서는 분석만.
+
+---
+
+## 9. 프로브 결과 (2026-06-16) — 실측
+
+Throwaway 프로브로 adaptive-explore 스켈레톤화기에 BLK 주석 3위치(클래스 위·메서드 위·본문 내)를 넣고 off-spine sibling을 강제 skeletonize시켜 출력 잔존을 측정(실행 후 삭제).
+
+**결과: 3위치 모두 유실(false).** 스켈레톤화기는 노드의 **선언 라인만** 라인번호로 슬라이스:
+
+```
+#### src/bridge-interceptor.ts — BridgeInterceptor, intercept · skeleton (signatures only — codegraph_explore a name for its full body; do NOT Read)
+
+  4	export class BridgeInterceptor implements Interceptor {
+  6	intercept(request: string): string {
+```
+
+- `skeletonized: true`, `body content elided (BRIDGE_BODY_MARKER absent): true`
+- `[BLK-ABOVE-CLASS] survived: false` · `[BLK-ABOVE-METHOD] survived: false` · `[BLK-IN-BODY] survived: false`
+- 라인 4(클래스 선언)·6(메서드 시그니처)만 보존, 라인 3·5(BLK 주석)와 본문 전부 제거.
+
+**판정 갱신**:
+- §7의 "안 깎으면 B 불필요" 가설 **기각** — 스켈레톤화는 BLK 주석을 **무조건 제거**한다(주석 인지 로직 없음). 단 **off-spine sibling 스켈레톤에 한정**(척추·비-sibling·named-spared 파일은 풀 유지 → BLK 잔존).
+- **그러나 실질 손실은 작다**: BLK는 인덱스 시 `extractBlkReferences`가 `governs` 엣지로 **이미 승격** → 스켈레톤이 주석 텍스트를 빼도 BLK→code 매핑은 그래프에 영속. 잃는 건 "스켈레톤 *소스 출력*에 BLK 텍스트가 안 보임"뿐.
+- **권장 실현(해석 B, 갱신)**: 주석 라인을 본문에서 되살리지 말고(서명-only 형태 훼손) — **스켈레톤 헤더에 그 노드의 governing BLK 태그를 그래프(governs 엣지)에서 끌어와 append.** 예: `#### …BridgeInterceptor, intercept · skeleton · governs: BLK-ABOVE-CLASS, …`. 텍스트가 아니라 엣지 기반 → 더 견고하고 "BLK는 주석이 아니라 엣지" 철학과 정합. **LOW 비용, 무손실 방향.**
+- codecompressor 편입 반대 결론은 불변(§3·§7). 프로브는 "해석 B의 그 한 줄짜리 보강이 근거 있음"을 확정했을 뿐, codecompressor를 정당화하지 않는다.

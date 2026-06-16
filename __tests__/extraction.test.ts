@@ -10,6 +10,7 @@ import * as path from 'path';
 import * as os from 'os';
 import { CodeGraph } from '../src';
 import { extractFromSource, scanDirectory } from '../src/extraction';
+import { listMarkdownFiles } from '../src/docs/scan-files';
 import { detectLanguage, isLanguageSupported, getSupportedLanguages, initGrammars, loadAllGrammars } from '../src/extraction/grammars';
 import { normalizePath } from '../src/utils';
 
@@ -3514,6 +3515,182 @@ describe('Nested non-submodule git repos', () => {
 
     expect(files).toContain('sub_repo/src/real.ts');
     expect(files).not.toContain('sub_repo/src/generated.ts');
+  });
+});
+
+describe('.codegraphignore (additive exclude + respectGitignore toggle)', () => {
+  let tempDir: string;
+
+  beforeEach(() => {
+    tempDir = createTempDir();
+  });
+
+  afterEach(() => {
+    cleanupTempDir(tempDir);
+  });
+
+  it('excludes a file matched only by .codegraphignore (walk path)', () => {
+    const srcDir = path.join(tempDir, 'src');
+    fs.mkdirSync(srcDir, { recursive: true });
+    fs.writeFileSync(path.join(srcDir, 'keep.ts'), 'export const a = 1;');
+    fs.writeFileSync(path.join(srcDir, 'drop.gen.ts'), 'export const b = 2;');
+    // No .gitignore — only .codegraphignore excludes the generated file.
+    fs.writeFileSync(path.join(tempDir, '.codegraphignore'), '*.gen.ts\n');
+
+    const files = scanDirectory(tempDir);
+
+    expect(files).toContain('src/keep.ts');
+    expect(files).not.toContain('src/drop.gen.ts');
+  });
+
+  it('is a UNION with .gitignore — either file excluding a path drops it', () => {
+    const srcDir = path.join(tempDir, 'src');
+    fs.mkdirSync(srcDir, { recursive: true });
+    fs.writeFileSync(path.join(srcDir, 'keep.ts'), 'export const a = 1;');
+    fs.writeFileSync(path.join(srcDir, 'gi.ts'), 'export const b = 2;');
+    fs.writeFileSync(path.join(srcDir, 'cgi.ts'), 'export const c = 3;');
+    fs.writeFileSync(path.join(tempDir, '.gitignore'), 'src/gi.ts\n');
+    fs.writeFileSync(path.join(tempDir, '.codegraphignore'), 'src/cgi.ts\n');
+
+    const files = scanDirectory(tempDir);
+
+    expect(files).toContain('src/keep.ts');
+    expect(files).not.toContain('src/gi.ts');
+    expect(files).not.toContain('src/cgi.ts');
+  });
+
+  it('honors a negation (!) in .codegraphignore (last-match-wins re-include)', () => {
+    const genDir = path.join(tempDir, 'gen');
+    fs.mkdirSync(genDir, { recursive: true });
+    fs.writeFileSync(path.join(genDir, 'keep.ts'), 'export const a = 1;');
+    fs.writeFileSync(path.join(genDir, 'drop.ts'), 'export const b = 2;');
+    // Exclude every .ts in gen/, then re-include one file. We match files (not
+    // the directory) so the walk still descends — gitignore cannot re-include a
+    // file whose parent directory was pruned, but a per-file glob + negation can.
+    fs.writeFileSync(
+      path.join(tempDir, '.codegraphignore'),
+      'gen/*.ts\n!gen/keep.ts\n'
+    );
+
+    const files = scanDirectory(tempDir);
+
+    expect(files).toContain('gen/keep.ts');
+    expect(files).not.toContain('gen/drop.ts');
+  });
+
+  it('respectGitignore:false drops root .gitignore but keeps .codegraphignore + defaults', () => {
+    const srcDir = path.join(tempDir, 'src');
+    const nmDir = path.join(tempDir, 'node_modules', 'pkg');
+    fs.mkdirSync(srcDir, { recursive: true });
+    fs.mkdirSync(nmDir, { recursive: true });
+    fs.writeFileSync(path.join(srcDir, 'secret.ts'), 'export const s = 1;');
+    fs.writeFileSync(path.join(srcDir, 'dropme.ts'), 'export const d = 2;');
+    fs.writeFileSync(path.join(nmDir, 'index.js'), 'module.exports = {};');
+    fs.writeFileSync(path.join(tempDir, '.gitignore'), 'src/secret.ts\n');
+    fs.writeFileSync(path.join(tempDir, '.codegraphignore'), 'src/dropme.ts\n');
+
+    const files = scanDirectory(tempDir, undefined, { respectGitignore: false });
+
+    // .gitignore ignored → secret.ts re-appears; .codegraphignore still applies;
+    // built-in defaults (node_modules) still apply.
+    expect(files).toContain('src/secret.ts');
+    expect(files).not.toContain('src/dropme.ts');
+    expect(files.every((f) => !f.includes('node_modules'))).toBe(true);
+  });
+
+  it('applies .codegraphignore on the git fast path (tracked file post-filtered)', async () => {
+    const { execFileSync } = await import('child_process');
+    const git = (cwd: string, ...args: string[]) =>
+      execFileSync('git', args, { cwd, stdio: 'pipe' });
+
+    git(tempDir, 'init', '-q');
+    git(tempDir, 'config', 'user.email', 'test@test.com');
+    git(tempDir, 'config', 'user.name', 'Test');
+    const srcDir = path.join(tempDir, 'src');
+    fs.mkdirSync(srcDir, { recursive: true });
+    fs.writeFileSync(path.join(srcDir, 'keep.ts'), 'export const a = 1;');
+    fs.writeFileSync(path.join(srcDir, 'api.gen.ts'), 'export const b = 2;');
+    // .codegraphignore is NOT a git mechanism — git tracks api.gen.ts, but the
+    // scanner's post-filter (buildDefaultIgnore) must still drop it.
+    fs.writeFileSync(path.join(tempDir, '.codegraphignore'), '*.gen.ts\n');
+    git(tempDir, 'add', '-A');
+    git(tempDir, 'commit', '-q', '-m', 'init');
+
+    const files = scanDirectory(tempDir);
+
+    expect(files).toContain('src/keep.ts');
+    expect(files).not.toContain('src/api.gen.ts');
+  });
+
+  it('excludes .codegraphignore-matched markdown from the docs scanner', () => {
+    const manageDir = path.join(tempDir, 'manage');
+    fs.mkdirSync(manageDir, { recursive: true });
+    fs.writeFileSync(path.join(tempDir, 'README.md'), '# Readme');
+    fs.writeFileSync(path.join(manageDir, 'secret.md'), '# Secret');
+    fs.writeFileSync(path.join(tempDir, '.codegraphignore'), 'manage/secret.md\n');
+
+    const md = listMarkdownFiles(tempDir).map((p) => p.split(path.sep).join('/'));
+
+    expect(md.some((p) => p.endsWith('README.md'))).toBe(true);
+    expect(md.some((p) => p.endsWith('manage/secret.md'))).toBe(false);
+  });
+
+  it('respectGitignore:false bypasses git and indexes a git-ignored dir (code scanner)', async () => {
+    const { execFileSync } = await import('child_process');
+    const git = (cwd: string, ...args: string[]) =>
+      execFileSync('git', args, { cwd, stdio: 'pipe' });
+
+    git(tempDir, 'init', '-q');
+    git(tempDir, 'config', 'user.email', 'test@test.com');
+    git(tempDir, 'config', 'user.name', 'Test');
+    const genDir = path.join(tempDir, 'generated');
+    fs.mkdirSync(genDir, { recursive: true });
+    fs.writeFileSync(path.join(tempDir, 'keep.ts'), 'export const a = 1;');
+    fs.writeFileSync(path.join(genDir, 'out.ts'), 'export const b = 2;');
+    fs.writeFileSync(path.join(tempDir, '.gitignore'), 'generated/\n');
+    git(tempDir, 'add', '-A');
+    git(tempDir, 'commit', '-q', '-m', 'init');
+
+    // Default git fast path honors .gitignore → generated/ excluded.
+    const def = scanDirectory(tempDir);
+    expect(def).toContain('keep.ts');
+    expect(def.every((f) => !f.includes('generated'))).toBe(true);
+
+    // respectGitignore:false bypasses git entirely → generated/ is re-surfaced.
+    const bypass = scanDirectory(tempDir, undefined, { respectGitignore: false });
+    expect(bypass).toContain('keep.ts');
+    expect(bypass).toContain('generated/out.ts');
+  });
+
+  it('respectGitignore:false still honors .codegraphignore (independent spec, not additive)', async () => {
+    const { execFileSync } = await import('child_process');
+    const git = (cwd: string, ...args: string[]) =>
+      execFileSync('git', args, { cwd, stdio: 'pipe' });
+
+    git(tempDir, 'init', '-q');
+    git(tempDir, 'config', 'user.email', 'test@test.com');
+    git(tempDir, 'config', 'user.name', 'Test');
+    fs.mkdirSync(path.join(tempDir, 'generated'), { recursive: true });
+    fs.writeFileSync(path.join(tempDir, 'generated', 'out.ts'), 'export const a = 1;');
+    fs.writeFileSync(path.join(tempDir, 'generated', 'skip.ts'), 'export const b = 2;');
+    fs.writeFileSync(path.join(tempDir, '.gitignore'), 'generated/\n');
+    fs.writeFileSync(path.join(tempDir, '.codegraphignore'), 'generated/skip.ts\n');
+
+    const files = scanDirectory(tempDir, undefined, { respectGitignore: false });
+    expect(files).toContain('generated/out.ts');      // .gitignore bypassed
+    expect(files).not.toContain('generated/skip.ts'); // .codegraphignore still subtracts
+  });
+
+  it('listMarkdownFiles respectGitignore:false surfaces git-ignored docs (markdown scanner)', () => {
+    fs.mkdirSync(path.join(tempDir, 'docs', 'contextmd'), { recursive: true });
+    fs.writeFileSync(path.join(tempDir, 'docs', 'contextmd', 'cxt100.md'), '# ctx');
+    fs.writeFileSync(path.join(tempDir, 'README.md'), '# root');
+    fs.writeFileSync(path.join(tempDir, '.gitignore'), 'docs/\n');
+
+    const md = listMarkdownFiles(tempDir, { respectGitignore: false })
+      .map((p) => p.split(path.sep).join('/'));
+    expect(md.some((p) => p.endsWith('docs/contextmd/cxt100.md'))).toBe(true);
+    expect(md.some((p) => p.endsWith('README.md'))).toBe(true);
   });
 });
 

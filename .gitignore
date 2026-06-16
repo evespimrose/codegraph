@@ -56,3 +56,4 @@ nul
 release/
 
 .antigravitycli/
+*.pid

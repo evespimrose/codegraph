@@ -59,6 +59,24 @@ describe('CodeGraph Foundation', () => {
       cg.close();
     });
 
+    it('should scaffold a fully-commented .codegraphignore at the project root', () => {
+      const cg = CodeGraph.initSync(tempDir);
+
+      const codegraphignorePath = path.join(tempDir, '.codegraphignore');
+      expect(fs.existsSync(codegraphignorePath)).toBe(true);
+
+      const content = fs.readFileSync(codegraphignorePath, 'utf-8');
+      expect(content).toContain('.codegraphignore');
+      // Default scaffold has NO active patterns (all commented), so a fresh
+      // project indexes exactly as before until the user opts in.
+      const active = content
+        .split('\n')
+        .filter((l) => l.trim() && !l.trim().startsWith('#'));
+      expect(active).toEqual([]);
+
+      cg.close();
+    });
+
     it('should throw if already initialized', () => {
       const cg = CodeGraph.initSync(tempDir);
       cg.close();

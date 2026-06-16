@@ -22,16 +22,17 @@ description: >
 1. 스크립트 1줄 실행 (이 스킬의 scripts/sync-global.ps1, 절대경로)
 2. exit 0(동기화 성공) 시에만 → 이번 빌드 변경점을
    docs/fetch-notes/codegraph-build-notes.md 최상단에 prepend (아래 §빌드 패치노트)
-3. 출력의 verify 해시표·버전·종료코드로 결과 보고
-4. 그 외 소스 코드 구현/수정 없음 — 스크립트 실행·패치노트·보고만
+3. 메인 컨텍스트 출력 0 — 대화창엔 "동기화 완료"만 (아래 §출력 규칙)
+4. 그 외 소스 코드 구현/수정 없음 — 스크립트 실행·패치노트 기록만
 ```
 
 ### 실행 (한 줄)
 
-PowerShell 도구로 이 스킬 디렉터리의 스크립트를 절대경로로 호출한다:
+PowerShell 도구로 이 스킬 디렉터리의 스크립트를 **절대경로**로 호출한다. 경로는 하드코딩하지 말고
+런타임에 주어지는 이 스킬의 *Base directory* + `\scripts\sync-global.ps1`을 쓴다(레포 이동에도 안전):
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File "D:\Fork\codegraph\.claude\skills\sync-global-codegraph\scripts\sync-global.ps1"
+powershell -NoProfile -ExecutionPolicy Bypass -File "D:\Unity\codegraph\.claude\skills\sync-global-codegraph\scripts\sync-global.ps1"
 ```
 
 ### 스크립트가 하는 일 (sync-global.ps1)
@@ -50,6 +51,14 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "D:\Fork\codegraph\.claude\s
 | `OK  global codegraph = <ver> (matches project root)` | 0 | 동기화 성공 |
 | `BUILD FAILED - global UNCHANGED` | 1 | 소스 컴파일 실패 → 전역 그대로. 빌드 에러부터 수정 |
 | `MISMATCH  global not fully updated` | 2 | install 미반영 또는 **버전 불일치**(foreign bin 소유자/잠금) → 에이전트 종료 후 재실행 |
+
+## 출력 규칙 (메인 컨텍스트 0)
+
+이 스킬의 산출은 `docs/fetch-notes/codegraph-build-notes.md` **단 하나**에만 기록한다. verify 해시표·버전·종료코드·진행 로그를 대화창에 풀어쓰지 않는다(토큰 절약이 목적 — `/try`와 동일 원칙).
+
+- **성공(exit 0):** 패치노트 prepend 후 대화창엔 **`동기화 완료`** 한 줄만 출력. 그 외 일절 금지(해시표·요약·파일 경로 나열 금지).
+- **실패(exit 1/2):** 침묵하면 깨진 전역이 가려지므로 예외 — **한 줄**로만 사유 보고. 예: `동기화 실패 (exit 1: BUILD FAILED) — 빌드 에러 수정 후 재실행`. 로그·해시 덤프 금지.
+- 패치노트 본문(섹션 형식·검증 내용)은 **파일에만**. 대화창에 미러링하지 않는다.
 
 ## 빌드 패치노트 작성 (exit 0 시 필수)
 

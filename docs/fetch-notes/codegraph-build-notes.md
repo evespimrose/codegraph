@@ -7,6 +7,15 @@
 
 ---
 
+## [2026-06-15] v0.9.8.1 — rebuild only (전역 재동기화, 기능 변경 없음)
+
+**Sync:** global == project `0.9.8.1` · `dist/bin/codegraph.js`·`dist/index.js`·`dist/db/schema.sql` 해시 일치 · 빌드 그린 (exit 0)
+**Source:** `Obsidian-Graph-Vector-DB` @ `19bbf0e` (clean working tree)
+
+직전 두 섹션(`--no-gitignore` 완전 우회 / `.codegraphignore` 독립 스펙)이 다룬 변경 이후 **소스 변경 없음**. 해당 작업은 당시 `272fd46 (+ working tree)`로 동기화됐고, 이후 `19bbf0e`로 커밋되며 working tree가 정리됐다. 이번 실행은 커밋된 소스를 전역 바이너리에 1:1 재정합한 재빌드·재설치일 뿐 — 새 기능/수정 없음. (참고: 이 세션의 변경은 MCP 등록 `.mcp.json`·문서뿐이라 `dist/`에 영향 없음.)
+
+---
+
 ## [2026-06-15] v0.9.8.1 — `--no-gitignore` 완전 우회 (`.codegraphignore` 독립 스펙화)
 
 **Sync:** global == project `0.9.8.1` · 해시 일치 · 빌드 그린 (exit 0)

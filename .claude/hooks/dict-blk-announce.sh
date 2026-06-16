@@ -1,8 +1,8 @@
 #!/bin/bash
 # dict-blk-announce.sh
 # HANDOVER-MANAGED
-# PostToolUse:Read hook — cxt 파일 로드 직후 BLK 태그 파싱 후 dictionary § 1 관련 파일 목록을 주입.
-# Claude가 별도 grep 없이 즉시 대상 파일을 알 수 있도록 한다.
+# PostToolUse:Read hook — cxt 파일 로드 직후 BLK 태그 파싱 후 codegraph 우선, dictionary § 1(보완 인덱스) 관련 파일 후보를 주입.
+# codegraph(codegraph_impact/context) 우선; dictionary는 보완(fallback).
 
 FILE_PATH=$(jq -r '.tool_input.file_path // empty' 2>/dev/null)
 
@@ -21,7 +21,7 @@ LINE2=$(sed -n '2p' "$FILE_PATH" 2>/dev/null)
 if ! echo "$LINE2" | grep -qE '<!--\s*BLK:.*-->'; then
   # BLK 태그 없음 — 경고만 출력
   BASENAME=$(basename "$FILE_PATH")
-  MSG="[doc-context] ${BASENAME}: 2행 BLK 태그 없음. manage/dictionary.md § 3 키워드 인덱스에서 BLK 추정 필요."
+  MSG="[doc-context] ${BASENAME}: 2행 BLK 태그 없음. codegraph_search/context로 BLK 확인(우선) — 보완: manage/dictionary.md § 3 키워드 인덱스."
   echo "{\"systemMessage\": \"${MSG}\"}"
   exit 0
 fi
@@ -46,9 +46,9 @@ done
 BASENAME=$(basename "$FILE_PATH")
 if [ -n "$MATCHED_FILES" ]; then
   FILE_LIST=$(echo -e "$MATCHED_FILES" | sort -u | head -10 | tr '\n' ', ' | sed 's/, $//')
-  MSG="[doc-context] ${BASENAME} → BLK: ${BLKS}| 관련 파일: ${FILE_LIST}"
+  MSG="[doc-context] ${BASENAME} → BLK: ${BLKS}| codegraph 우선(codegraph_impact/context) · dictionary § 1 보완 후보: ${FILE_LIST}"
 else
-  MSG="[doc-context] ${BASENAME} → BLK: ${BLKS}| dictionary § 1 매칭 없음 — 신규 BLK 가능성"
+  MSG="[doc-context] ${BASENAME} → BLK: ${BLKS}| codegraph_search로 확인(우선) · dictionary § 1 매칭 없음 — 신규 BLK 가능성"
 fi
 
 echo "{\"systemMessage\": \"${MSG}\"}"

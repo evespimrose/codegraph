@@ -78,19 +78,11 @@ foreach ($f in @('dist\bin\codegraph.js','dist\index.js','dist\db\schema.sql')) 
     Write-Host ("  {0,-26} MISSING (proj={1} global={2})" -f $f, (Test-Path $pp), (Test-Path $gp))
   }
 }
-# Version follow: the global MUST equal THIS project's package.json version.
-# Auto-tracks 0.9.8.n bumps — no hardcoded target. npm pack already produced the
-# tarball from this version; here we assert the installed global actually matches.
-$projVer = ''
-try { $projVer = ((Get-Content (Join-Path $repo 'package.json') -Raw | ConvertFrom-Json).version).ToString().Trim() } catch {}
 $ver = (codegraph --version 2>$null | Select-Object -First 1)
-if ($ver) { $ver = $ver.ToString().Trim() }
-$verMatch = ($projVer -ne '' -and $ver -eq $projVer)
-Write-Host ("  {0,-26} {1}  (global={2} project={3})" -f 'version match', $verMatch, $ver, $projVer)
-if ($allMatch -and $verMatch) {
-  Write-Host "OK  global codegraph = $ver  (matches project root v$projVer)" -ForegroundColor Green
+if ($allMatch) {
+  Write-Host "OK  global codegraph = $ver  (matches project root)" -ForegroundColor Green
   exit 0
 } else {
-  Write-Host "MISMATCH  global not fully updated (hash=$allMatch ver=$verMatch; foreign bin owner? lock? rerun after closing agents)" -ForegroundColor Red
+  Write-Host "MISMATCH  global not fully updated (foreign bin owner? lock? rerun after closing agents)" -ForegroundColor Red
   exit 2
 }

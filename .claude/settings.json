@@ -20,7 +20,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/cave-man-guard.sh",
+            "command": "bash .claude/hooks/sonar-guard.sh",
             "timeout": 5
           }
         ]
@@ -30,7 +30,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/cave-man-guard-powershell.sh",
+            "command": "bash .claude/hooks/sonar-guard-powershell.sh",
             "timeout": 5
           }
         ]
@@ -51,6 +51,25 @@
           {
             "type": "command",
             "command": "bash .claude/hooks/write-approval-reminder.sh",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": "Task",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/subagent-dispatch-gate.sh",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/turn-budget-gate.sh",
             "timeout": 5
           }
         ]
@@ -87,6 +106,22 @@
           {
             "type": "command",
             "command": "bash .claude/hooks/dict-blk-announce.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/output-arm-gate.sh",
+            "timeout": 5
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/turn-budget-gate.sh",
             "timeout": 5
           }
         ]

@@ -264,7 +264,7 @@ publish actions on shared state. Write the files, hand the user the commands.
   - The **current branch's tip** — your own unmerged work obviously can't be what the comment is reacting to.
   Always disambiguate "released," "merged-but-unreleased," and "in-progress" before agreeing that a user-reported problem is unfixed (or that a fix is incomplete). A user saying "your fix only covers X" about a recent PR is usually pointing at the *released* shortcomings — your in-flight branch may already address them but they have no way to know that.
 
-## RULE-1: Cave-Man Protocol (DEADLY · L1 Hook 강제)
+## RULE-1: Sonar Protocol (DEADLY · L1 Hook 강제)
 
 **모든 소스 코드 접근 전 codegraph 우선 사용.**
 
@@ -277,19 +277,19 @@ publish actions on shared state. Write the files, hand the user the commands.
 ### ✅ 올바른 순서
 ```
 1. codegraph_context / codegraph_search → 심볼 위치
-2. codegraph_impact / codegraph_callers → 영향 범위
+2. codegraph_callers / codegraph_impact → 영향 범위
 3. codegraph_node / codegraph_explore → 소스 코드
 4. (보완 시만) Read / Glob / Grep
 ```
 
-차단 hook: `.claude/hooks/cave-man-guard*.sh`, `codegraph-gate.sh`
+차단 hook: `.claude/hooks/sonar-guard*.sh`, `codegraph-gate.sh`
 위반 로그: `.claude/state/violation-count.log`
 
 ## RULE-2: /doc-context 즉시 실행
 - cxt 파일 = 사용자의 직접 지시
 - 재확인·요약 금지, 즉시 작업 착수
 - cxt 2행 `<!-- BLK: BLK-XXX -->` 의무
-- cxt 3행 `<!-- CAVE-MAN-REMINDER: ... -->` 의무 (L5 외부 이전)
+- cxt 3행 `<!-- SONAR-REMINDER: ... -->` 의무 (L5 외부 이전)
 
 ## RULE-3: RIPER 상태 추적
 `.claude/memory-bank/.riper-state` 파일에 기록.
@@ -319,6 +319,14 @@ publish actions on shared state. Write the files, hand the user the commands.
 
 ## RULE-8: 컴팩션 전 메모리 저장
 /compact 실행 전 `/memory:save` 필수. 복원: `/memory:recall`
+
+## RULE-9: Output Arm (출력 압축 · 기본 ON · 토글)
+출력측 토큰 게이트. 기본 ON. 상태: `.claude/state/output-arm` (`on`/`off`), 토글: `/output-arm on|off`.
+- **ON**: 메인 컨텍스트 서술 억제 → 도구로 작업, 끝에 `XX 완료` 한 줄만. **서브에이전트 디스패치 금지**(Agent/Task 콜드스타트 토큰세금 ~100배; 예외: 초대형·병렬 독립 작업을 사용자가 발의한 경우만 — `subagent-dispatch-gate.sh`가 `ask`로 경고). must-see 산출물은 `docs/output/YYYY-MM-DD-<task>.md`에 적재(코드 위치=BLK 태그, 참조=마크다운 링크 → codegraph 추적).
+- **Auto-Clarity 예외(억제 해제)**: 보안·비가역 동작·모호 다단계·반복 질문·하드 블로커 → 정상 출력. correctness > brevity.
+- 사후 게이트: Stop 훅 `output-arm-gate.sh` (변경 있는데 docs/output 적재 없으면 경고).
+- 스킬: `.claude/skills/output-arm/`. 설계: caveman 입국심사 Atom 1·2·4·5·6. **실적용**: 전 스킬/커맨드 frontmatter에 `<!-- CAVE-MAN-OUTPUT-ARM -->` 헤더 통일 삽입(riper/memory 커맨드는 "디스패치"→"메인 직접" 대체).
+- 금지: 헌법급 문서(CLAUDE.md·schema) LLM lossy 압축(Atom 7 반례).
 
 ## Plan Scope Lock 필드 (PLAN 단계 모든 스텝에 포함)
 - **Symbol**: `ClassName.MethodName`

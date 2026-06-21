@@ -1,0 +1,36 @@
+# sync manifest — what counts as "the workflow"
+# One path per line, RELATIVE to the source repo root.
+# Directories are copied recursively; files are copied verbatim.
+# '#' = comment, blank lines ignored.
+#
+# EXCLUDED BY DESIGN (this repo's project-specific runtime state — NEVER synced):
+#   .claude/state/              violation logs, output-arm toggle, turn budget
+#   .claude/memory-bank/        RIPER state, branch memories
+#   .claude/settings.local.json machine-local overrides
+#   memory/MEMORY.md + project-specific memories (only universal feedback below syncs)
+#   .codegraph/ node_modules/ dist/ .git/ src/ docs/ site/ __tests__/  (not workflow)
+#
+# GENERATED (not listed here): .mcp.json is written into each target root
+#   (codegraph MCP), merge-preserving any sibling servers already there.
+
+# --- Claude Code scaffolding ---
+.claude/skills
+.claude/commands
+.claude/hooks
+.claude/rules
+.claude/agents
+.claude/settings.json
+
+# --- Other agents ---
+.codex
+.trae
+.agents
+.cursor
+
+# --- Root instruction docs ---
+CLAUDE.md
+AGENTS.md
+SKILL.md
+
+# --- Universal feedback (user-global preference, applies to every project) ---
+memory/feedback_korean_communication.md

@@ -21,28 +21,22 @@ fi
 python3 - << PYEOF
 import json, os
 
+# HR5 CacheAligner: RULE-1~5 는 session-start.sh 의 CORE_RULES 와 byte-equal 로 유지할 것
+#   (두 SessionStart 진입점이 동일 불변 prefix 를 산출 → KV 캐시 재사용).
+#   RULE-6 만 진입점별로 다름: 최초 세션 = /memory:save, 컴팩션 후 = /memory:recall.
 CORE_RULES = """
-=== CORE_RULES (컴팩션 후 재주입됨) ===
+=== CORE_RULES (컴팩션 후 자동 복원) ===
 
-RULE-1 [CAVE-MAN PROTOCOL - DEADLY]:
-  bash find/grep -r/ls -r/rg/fd 로 파일 탐색 금지.
-  manage/dictionary.md § 1 조회 또는 Glob/Grep 도구 사용.
+RULE-1 [SONAR PROTOCOL - DEADLY · L1 Hook 강제]:
+  ❌ 자동 차단: find/grep -r/ls -r/rg/fd · PowerShell -Recurse · 소스 코드 Read (codegraph 미사용 시)
+  ✅ 순서: codegraph_context → codegraph_search → codegraph_node → (보완) Read/Grep
+  위반 로그: .claude/state/violation-count.log
 
-RULE-2 [RIPER STATE]:
-  현재 RIPER 모드: .claude/memory-bank/.riper-state 파일 확인.
-
-RULE-3 [GATE]:
-  플랜 파일 존재 → quality-sentinel + reporter 필수.
-  플랜 파일 없음 → 소형 작업, 선택적.
-
-RULE-4 [WRITE APPROVAL]:
-  소스 코드 쓰기 전 사용자 승인 필수. Collaboration Protocol Step 5.
-
-RULE-5 [DOC-CONTEXT]:
-  /doc-context 수신 시 재확인 금지. 즉시 착수.
-
-RULE-6 [MEMORY]:
-  컴팩션 발생했음. /memory:recall 즉시 실행하여 claude-mem 기억 복원.
+RULE-2 [RIPER STATE]: .claude/memory-bank/.riper-state
+RULE-3 [GATE]: 플랜 파일 존재 = 중·대형 작업
+RULE-4 [WRITE APPROVAL]: 소스 코드 수정 전 사용자 승인
+RULE-5 [DOC-CONTEXT]: /doc-context 수신 시 즉시 작업 (재확인 금지)
+RULE-6 [MEMORY]: 컴팩션 발생 — /memory:recall 즉시 실행하여 claude-mem 기억 복원
 """
 
 backup_content = ""

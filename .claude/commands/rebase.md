@@ -3,6 +3,19 @@ description: Rebase current branch onto trunk (origin/master or origin/main), pr
 allowed-tools: Bash(git:*), Bash(uv run ruff:*), Bash(uv run mypy:*), Bash(uv run pytest:*), Bash(uv run py.test:*), Read, Grep, Glob, Edit
 ---
 
+<!-- CAVE-MAN-OUTPUT-ARM -->
+## ⚙️ 실행 규칙 (Cave-Man Output Arm · 전 스킬 공통)
+
+- **메인 컨텍스트 타이핑 금지** — 과정 narration·중간 요약·"이제 ~하겠습니다" 출력 안 함
+- **도구 사용 허용** — codegraph→(보완)Read/Edit 등으로 메인이 직접 작업 (hook 통제下)
+- **서브에이전트 디스패치 금지** — Agent/Task 호출 안 함 (콜드스타트 토큰세금 ~100배). 예외: 초대형 규모·병렬 독립 작업을 **사용자가 발의**한 경우만
+- **완료 보고만 허용** — 끝에 `XX 완료` 1~2단어 간단 보고만 타이핑
+- **Auto-Clarity 예외** — 보안·비가역·모호 다단계·반복질문·하드블로커 → 정상 출력 (correctness > brevity)
+
+정책: [[main-context-zero-delegation]] · `/output-arm` · CLAUDE.md RULE-9
+<!-- /CAVE-MAN-OUTPUT-ARM -->
+
+
 ## Context
 
 - Current branch: !`git branch --show-current`

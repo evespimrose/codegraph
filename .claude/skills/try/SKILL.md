@@ -3,6 +3,19 @@ name: try
 description: Use when the user asks whether a proposed change is worth doing - architecture splits, refactoring, package additions, layer separation. Compares current state vs proposed state before any code is touched. Korean alias - "ganboги" / feasibility check.
 ---
 
+<!-- CAVE-MAN-OUTPUT-ARM -->
+## ⚙️ 실행 규칙 (Cave-Man Output Arm · 전 스킬 공통)
+
+- **메인 컨텍스트 타이핑 금지** — 과정 narration·중간 요약·"이제 ~하겠습니다" 출력 안 함
+- **도구 사용 허용** — codegraph→(보완)Read/Edit 등으로 메인이 직접 작업 (hook 통제下)
+- **서브에이전트 디스패치 금지** — Agent/Task 호출 안 함 (콜드스타트 토큰세금 ~100배). 예외: 초대형 규모·병렬 독립 작업을 **사용자가 발의**한 경우만
+- **완료 보고만 허용** — 끝에 `XX 완료` 1~2단어 간단 보고만 타이핑
+- **Auto-Clarity 예외** — 보안·비가역·모호 다단계·반복질문·하드블로커 → 정상 출력 (correctness > brevity)
+
+정책: [[main-context-zero-delegation]] · `/output-arm` · CLAUDE.md RULE-9
+<!-- /CAVE-MAN-OUTPUT-ARM -->
+
+
 # Try — 사전 타당성 분석 (Feasibility Taste-Test)
 
 ## Overview
@@ -10,20 +23,7 @@ description: Use when the user asks whether a proposed change is worth doing - a
 **코드를 건드리기 전, 변경의 실제 가치를 검증한다.**
 
 구현 착수 전 토큰 효율을 최대화하는 것이 핵심 목적이다.
-**메인 컨텍스트 출력은 0에 수렴**시킨다: 분석 본문은 `<프로젝트 루트>/docs/try/Try_{주제}.md` 파일에만 기록하고, 대화창에는 파일 경로 + 1~2줄 결론만 남긴다(비교 축 본문·표를 대화에 풀어쓰지 않는다). 구현 착수는 하지 않는다.
-
-## State Update (MANDATORY — on invocation)
-
-/try 호출 즉시 `.claude/memory-bank/.riper-state` 업데이트:
-```
-MODE=PRE-ANALYSIS
-TASK=try: <주제>
-PLAN_FILE=
-BRANCH=<current git branch>
-STARTED=<current date YYYY-MM-DD>
-```
-
-Use: `git rev-parse --abbrev-ref HEAD` for branch name.
+분석 결과는 `docs/try/Try_{주제}.md`에 저장한다. 구현 착수는 하지 않는다. 메인 컨텍스트 윈도우에 분석 결과 타이핑이 침범하지 못하도록.
 
 ## 언제 사용하는가
 
@@ -35,16 +35,13 @@ Use: `git rev-parse --abbrev-ref HEAD` for branch name.
 ## 실행 프로토콜
 
 ```
-1. STATE   .riper-state에 MODE=PRE-ANALYSIS 기록
-2. READ    현재 코드베이스 구조 파악 (관련 파일·asmdef·namespace)
-3. MODEL   제안 구조를 다이어그램 또는 표로 시각화
-4. COMPARE 현상유지 vs 제안 — 아래 5개 축으로 비교
-5. RISK    단기 비용(마이그레이션 비용, 씬/prefab 영향 등) 명시
-6. RECOMMEND 조건부 추천 또는 반대 근거 제시
-7. WRITE   docs/try/Try_{주제}.md 저장 (docs/try/ 없으면 생성)
-8. REPORT  메인 컨텍스트엔 단 두 줄만 (그 외 일절 금지):
-              ✅ /try 완료 → docs/try/Try_{주제}.md — <제목>
-              결론: <1~2줄 핵심 판단>
+0. USER    "이거 해줘" / "이거 하면 어때?" → try 프로토콜 착수(아래의 작업 모두 메인 컨텍스트 타이핑 금지)
+1. READ    현재 코드베이스 구조 파악 (관련 파일·asmdef·namespace)
+2. MODEL   제안 구조를 다이어그램 또는 표로 시각화
+3. COMPARE 현상유지 vs 제안 — 아래 5개 축으로 비교
+4. RISK    단기 비용(마이그레이션 비용, 씬/prefab 영향 등) 명시
+5. RECOMMEND 조건부 추천 또는 반대 근거 제시
+6. WRITE   docs/try/Try_{주제}.md 저장
 ```
 
 ## 5개 비교 축 (필수 — 하나라도 생략 금지)
@@ -57,7 +54,7 @@ Use: `git rev-parse --abbrev-ref HEAD` for branch name.
 | **단기 비용** | 마이그레이션 범위, 씬/prefab 재설정 필요 여부, namespace 변경 파급력 |
 | **현재 작업과의 연관성** | 미결 사항·플랜과의 연계, 착수 최적 타이밍 |
 
-## 파일에 기록할 출력 형식 (`docs/try/Try_{주제}.md`) — 대화창 아님, 파일 전용
+## 출력 형식 (`docs/try/Try_{주제}.md`)
 
 ```markdown
 # Try — {작업 제목}
@@ -90,8 +87,7 @@ Use: `git rev-parse --abbrev-ref HEAD` for branch name.
 
 ## 파일 저장 규칙
 
-- 경로: `<프로젝트 루트>/docs/try/Try_{주제}.md` (docs/try/ 하위, 없으면 생성)
-- **메인 컨텍스트 출력 0 원칙**: 분석 본문·비교표는 파일에만. 대화창엔 경로 + 1~2줄 결론만.
+- 경로: `docs/try/Try_{주제}.md`
 - 주제 명명: 영어 CamelCase + 한국어 허용 (예: `Try_ServiceLayerSplit.md`, `Try_DOTS도입.md`)
 - 이 파일은 분석 문서. 구현 착수는 별도 사용자 결재 후 producer 경유.
 
@@ -102,9 +98,8 @@ NEVER:
 - try 수행 중 코드 파일(.cs, .asmdef 등) 수정
 - 결재 없이 구현 착수
 - 분석 없이 추천만 제시
-- 분석 본문·비교표를 메인 컨텍스트에 출력 (파일 전용 — 대화창엔 경로+결론만)
 - 5개 비교 축 중 하나 이상 생략
-- bash find/grep -r/ls -r/rg/fd 탐색 (Cave-Man Protocol)
+- bash find/grep -r/ls -r/rg/fd 탐색 (Sonar Protocol)
 
 INSTEAD:
 - 현황 파악 먼저 (파일 읽기, 구조 확인, dictionary.md § 1 참조)
@@ -117,6 +112,6 @@ INSTEAD:
 ```
 try 완료 후:
   "해줘" / "진행해" / "OK" → producer 경유 구현 착수 (.riper-state → MODE=RESEARCH 전환 권장)
-  "알겠어" / 별도 지시 없음 → docs/Try_xxx.md 기록만, 대기
+  "알겠어" / 별도 지시 없음 → docs/try/Try_xxx.md 기록만, 대기
   "다른 옵션도 봐줘" → 추가 try 수행
 ```

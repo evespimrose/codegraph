@@ -12,6 +12,7 @@ and adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Fixes
 
 - File names containing non-ASCII characters (Korean, Chinese, Japanese, etc.) are now indexed correctly in git-tracked projects.
+- With Markdown docs indexing enabled, your docs now stay up to date automatically as you edit them — the file watcher picks up `.md` changes and `codegraph sync` refreshes them, instead of needing a full re-index. Projects without the docs feature are unaffected.
 
 ### New Features
 

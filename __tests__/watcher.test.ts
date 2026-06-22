@@ -28,6 +28,7 @@ import * as os from 'os';
 import { FileWatcher, LockUnavailableError } from '../src/sync/watcher';
 import CodeGraph from '../src/index';
 import { triggerFileEvent } from './__helpers__/chokidar-mock';
+import { isMarkdownFile } from '../src/docs/scan-files';
 
 /**
  * Helper to wait for a condition with timeout. Most tests no longer need
@@ -142,6 +143,47 @@ describe('FileWatcher', () => {
       expect(syncFn.mock.calls.length).toBe(1);
 
       watcher.stop();
+    });
+  });
+
+  describe('markdown gating (docs opt-in)', () => {
+    it('passes .md edits to sync when docsEnabled is true', async () => {
+      const syncFn = vi.fn().mockResolvedValue({ filesChanged: 1, durationMs: 10 });
+      const watcher = new FileWatcher(testDir, syncFn, { debounceMs: 200, docsEnabled: true });
+
+      watcher.start();
+      await watcher.waitUntilReady();
+      // With docs on, a .md edit now schedules a sync so the docs vector store /
+      // concept nodes stay current without a full re-index.
+      triggerFileEvent(testDir, 'add', 'docs/guide.md');
+
+      await waitFor(() => syncFn.mock.calls.length > 0);
+      expect(syncFn).toHaveBeenCalled();
+
+      watcher.stop();
+    });
+
+    it('drops .md edits when docs is off (default — pre-docs behavior)', async () => {
+      const syncFn = vi.fn().mockResolvedValue({ filesChanged: 0, durationMs: 0 });
+      const watcher = new FileWatcher(testDir, syncFn, { debounceMs: 200, docsEnabled: false });
+
+      watcher.start();
+      await watcher.waitUntilReady();
+      triggerFileEvent(testDir, 'add', 'docs/guide.md');
+
+      // Wait past the debounce — the gate must drop the .md, no sync scheduled.
+      await new Promise((r) => setTimeout(r, 400));
+      expect(syncFn).not.toHaveBeenCalled();
+
+      watcher.stop();
+    });
+
+    it('isMarkdownFile matches .md/.markdown/.mdx only', () => {
+      expect(isMarkdownFile('docs/guide.md')).toBe(true);
+      expect(isMarkdownFile('NOTES.markdown')).toBe(true);
+      expect(isMarkdownFile('site/page.mdx')).toBe(true);
+      expect(isMarkdownFile('src/index.ts')).toBe(false);
+      expect(isMarkdownFile('README')).toBe(false);
     });
   });
 

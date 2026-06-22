@@ -25,6 +25,7 @@ import {
 import { DatabaseConnection, getDatabasePath } from './db';
 import type { SqliteDatabase } from './db/sqlite-adapter';
 import { indexMarkdown } from './docs/indexer';
+import { resolveDocsEnabled } from './docs/config';
 import { linkGovernsEdges } from './docs/governs-linker';
 import { linkDocEdges } from './docs/doc-links-linker';
 import { QueryBuilder } from './db/queries';
@@ -562,6 +563,24 @@ export class CodeGraph {
           this.db.runMaintenance();
         }
 
+        // Markdown docs (opt-in): refresh the vector store + concept nodes for
+        // any changed .md. orchestrator.sync() filters to source files, so .md
+        // edits never appear in filesAdded/Modified — catch them here. Always
+        // called (a cheap content-hash compare over the doc set skips unchanged
+        // files); internally gated by resolveDocsEnabled, a no-op when docs is
+        // off. Best-effort: docs never fail a sync.
+        try {
+          const docs = await indexMarkdown(this.db.getDb(), this.projectRoot, {
+            respectGitignore: options.respectGitignore,
+          });
+          // New/updated concept nodes — re-link governs + doc edges so
+          // callers/impact follow them. Skipped when nothing was (re)indexed.
+          if (docs.enabled && docs.indexed > 0) {
+            try { linkGovernsEdges(this.db.getDb(), this.queries); } catch { /* best-effort */ }
+            try { linkDocEdges(this.db.getDb(), this.queries); } catch { /* best-effort */ }
+          }
+        } catch { /* docs are best-effort; never fail a sync */ }
+
         return result;
       } finally {
         this.fileLock.release();
@@ -592,6 +611,12 @@ export class CodeGraph {
   watch(options: WatchOptions = {}): boolean {
     if (this.watcher?.isActive()) return true;
 
+    // Resolve the docs opt-in once at watch start so the watcher lets .md edits
+    // through (docs-on only — a no-op gate otherwise, avoiding a full reconcile
+    // sync per Markdown edit). Re-enabling docs after watch starts needs a
+    // re-watch, same as respectGitignore.
+    const docsEnabled = resolveDocsEnabled(this.db.getDb());
+
     this.watcher = new FileWatcher(
       this.projectRoot,
       async () => {
@@ -607,7 +632,7 @@ export class CodeGraph {
         const filesChanged = result.filesAdded + result.filesModified + result.filesRemoved;
         return { filesChanged, durationMs: result.durationMs };
       },
-      options
+      { ...options, docsEnabled }
     );
 
     return this.watcher.start();

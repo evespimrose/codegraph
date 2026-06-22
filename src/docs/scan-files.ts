@@ -13,6 +13,17 @@ import type { Ignore } from 'ignore';
 import { buildDefaultIgnore, type ScanOptions } from '../extraction/index';
 
 const MD_EXT = /\.(md|markdown|mdx)$/i;
+
+/**
+ * Whether a path is a Markdown file the docs indexer picks up
+ * (.md / .markdown / .mdx). Single source of truth shared with the file
+ * watcher's watch gate, so the gate and `listMarkdownFiles` can never disagree
+ * on what counts as Markdown.
+ */
+export function isMarkdownFile(filePath: string): boolean {
+  return MD_EXT.test(filePath);
+}
+
 const SKIP_DIRS = new Set([
   'node_modules', '.git', '.codegraph', 'dist', 'build', '.next', 'out', 'coverage',
 ]);

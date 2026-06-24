@@ -102,9 +102,86 @@ describe('Language Detection', () => {
     expect(detectLanguage('stdio.h', '#ifndef STDIO_H\nvoid printf();\n#endif\n')).toBe('c');
   });
 
+  it('should detect SL files and FEGate API headers by content', () => {
+    expect(detectLanguage('tools/bolt.sl')).toBe('sl');
+    const fegateHeader =
+      'namespace dbNode {\n/**HELP_FUN\n@decl\nint dbNode::First()\n@brief\nfirst\n*/\nint First();\n}\n';
+    expect(detectLanguage('api_db_node.h', fegateHeader)).toBe('slheader');
+    // plain C headers must NOT be hijacked by the FEGate content gate
+    expect(detectLanguage('list.h', '#ifndef LIST_H\nvoid push();\n#endif\n')).toBe('c');
+  });
+
   it('should return unknown for unsupported extensions', () => {
     expect(detectLanguage('styles.css')).toBe('unknown');
     expect(detectLanguage('data.json')).toBe('unknown');
+  });
+});
+
+describe('SL Extraction', () => {
+  it('should extract functions, structs, and bodies', () => {
+    const code = `
+struct stData { int idx; double val; };
+
+bool cmp(int a, int b) { return a < b; }
+
+void main() {
+    int n[];
+    dbNode::GetAll(n);
+    foreach_db(i, dbNode) {
+        msgLog("%d", dbNode::Label(i));
+    }
+    arySortOp(n, cmp);
+}
+`;
+    const result = extractFromSource('tool.sl', code);
+
+    const cmp = result.nodes.find((n) => n.name === 'cmp' && (n.kind === 'function' || n.kind === 'method'));
+    expect(cmp).toBeDefined();
+    const mainFn = result.nodes.find((n) => n.name === 'main');
+    expect(mainFn).toBeDefined();
+    const structNode = result.nodes.find((n) => n.kind === 'struct' && n.name === 'stData');
+    expect(structNode).toBeDefined();
+  });
+
+  it('should preserve the :: qualified name on scoped calls', () => {
+    const code = `void main() { int n[]; dbNode::GetAll(n); }`;
+    const result = extractFromSource('tool.sl', code);
+    const call = result.unresolvedReferences.find(
+      (r) => r.referenceKind === 'calls' && r.referenceName === 'dbNode::GetAll'
+    );
+    expect(call).toBeDefined();
+  });
+});
+
+describe('SL Header (HELP_FUN) Extraction', () => {
+  it('should extract one function per HELP_FUN block, keyed by @decl qualified name', () => {
+    const header = `namespace dbNode {
+/**HELP_FUN
+@decl
+int dbNode::First()
+@brief
+Returns the first node index
+@return
+int
+*/
+int First();
+
+/**HELP_FUN
+@decl
+int dbNode::Next(int index)
+@brief
+Returns the next node index
+*/
+int Next(int index);
+}
+`;
+    const result = extractFromSource('api_db_node.h', header);
+
+    const first = result.nodes.find((n) => n.kind === 'function' && n.qualifiedName === 'dbNode::First');
+    expect(first).toBeDefined();
+    expect(first?.name).toBe('First');
+    const next = result.nodes.find((n) => n.qualifiedName === 'dbNode::Next');
+    expect(next).toBeDefined();
   });
 });
 

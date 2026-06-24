@@ -111,6 +111,8 @@ export const LANGUAGES = [
   'twig',
   'xml',
   'properties',
+  'sl',
+  'slheader',
   'unknown',
 ] as const;
 

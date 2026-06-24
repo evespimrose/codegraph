@@ -1,6 +1,6 @@
-MODE=EXECUTE
-TASK=Markdown watch/sync 자동 인덱싱 연결 — (A) watcher 게이트가 docs-ON일 때만 .md 통과(isMarkdownFile 신설, WatchOptions.docsEnabled, watch()가 resolveDocsEnabled 해석), (B) sync() 종료부 indexMarkdown best-effort 호출 + 변경 시 governs/doc-link 재연결. SyncResult 타입 무변경. 출처 cxt: docs/contextmd/cxt1.md
-PLAN_FILE=.claude/memory-bank/codegraph-dlc/plans/codegraph-dlc-2026-06-22-markdown-watch-sync.md
-BRANCH=codegraph-dlc
-STARTED=2026-06-22
-CANONICAL_DIRS=cxt/,docs/contextmd/,manage/
+MODE=REVIEW
+TASK=SL (FEGate FFS) tree-sitter 파서 구현 — Option C (.sl 네이티브 문법 + .h HELP_FUN 스텁). 구현+결정적 검증 완료. 잔여=유료 A/B 벤치(사용자 발의).
+PLAN_FILE=.claude/memory-bank/codegraph_sl_treesitter_parser/plans/codegraph_sl_treesitter_parser-2026-06-24-sl-treesitter-parser.md
+RESULTS=docs/output/2026-06-24-sl-parser-execute-results.md
+BRANCH=codegraph_sl_treesitter_parser
+STARTED=2026-06-24

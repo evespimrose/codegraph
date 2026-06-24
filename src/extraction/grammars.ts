@@ -10,7 +10,7 @@ import * as path from 'path';
 import { Parser, Language as WasmLanguage } from 'web-tree-sitter';
 import { Language } from '../types';
 
-export type GrammarLanguage = Exclude<Language, 'svelte' | 'vue' | 'liquid' | 'yaml' | 'twig' | 'xml' | 'properties' | 'unknown'>;
+export type GrammarLanguage = Exclude<Language, 'svelte' | 'vue' | 'liquid' | 'yaml' | 'twig' | 'xml' | 'properties' | 'slheader' | 'unknown'>;
 
 /**
  * WASM filename map — maps each language to its .wasm grammar file
@@ -38,6 +38,7 @@ const WASM_GRAMMAR_FILES: Record<GrammarLanguage, string> = {
   lua: 'tree-sitter-lua.wasm',
   luau: 'tree-sitter-luau.wasm',
   objc: 'tree-sitter-objc.wasm',
+  sl: 'tree-sitter-sl.wasm',
 };
 
 /**
@@ -95,6 +96,9 @@ export const EXTENSION_MAP: Record<string, Language> = {
   '.luau': 'luau',
   '.m': 'objc',
   '.mm': 'objc',
+  // FEGate SL (FFS Script Language). `.sl` is native SL source; `.h` API headers
+  // stay mapped to 'c' and are content-detected to 'slheader' in detectLanguage().
+  '.sl': 'sl',
   // XML: file-level tracking; the MyBatis extractor matches `<mapper namespace="...">`
   // shape and emits SQL-statement nodes (other XML returns empty).
   '.xml': 'xml',
@@ -179,7 +183,7 @@ export async function loadGrammarsForLanguages(languages: Language[]): Promise<v
       // ABI-13 build that corrupts the shared WASM heap under web-tree-sitter
       // 0.25 (drops nested calls/imports on every file after the first); we
       // vendor the upstream ABI-15 wasm instead.
-      const wasmPath = (lang === 'pascal' || lang === 'scala' || lang === 'lua' || lang === 'luau')
+      const wasmPath = (lang === 'pascal' || lang === 'scala' || lang === 'lua' || lang === 'luau' || lang === 'sl')
         ? path.join(__dirname, 'wasm', wasmFile)
         : require.resolve(`tree-sitter-wasms/out/${wasmFile}`);
       const language = await WasmLanguage.load(wasmPath);
@@ -238,8 +242,9 @@ export function detectLanguage(filePath: string, source?: string): Language {
   const ext = filePath.substring(filePath.lastIndexOf('.')).toLowerCase();
   const lang = EXTENSION_MAP[ext] || 'unknown';
 
-  // .h files could be C, C++, or Objective-C — check source content
+  // .h files could be C, C++, Objective-C, or FEGate SL API headers — check content
   if (lang === 'c' && ext === '.h' && source) {
+    if (looksLikeFegateHeader(source)) return 'slheader';
     if (looksLikeCpp(source)) return 'cpp';
     if (looksLikeObjc(source)) return 'objc';
   }
@@ -265,6 +270,18 @@ function looksLikeObjc(source: string): boolean {
 }
 
 /**
+ * Heuristic: is this .h a FEGate SL API header? FEGate headers document each
+ * function with a `HELP_FUN(...)` block carrying `@decl/@brief/@return` tags —
+ * never present in plain C/C++/Objective-C headers. Routed to the regex
+ * sl-header stub extractor rather than the C grammar (which can't parse SL
+ * `ref type ary[][]` signatures).
+ */
+function looksLikeFegateHeader(source: string): boolean {
+  const sample = source.substring(0, 8192);
+  return /\bHELP_FUN\b|@decl\b/.test(sample);
+}
+
+/**
  * Check if a language is supported (has a grammar defined).
  * Returns true if the grammar exists, even if not yet loaded.
  */
@@ -276,6 +293,7 @@ export function isLanguageSupported(language: Language): boolean {
   if (language === 'twig') return true; // file-level tracking only
   if (language === 'xml') return true; // MyBatis mapper extractor
   if (language === 'properties') return true; // Spring config keys
+  if (language === 'slheader') return true; // FEGate SL API header (regex stub extractor)
   if (language === 'unknown') return false;
   return language in WASM_GRAMMAR_FILES;
 }
@@ -286,7 +304,7 @@ export function isLanguageSupported(language: Language): boolean {
 export function isGrammarLoaded(language: Language): boolean {
   if (language === 'svelte' || language === 'vue' || language === 'liquid') return true;
   if (language === 'yaml' || language === 'twig') return true; // no WASM grammar needed
-  if (language === 'xml' || language === 'properties') return true; // no WASM grammar needed
+  if (language === 'xml' || language === 'properties' || language === 'slheader') return true; // no WASM grammar needed
   return languageCache.has(language);
 }
 
@@ -307,7 +325,7 @@ export function isFileLevelOnlyLanguage(language: Language): boolean {
  * Get all supported languages (those with grammar definitions).
  */
 export function getSupportedLanguages(): Language[] {
-  return [...(Object.keys(WASM_GRAMMAR_FILES) as GrammarLanguage[]), 'svelte', 'vue', 'liquid'];
+  return [...(Object.keys(WASM_GRAMMAR_FILES) as GrammarLanguage[]), 'svelte', 'vue', 'liquid', 'slheader'];
 }
 
 /**
@@ -378,6 +396,8 @@ export function getLanguageDisplayName(language: Language): string {
     lua: 'Lua',
     luau: 'Luau',
     objc: 'Objective-C',
+    sl: 'FEGate SL',
+    slheader: 'FEGate SL Header',
     yaml: 'YAML',
     twig: 'Twig',
     xml: 'XML',

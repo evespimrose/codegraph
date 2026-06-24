@@ -1,0 +1,18 @@
+{
+  "name": "tree-sitter-sl",
+  "version": "0.0.1",
+  "description": "tree-sitter grammar for FEGate SL (FFS Script Language)",
+  "license": "MIT",
+  "main": "bindings/node",
+  "keywords": ["tree-sitter", "parser", "sl", "fegate", "ffs"],
+  "devDependencies": {
+    "tree-sitter-cli": "^0.26.0"
+  },
+  "tree-sitter": [
+    {
+      "scope": "source.sl",
+      "file-types": ["sl"],
+      "injection-regex": "^sl$"
+    }
+  ]
+}

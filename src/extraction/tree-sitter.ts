@@ -24,6 +24,7 @@ import { SvelteExtractor } from './svelte-extractor';
 import { DfmExtractor } from './dfm-extractor';
 import { VueExtractor } from './vue-extractor';
 import { MyBatisExtractor } from './mybatis-extractor';
+import { SlHeaderExtractor } from './sl-header-extractor';
 import {
   getAllFrameworkResolvers,
   getApplicableFrameworks,
@@ -1766,8 +1767,11 @@ export class TreeSitterExtractor {
               calleeName = methodName;
             }
           }
-        } else if (func.type === 'scoped_identifier' || func.type === 'scoped_call_expression') {
-          // Scoped call: Module::function()
+        } else if (func.type === 'qualified_identifier' || func.type === 'scoped_identifier' || func.type === 'scoped_call_expression') {
+          // Scoped call: Module::function() / SL dbNode::First() — keep the full
+          // `::` qualified name so the resolver matches the target's qualifiedName
+          // exactly (getNodesByQualifiedName), e.g. the FEGate header stub
+          // `dbNode::First`. Lowering `::`→`.` breaks that exact match.
           calleeName = getNodeText(func, this.source);
         } else {
           calleeName = getNodeText(func, this.source);
@@ -3113,6 +3117,12 @@ export function extractFromSource(
     // Custom extractor for MyBatis mapper XML. Non-mapper XML returns just a
     // file node so the watcher tracks it without emitting symbols.
     const extractor = new MyBatisExtractor(filePath, source);
+    result = extractor.extract();
+  } else if (detectedLanguage === 'slheader') {
+    // FEGate SL API header (.h with HELP_FUN blocks). Regex stub extractor emits
+    // one function node per documented API function — the SL-syntax declarations
+    // (`ref type ary[][]`, `dbNode::First`) are unparseable by the C grammar.
+    const extractor = new SlHeaderExtractor(filePath, source);
     result = extractor.extract();
   } else if (isFileLevelOnlyLanguage(detectedLanguage)) {
     // No symbol extraction at this stage — files are tracked at the file-record

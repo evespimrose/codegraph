@@ -576,6 +576,51 @@ function scanDirectoryWalk(
 }
 
 /**
+ * External "library" roots — a project drops `.codegraph/sl_root_cache.txt`
+ * listing absolute directory paths (one per line; blank lines and `#` comments
+ * ignored). Their source files are indexed into the same graph with their
+ * ABSOLUTE path as identifier, so e.g. a native `.sl` script's `dbNode::First()`
+ * resolves to the FEGate `fegate_api/*.h` declaration without copying the
+ * headers into every project. This is trusted user config: the files bypass the
+ * within-root traversal guard (batch reader) and sync's deletion reconcile.
+ */
+export const SL_ROOT_CACHE_FILE = 'sl_root_cache.txt';
+
+export function readExternalRootDirs(rootDir: string): string[] {
+  const cacheFile = path.join(rootDir, '.codegraph', SL_ROOT_CACHE_FILE);
+  let raw: string;
+  try {
+    raw = fs.readFileSync(cacheFile, 'utf-8');
+  } catch {
+    return []; // no cache file — feature inactive
+  }
+  const dirs: string[] = [];
+  for (const line of raw.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const abs = path.resolve(trimmed);
+    try {
+      if (fs.statSync(abs).isDirectory()) dirs.push(abs);
+      else logWarn('SL external root is not a directory — skipping', { path: abs });
+    } catch {
+      logWarn('SL external root not found — skipping', { path: abs });
+    }
+  }
+  return dirs;
+}
+
+export function scanExternalRootFiles(rootDir: string, opts?: ScanOptions): string[] {
+  const out: string[] = [];
+  for (const dir of readExternalRootDirs(rootDir)) {
+    // scanDirectoryWalk returns paths relative to `dir`; re-absolutize them.
+    for (const rel of scanDirectoryWalk(dir, undefined, opts)) {
+      out.push(path.join(dir, rel));
+    }
+  }
+  return out;
+}
+
+/**
  * Extraction orchestrator
  */
 export class ExtractionOrchestrator {
@@ -700,6 +745,15 @@ export class ExtractionOrchestrator {
         currentFile: file,
       });
     }, scanOpts);
+
+    // External SL API schema roots (`.codegraph/sl_root_cache.txt`): index their
+    // files into the same graph (absolute-path identifiers) BEFORE resolution so
+    // out-of-tree references (e.g. `dbNode::First()` → fegate_api header) resolve.
+    const externalFiles = scanExternalRootFiles(this.rootDir, scanOpts);
+    if (externalFiles.length > 0) {
+      log(`Indexing ${externalFiles.length} file(s) from external SL root(s)`);
+      files.push(...externalFiles);
+    }
 
     // Detect frameworks once per indexAll run using the scanned file list.
     // Names are passed to each parse call so framework-specific extractors
@@ -910,7 +964,10 @@ export class ExtractionOrchestrator {
       const fileContents = await Promise.all(
         batch.map(async (fp) => {
           try {
-            const fullPath = validatePathWithinRoot(this.rootDir, fp);
+            // External SL-root files are stored with absolute paths (trusted
+            // user config in sl_root_cache.txt) — read them directly, bypassing
+            // the within-root traversal guard that vets project-relative paths.
+            const fullPath = path.isAbsolute(fp) ? fp : validatePathWithinRoot(this.rootDir, fp);
             if (!fullPath) {
               logWarn('Path traversal blocked in batch reader', { filePath: fp });
               return { filePath: fp, content: null as string | null, stats: null as fs.Stats | null, error: new Error('Path traversal blocked') };
@@ -1444,6 +1501,10 @@ export class ExtractionOrchestrator {
     // filesystem directly — `scanDirectory` (via `git ls-files`) still lists a
     // file deleted from disk but not yet staged, so set membership alone misses it.
     for (const tracked of trackedFiles) {
+      // External SL-root files (absolute paths from sl_root_cache.txt) live
+      // outside rootDir, so the rootDir scan never lists them — exempt them from
+      // deletion reconcile (a `codegraph index` refresh re-adds/updates them).
+      if (path.isAbsolute(tracked.path)) continue;
       if (!currentSet.has(tracked.path) || !fs.existsSync(path.join(this.rootDir, tracked.path))) {
         this.queries.deleteFile(tracked.path);
         filesRemoved++;

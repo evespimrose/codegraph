@@ -1,18 +1,10 @@
 ---
 name: agent-eval
-description: Benchmark CodeGraph retrieval quality on a real codebase by comparing agent behavior with vs without CodeGraph. Use when the user runs /agent-eval or asks to test, benchmark, audit, or validate a codegraph version (the local dev build or a published npm version) against a language's repo.
+description: Benchmark CodeGraph retrieval quality (with vs without CodeGraph) on a real repo. Use when the user runs /agent-eval or asks to test/benchmark/audit/validate a codegraph version against a language's repo. Do NOT use for code implementation or new languages (use /add-lang) — measurement only.
 ---
 
 <!-- CAVE-MAN-OUTPUT-ARM -->
-## ⚙️ 실행 규칙 (Cave-Man Output Arm · 전 스킬 공통)
-
-- **메인 컨텍스트 타이핑 금지** — 과정 narration·중간 요약·"이제 ~하겠습니다" 출력 안 함
-- **도구 사용 허용** — codegraph→(보완)Read/Edit 등으로 메인이 직접 작업 (hook 통제下)
-- **서브에이전트 디스패치 금지** — Agent/Task 호출 안 함 (콜드스타트 토큰세금 ~100배). 예외: 초대형 규모·병렬 독립 작업을 **사용자가 발의**한 경우만
-- **완료 보고만 허용** — 끝에 `XX 완료` 1~2단어 간단 보고만 타이핑
-- **Auto-Clarity 예외** — 보안·비가역·모호 다단계·반복질문·하드블로커 → 정상 출력 (correctness > brevity)
-
-정책: [[main-context-zero-delegation]] · `/output-arm` · CLAUDE.md RULE-9
+> **출력 규약**(메인 직접·서술0·완료만·codegraph-first·서브에이전트 manual·Auto-Clarity 예외) — 전문: `output-arm` 스킬 · CLAUDE.md RULE-9.
 <!-- /CAVE-MAN-OUTPUT-ARM -->
 
 
@@ -85,3 +77,10 @@ codegraph reduced effort and whether both arms reached a correct answer.
 - Corpus repos are cloned to `/tmp/codegraph-corpus` (reused if already present).
 - Add or edit repos in `corpus.json` (fields: `name`, `repo`, `size`, `files`,
   `question`).
+
+## 사용하지 말아야 할 때 (Negative Constraints)
+
+- 코드 구현·기능 변경·버그 수정 — 본 스킬은 *측정*만(코드 무변경).
+- 새 언어 추가 — `/add-lang` 사용.
+- codegraph repo 밖 — scripts/agent-eval 하네스에 의존.
+- 유료 `claude -p` A/B 비용을 감수 못 할 때 — 실제 과금됨.

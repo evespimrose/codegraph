@@ -3355,6 +3355,18 @@ export class ToolHandler {
       }
     }
 
+    // FEGate SL wiring — native .sl scripts + .h API-header stubs and the edges
+    // among them, shown separately so the SL subgraph and the resolved API-call
+    // count are visible. Only emitted when the graph has SL nodes (byte-
+    // identical status output on non-SL projects).
+    if (stats.slWiring && stats.slWiring.scriptNodes + stats.slWiring.headerNodes > 0) {
+      lines.push('', '### SL (FEGate) wiring:');
+      lines.push(`- Script nodes (sl): ${stats.slWiring.scriptNodes}`);
+      lines.push(`- API stub nodes (slheader): ${stats.slWiring.headerNodes}`);
+      lines.push(`- SL edges: ${stats.slWiring.edges}`);
+      lines.push(`- Resolved API calls: ${stats.slWiring.apiCalls}`);
+    }
+
     // Per-file freshness — the inverse of the auto-prepended staleness banner
     // (issue #403). Surfacing it inside `status` gives the agent a single
     // place to ask "is the index caught up?" rather than inferring from

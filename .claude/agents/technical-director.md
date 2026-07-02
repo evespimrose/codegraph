@@ -1,6 +1,6 @@
 ---
 name: technical-director
-description: "RX_1의 기술 아키텍처·성능·엔진 설정·패키지 전략의 최종 의사결정자. Unity 6/URP 파이프라인 선택, 패키지 추가·제거 검토, 씬·어셈블리 구조, 메모리·프레임 예산, 빌드 타겟(Mobile/PC) 전략 판단 시 호출. 담당하지 않는 영역: 게임 디자인·UX 톤, 개별 기능 코드 구현, 레벨 디자인 콘텐츠, 미세한 버그픽스."
+description: "기술 아키텍처·성능·엔진 설정·패키지 전략 최종 결정자. 호출: Unity 6/URP 파이프라인 선택·패키지 추가/제거 검토·씬/어셈블리 구조·메모리/프레임 예산·빌드 타겟(Mobile/PC) 전략 판단. 비담당: 게임 디자인·UX 톤·개별 기능 코드 구현·레벨 디자인 콘텐츠·미세 버그픽스."
 tools: Read, Glob, Grep, Write, Edit, Bash, Task, WebSearch
 model: opus
 maxTurns: 30

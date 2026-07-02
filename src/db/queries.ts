@@ -1714,6 +1714,23 @@ export class QueryBuilder {
 
     const md = this.getMarkdownGraphCounts();
 
+    // FEGate SL wiring — script/header node counts, the edges emitted by SL
+    // nodes (contains/calls), and how many calls resolved to an API-header stub.
+    // Cheap (indexed COUNTs); folded into GraphStats only when SL nodes exist so
+    // non-SL status output is byte-identical.
+    const slw = this.db.prepare(`
+      SELECT
+        (SELECT COUNT(*) FROM nodes WHERE language = 'sl') AS script_nodes,
+        (SELECT COUNT(*) FROM nodes WHERE language = 'slheader') AS header_nodes,
+        (SELECT COUNT(*) FROM edges e JOIN nodes n ON e.source = n.id
+           WHERE n.language IN ('sl', 'slheader')) AS sl_edges,
+        (SELECT COUNT(*) FROM edges e JOIN nodes n ON e.target = n.id
+           WHERE e.kind = 'calls' AND n.language = 'slheader') AS api_calls
+    `).get() as { script_nodes: number; header_nodes: number; sl_edges: number; api_calls: number };
+    const slWiring = slw.script_nodes + slw.header_nodes > 0
+      ? { scriptNodes: slw.script_nodes, headerNodes: slw.header_nodes, edges: slw.sl_edges, apiCalls: slw.api_calls }
+      : undefined;
+
     return {
       nodeCount: counts.node_count,
       edgeCount: counts.edge_count,
@@ -1723,6 +1740,7 @@ export class QueryBuilder {
       filesByLanguage,
       markdownNodeCount: md.nodes,
       markdownEdgeCount: md.edges,
+      slWiring,
       dbSizeBytes: 0, // Set by caller using DatabaseConnection.getSize()
       lastUpdated: Date.now(),
     };

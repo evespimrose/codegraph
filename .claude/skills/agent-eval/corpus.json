@@ -24,9 +24,6 @@
     { "name": "tokio", "repo": "https://github.com/tokio-rs/tokio", "size": "Large", "files": "~700", "question": "How does tokio schedule and run async tasks on its runtime?" },
     { "name": "deno", "repo": "https://github.com/denoland/deno", "size": "Large", "files": "~1500", "question": "How does Deno load and execute a TypeScript module?" }
   ],
-  "SL": [
-    { "name": "fegate-api-exam", "repo": "D:/Fork/codegraph/SL", "size": "Medium", "files": "~770", "question": "How does a native .sl query script reach the FEGate engine API — trace dbElem::CountAll / dbNode::GetAll / dbNode::Label call sites in the db examples to their header declarations?" }
-  ],
   "Java": [
     { "name": "gson", "repo": "https://github.com/google/gson", "size": "Medium", "files": "~200", "question": "How does Gson serialize an object to JSON?" },
     { "name": "okhttp", "repo": "https://github.com/square/okhttp", "size": "Medium", "files": "~640", "question": "How does OkHttp process a request through its interceptor chain?" },

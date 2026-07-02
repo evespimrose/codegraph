@@ -1,6 +1,6 @@
 ---
 name: writer
-description: "RX_1의 PRD·스펙 문서·RIPER 플랜 문서 작성 전담. creative-director의 게임 디자인 결정을 구체적인 PRD로 변환하고, `.claude/memory-bank/{branch}/plans/` 경로에 RIPER 플랜 파일을 생성할 때 호출. 중형 이상 작업 착수 전 명세 합의가 필요한 순간에 필수. 담당하지 않는 영역: 코드 구현, 아키텍처 결정, 게임 디자인 방향 결정(creative-director 영역), 기술 결정(technical-director 영역)."
+description: "PRD·스펙 문서·RIPER 플랜 문서 작성 전담. 호출: creative-director 게임 디자인 결정을 PRD로 변환·`.claude/memory-bank/{branch}/plans/`에 RIPER 플랜 파일 생성. 중형 이상 작업 착수 전 명세 합의 필요 시 필수. 비담당: 코드 구현·아키텍처 결정·게임 디자인 방향(creative-director)·기술 결정(technical-director)."
 tools: Read, Glob, Grep, Write, Edit, Task
 model: sonnet
 maxTurns: 20

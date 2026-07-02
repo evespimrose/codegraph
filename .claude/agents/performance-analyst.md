@@ -1,6 +1,6 @@
 ---
 name: performance-analyst
-description: "RX_1의 성능 프로파일링·병목 분석·메모리/GC/프레임 예산 감사 전담. Unity Profiler·Frame Debugger·Memory Profiler 데이터 수집, 핫 패스 식별, Mobile/PC 벤치마크 수행 시 호출. DOTS 도입 시 Entities Profiler 포함. 담당하지 않는 영역: 실제 최적화 코드 구현(engine/gameplay-programmer 등 원담당), 셰이더 최적화 구현(unity-shader-specialist), 패키지 결정(technical-director)."
+description: "성능 프로파일링·병목 분석·메모리/GC/프레임 예산 감사 전담. 호출: Unity Profiler·Frame Debugger·Memory Profiler 데이터 수집·핫 패스 식별·Mobile/PC 벤치마크. DOTS 도입 시 Entities Profiler 포함. 비담당: 실제 최적화 코드 구현(engine/gameplay-programmer 원담당)·셰이더 최적화(unity-shader-specialist)·패키지 결정(technical-director)."
 tools: Read, Glob, Grep, Write, Edit, Bash
 model: sonnet
 maxTurns: 20

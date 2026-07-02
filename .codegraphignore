@@ -1,0 +1,9 @@
+# .codegraphignore — extra paths CodeGraph should NOT index.
+# Additive layer on top of .gitignore, using identical gitignore syntax.
+# Built-in defaults (node_modules/, dist/, .git/, ...) always apply.
+# Uncomment or add patterns below; a leading "!" re-includes a match.
+#
+# Examples:
+# *.gen.cs            # generated sources
+# vendor/             # vendored third-party code
+# docs/legacy/**      # stale docs you don't want surfaced

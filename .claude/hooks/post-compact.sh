@@ -30,13 +30,14 @@ CORE_RULES = """
 RULE-1 [SONAR PROTOCOL - DEADLY · L1 Hook 강제]:
   ❌ 자동 차단: find/grep -r/ls -r/rg/fd · PowerShell -Recurse · 소스 코드 Read (codegraph 미사용 시)
   ✅ 순서: codegraph_context → codegraph_search → codegraph_node → (보완) Read/Grep
+  ⚖️ 조건부 신뢰: 파생표현(codegraph·dict·BLK·cxt) 우선·신뢰는 STATE HEALTH=green 전제. green 아니면 RULE-1 일시해제 → Read 폴백 + 재생성.
   위반 로그: .claude/state/violation-count.log
 
 RULE-2 [RIPER STATE]: .claude/memory-bank/.riper-state
 RULE-3 [GATE]: 플랜 파일 존재 = 중·대형 작업
 RULE-4 [WRITE APPROVAL]: 소스 코드 수정 전 사용자 승인
 RULE-5 [DOC-CONTEXT]: /doc-context 수신 시 즉시 작업 (재확인 금지)
-RULE-6 [MEMORY]: 컴팩션 발생 — /memory:recall 즉시 실행하여 claude-mem 기억 복원
+RULE-6 [MEMORY]: 컴팩션 발생 — /memory:recall 즉시 실행하여 로컬 메모리(memory-bank + auto-memory MEMORY.md) 복원
 """
 
 backup_content = ""
@@ -61,7 +62,7 @@ if backup_content:
 
 context += """
 === 즉시 수행 필요 ===
-1. /memory:recall 실행 — claude-mem에 저장된 세션 기억 복원
+1. /memory:recall 실행 — 로컬 memory-bank + auto-memory(MEMORY.md) 세션 기억 복원
 2. 위 RIPER State 확인 — 현재 작업 모드 파악
 3. 현재 플랜 파일 로드 (PLAN_FILE 경로 참조)
 """
@@ -75,4 +76,4 @@ print(json.dumps({
 PYEOF
 
 echo "--- CCGS Post-Compaction Hook Finished ---"
-echo "Suggestion: Run /memory:recall to restore claude-mem long-term memory."
+echo "Suggestion: Run /memory:recall to restore local memory-bank + auto-memory."

@@ -8,8 +8,8 @@
 # D:\Fork\RX_1
 # C:\dev\some-other-project
 
-D:\Unity\claude-personal-integrated-workflow
-D:\Unity\codegraph
-D:\Unity\BLADE
-D:\Unity\WIKI
-D:\Unity\RX_1
+D:\Fork\Western-Salon
+D:\Fork\BLADE
+D:\Fork\codegraph
+D:\Fork\RX_1
+D:\Fork\WIKI

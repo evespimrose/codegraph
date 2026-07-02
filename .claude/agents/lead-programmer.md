@@ -1,6 +1,6 @@
 ---
 name: lead-programmer
-description: "RX_1 C# 코드베이스의 구현 총괄 리드. 피처 구현 착수·코드 구조 설계·서브시스템 경계 결정·Tier 3 전문가 간 코드 조율 시 호출. 2개 이상의 서브시스템이 얽힌 기능 구현, MonoBehaviour·ScriptableObject·인터페이스 설계 판단 시 필수. 담당하지 않는 영역: 게임 디자인 결정, 패키지·엔진 설정 변경, 단일 서브시스템에 갇힌 단발성 수정(해당 Tier 3 직결)."
+description: "C# 코드베이스 구현 총괄 리드. 호출: 피처 구현 착수·코드 구조 설계·서브시스템 경계 결정·Tier 3 전문가 간 코드 조율. 2개 이상 서브시스템 얽힌 기능, MonoBehaviour·ScriptableObject·인터페이스 설계 판단 시 필수. 비담당: 게임 디자인 결정·패키지·엔진 설정 변경·단일 서브시스템 갇힌 단발성 수정(해당 Tier 3 직결)."
 tools: Read, Glob, Grep, Write, Edit, Bash, Task
 model: sonnet
 maxTurns: 25

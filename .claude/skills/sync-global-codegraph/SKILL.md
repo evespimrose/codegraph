@@ -2,23 +2,13 @@
 name: sync-global-codegraph
 description: >
   Use when the user wants to update/sync the globally-installed `codegraph` command with THIS
-  project's current source — e.g. "전역 codegraph 최신화", "글로벌 codegraph 동기화",
-  "전역에 반영", "sync global codegraph", or invokes /sync-global-codegraph. Rebuilds the project
-  and reinstalls it globally as a REAL copy (npm pack + npm install -g), then verifies global == project
-  by file hash. Use this instead of `npm link` — cross-volume junctions are unstable on this machine.
-  Trigger on: "전역 codegraph 최신화/동기화", "global codegraph 갱신", "sync-global-codegraph".
+  project's source (npm pack + install -g, verify by hash) — "전역 codegraph 최신화",
+  "글로벌 codegraph 동기화", "전역에 반영", "/sync-global-codegraph".
+  Do NOT use to deploy workflow scaffolding to other projects (use /sync), or on other machines/CI — this PC's global npm only.
 ---
 
 <!-- CAVE-MAN-OUTPUT-ARM -->
-## ⚙️ 실행 규칙 (Cave-Man Output Arm · 전 스킬 공통)
-
-- **메인 컨텍스트 타이핑 금지** — 과정 narration·중간 요약·"이제 ~하겠습니다" 출력 안 함
-- **도구 사용 허용** — codegraph→(보완)Read/Edit 등으로 메인이 직접 작업 (hook 통제下)
-- **서브에이전트 디스패치 금지** — Agent/Task 호출 안 함 (콜드스타트 토큰세금 ~100배). 예외: 초대형 규모·병렬 독립 작업을 **사용자가 발의**한 경우만
-- **완료 보고만 허용** — 끝에 `XX 완료` 1~2단어 간단 보고만 타이핑
-- **Auto-Clarity 예외** — 보안·비가역·모호 다단계·반복질문·하드블로커 → 정상 출력 (correctness > brevity)
-
-정책: [[main-context-zero-delegation]] · `/output-arm` · CLAUDE.md RULE-9
+> **출력 규약**(메인 직접·서술0·완료만·codegraph-first·서브에이전트 manual·Auto-Clarity 예외) — 전문: `output-arm` 스킬 · CLAUDE.md RULE-9.
 <!-- /CAVE-MAN-OUTPUT-ARM -->
 
 
@@ -66,3 +56,9 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "D:\Fork\codegraph\.claude\s
 - 끝의 `Exit code 255`나 stderr 경고는 npm deprecation 경고를 PowerShell이 NativeCommandError로 감싸는 quirk일 뿐 **실패가 아니다** — 판단은 항상 **verify 해시·버전**으로 한다.
 - 다른 머신/CI에는 적용 안 됨(이 PC의 전역 npm 한정).
 - **Cross-scope bin 충돌**: 전역 `codegraph` bin을 다른 스코프 패키지가 소유하면(이 머신은 한때 업스트림 `@colbymchenry/codegraph` 소유) 평범한 `npm install -g`가 `EEXIST … \npm\codegraph`로 실패한다. 스크립트가 셔임 소유자를 보고 `--force`로 재지정한다. 충돌 패키지를 **완전히** 없애려면 수동 `npm uninstall -g @colbymchenry/codegraph`. 이력은 메모리 `global-codegraph-bin-conflict` 참조.
+
+## 사용하지 말아야 할 때 (Negative Constraints)
+
+- 워크플로 스캐폴딩을 *다른 프로젝트*에 배포 — `/sync`.
+- codegraph *소스* 수정 자체 — 본 스킬은 빌드+전역 재설치만.
+- 다른 머신·CI — 이 PC의 전역 npm 한정.

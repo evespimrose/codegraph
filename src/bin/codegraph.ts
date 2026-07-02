@@ -853,6 +853,19 @@ program
       }
       console.log();
 
+      // FEGate SL wiring — native .sl scripts + .h API-header stubs shown
+      // distinctly, so the SL subgraph (and how many API calls resolved to a
+      // header declaration) is visible at a glance. Only rendered when the
+      // graph actually contains SL nodes.
+      if (stats.slWiring && stats.slWiring.scriptNodes + stats.slWiring.headerNodes > 0) {
+        console.log(chalk.bold('SL (FEGate) Wiring:'));
+        console.log(`  Script nodes (.sl):   ${formatNumber(stats.slWiring.scriptNodes)}`);
+        console.log(`  API stub nodes (.h):  ${formatNumber(stats.slWiring.headerNodes)}`);
+        console.log(`  SL edges:             ${formatNumber(stats.slWiring.edges)}`);
+        console.log(`  Resolved API calls:   ${formatNumber(stats.slWiring.apiCalls)}`);
+        console.log();
+      }
+
       // Language breakdown
       console.log(chalk.bold('Files by Language:'));
       const filesByLang = Object.entries(stats.filesByLanguage)

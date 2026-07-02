@@ -503,6 +503,19 @@ export interface GraphStats {
    */
   markdownEdgeCount: number;
 
+  /**
+   * FEGate SL wiring — native `.sl` script nodes, `.h` API-header stub nodes,
+   * the edges those SL nodes emit, and how many calls resolved to an API stub.
+   * Present only when the graph contains SL nodes; `undefined` on non-SL
+   * projects so their status output is unchanged.
+   */
+  slWiring?: {
+    scriptNodes: number;
+    headerNodes: number;
+    edges: number;
+    apiCalls: number;
+  };
+
   /** Database size in bytes */
   dbSizeBytes: number;
 

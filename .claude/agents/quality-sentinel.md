@@ -1,6 +1,6 @@
 ---
 name: quality-sentinel
-description: "RX_1 품질 게이트 검증 전문가. 구현 에이전트 작업 완료 직후 자동 호출. (1) RIPER 워크플로 순서 준수 검증, (2) /code-review로 코드 컨벤션 all-pass까지 반복 검증. 코드 파일을 변경한 작업에만 개입 — 단순 질문·분석·설계 문서 작성은 검증 대상 아님. 코드 수정·설계 결정·플랜 생성 같은 본래 작업은 담당하지 않음."
+description: "품질 게이트 검증 전문가. 구현 에이전트 작업 완료 직후 자동 호출: (1) RIPER 워크플로 순서 준수, (2) /code-review 코드 컨벤션 all-pass까지 반복 검증. 코드 파일 변경 작업에만 개입 — 단순 질문·분석·설계 문서는 대상 아님. 비담당: 코드 수정·설계 결정·플랜 생성."
 tools: Read, Glob, Grep, Write, Edit, Bash, Task
 model: sonnet
 maxTurns: 30

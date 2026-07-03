@@ -1,6 +1,5 @@
 MODE=EXECUTE
-TASK=Markdown watch/sync 자동 인덱싱 연결 — (A) watcher 게이트가 docs-ON일 때만 .md 통과(isMarkdownFile 신설, WatchOptions.docsEnabled, watch()가 resolveDocsEnabled 해석), (B) sync() 종료부 indexMarkdown best-effort 호출 + 변경 시 governs/doc-link 재연결. SyncResult 타입 무변경. 출처 cxt: docs/contextmd/cxt1.md
-PLAN_FILE=.claude/memory-bank/codegraph-dlc/plans/codegraph-dlc-2026-06-22-markdown-watch-sync.md
+TASK=PLAN-2 codegraph — 인덱스 신선도·MCP 로드 실패 근본 수정·배포 (10 steps, EXECUTOR CONTRACT)
+PLAN_FILE=.claude/memory-bank/codegraph-dlc/plans/PLAN-2-codegraph.md
 BRANCH=codegraph-dlc
-STARTED=2026-06-22
-CANONICAL_DIRS=cxt/,docs/contextmd/,manage/
+STARTED=2026-07-03

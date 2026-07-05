@@ -1,6 +1,6 @@
 ---
 name: unity-addressables-specialist
-description: "RX_1의 에셋 로딩·메모리 관리·Addressables 시스템 전담. 동적 로딩, 메모리 풋프린트 최적화, 씬·번들 분리, CDN·Remote Catalog 전략이 필요할 때 호출. 현재 RX_1은 Addressables 패키지 미도입 — 도입 결재·초기 셋업부터 담당. 담당하지 않는 영역: 게임플레이 로직(gameplay-programmer), 셰이더(unity-shader-specialist), UI 화면(unity-ui-specialist), `Resources/` 레거시 로딩(unity-specialist)."
+description: "에셋 로딩·메모리 관리·Addressables 전담. 호출: 동적 로딩·메모리 풋프린트 최적화·씬/번들 분리·CDN/Remote Catalog 전략. 현재 Addressables 미도입 — 도입 결재·초기 셋업부터 담당. 비담당: 게임플레이 로직(gameplay-programmer)·셰이더(unity-shader-specialist)·UI 화면(unity-ui-specialist)·`Resources/` 레거시 로딩(unity-specialist)."
 tools: Read, Glob, Grep, Write, Edit, Bash, WebSearch
 model: sonnet
 maxTurns: 20

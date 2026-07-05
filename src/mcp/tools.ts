@@ -5,14 +5,20 @@
  */
 
 import type CodeGraph from '../index';
+import { getCodeGraphClass } from '../cg-ref';
 import { findNearestCodeGraphRoot } from '../directory';
 // Lazy-load the heavy CodeGraph chain off the MCP startup path — see the same
 // helper in engine.ts. ToolHandler must load to answer tools/list (static
 // schemas), but it must NOT drag in sqlite/query layers before the daemon binds;
-// CodeGraph is pulled in only when a tool actually opens a project. require() is
-// sync + cached (CommonJS build).
-const loadCodeGraph = (): typeof import('../index').default =>
-  (require('../index') as typeof import('../index')).default;
+// CodeGraph is pulled in only when a tool actually opens a project. The cg-ref
+// registry resolves first (populated the moment anything imports '../index' —
+// every test and embedding app); the CJS require covers the daemon path where
+// nothing has loaded the module yet.
+const loadCodeGraph = (): typeof import('../index').default => {
+  const fromRef = getCodeGraphClass();
+  if (fromRef) return fromRef as typeof import('../index').default;
+  return (require('../index') as typeof import('../index')).default;
+};
 import {
   detectWorktreeIndexMismatch,
   worktreeMismatchWarning,
@@ -31,6 +37,7 @@ import {
   lstatSync,
   openSync,
   readFileSync,
+  readdirSync,
   statSync,
   writeSync,
 } from 'fs';
@@ -694,6 +701,57 @@ export function getStaticTools(): ToolDefinition[] {
   return allow.size ? base.filter(t => allow.has(t.name.replace(/^codegraph_/, ''))) : base;
 }
 
+/** Re-probe a cross-project root's staleness at most this often per handler. */
+const CROSS_PROJECT_STALE_TTL_MS = 30_000;
+/** Bounds for the stale probe — advisory heuristic, never exhaustive. */
+const STALE_PROBE_MAX_ENTRIES = 500;
+const STALE_PROBE_MAX_DEPTH = 5;
+const STALE_PROBE_SKIP_DIRS = new Set([
+  'node_modules', 'vendor', 'dist', 'build', 'out', 'target', 'coverage',
+  'Library', 'Temp', 'obj', 'Logs', 'venv', '__pycache__', 'Pods',
+]);
+
+/**
+ * Bounded mtime probe: is anything under `root` newer than its index DB?
+ * Compares the newest of codegraph.db/-wal/-shm against a capped BFS of
+ * file/dir mtimes (dot-dirs and dependency/build dirs skipped). Returns the
+ * one-line advisory notice, or null when the index looks current. A capped
+ * probe can miss deep edits — acceptable: this is a hint, not a guarantee.
+ */
+function detectCrossProjectStaleNotice(root: string): string | null {
+  let dbM = 0;
+  for (const f of ['codegraph.db', 'codegraph.db-wal', 'codegraph.db-shm']) {
+    try { dbM = Math.max(dbM, statSync(pathModule.join(root, '.codegraph', f)).mtimeMs); } catch { /* absent */ }
+  }
+  if (dbM === 0) return null; // no DB — getCodeGraph would have thrown already
+
+  const queue: Array<{ dir: string; depth: number }> = [{ dir: root, depth: 0 }];
+  let seen = 0;
+  while (queue.length > 0) {
+    const { dir, depth } = queue.shift()!;
+    let entries;
+    try { entries = readdirSync(dir, { withFileTypes: true }); } catch { continue; }
+    for (const e of entries) {
+      if (e.name.startsWith('.') || STALE_PROBE_SKIP_DIRS.has(e.name)) continue;
+      if (++seen > STALE_PROBE_MAX_ENTRIES) return null; // budget exhausted — assume fresh
+      const p = pathModule.join(dir, e.name);
+      try {
+        if (statSync(p).mtimeMs > dbM) {
+          return (
+            `(Note: this cross-project index may be stale — files under ${root} changed after the last ` +
+            'index write. Run `codegraph sync` in that project, or set CODEGRAPH_CROSS_PROJECT_SYNC=1 ' +
+            'to auto-sync cross-project opens.)'
+          );
+        }
+      } catch { continue; }
+      if (e.isDirectory() && depth + 1 <= STALE_PROBE_MAX_DEPTH) {
+        queue.push({ dir: p, depth: depth + 1 });
+      }
+    }
+  }
+  return null;
+}
+
 /**
  * Tool handler that executes tools against a CodeGraph instance
  *
@@ -703,6 +761,10 @@ export function getStaticTools(): ToolDefinition[] {
 export class ToolHandler {
   // Cache of opened CodeGraph instances for cross-project queries
   private projectCache: Map<string, CodeGraph> = new Map();
+  // Cross-project freshness bookkeeping (PLAN-2 구멍 A) — keyed by resolved root.
+  private crossProjectSynced: Set<string> = new Set();
+  private crossProjectNotice: Map<string, string | null> = new Map();
+  private crossProjectCheckedAt: Map<string, number> = new Map();
   // The directory the server last searched for a default project. Surfaced in
   // the "not initialized" error so users can see why detection missed.
   private defaultProjectHint: string | null = null;
@@ -865,6 +927,53 @@ export class ToolHandler {
     } catch {
       return visible;
     }
+  }
+
+  /**
+   * Cross-project freshness (PLAN-2 구멍 A): a `projectPath` open is an
+   * in-process DB read — no watcher, no catch-up — so the target's index can
+   * silently lag its filesystem. Before dispatch we either catch up (opt-in
+   * env CODEGRAPH_CROSS_PROJECT_SYNC=1, once per root per handler) or run a
+   * bounded mtime probe and remember a one-line advisory notice for the
+   * response footer. Both are best-effort and never block or fail a tool.
+   */
+  private async ensureCrossProjectFresh(projectPath: string): Promise<void> {
+    let cg: CodeGraph;
+    try { cg = this.getCodeGraph(projectPath); } catch { return; }
+    if (this.cg && cg === this.cg) return; // default project — watcher owns freshness
+    let root: string;
+    try { root = cg.getProjectRoot(); } catch { return; }
+
+    if (process.env.CODEGRAPH_CROSS_PROJECT_SYNC === '1') {
+      if (!this.crossProjectSynced.has(root)) {
+        this.crossProjectSynced.add(root); // mark first — no re-entry on failure
+        try { await cg.sync(); } catch { /* advisory only */ }
+      }
+      this.crossProjectNotice.set(root, null);
+      return;
+    }
+
+    const now = Date.now();
+    if (now - (this.crossProjectCheckedAt.get(root) ?? 0) < CROSS_PROJECT_STALE_TTL_MS) return;
+    this.crossProjectCheckedAt.set(root, now);
+    try {
+      this.crossProjectNotice.set(root, detectCrossProjectStaleNotice(root));
+    } catch { /* stat/readdir hiccup — no notice */ }
+  }
+
+  /** Append the remembered stale advisory to a cross-project response. */
+  private withCrossProjectNotice(result: ToolResult, projectPath?: string): ToolResult {
+    if (!projectPath || result.isError) return result;
+    let cg: CodeGraph;
+    try { cg = this.getCodeGraph(projectPath); } catch { return result; }
+    if (this.cg && cg === this.cg) return result;
+    let root: string;
+    try { root = cg.getProjectRoot(); } catch { return result; }
+    const notice = this.crossProjectNotice.get(root);
+    if (!notice) return result;
+    const [first, ...rest] = result.content;
+    if (!first || first.type !== 'text') return result;
+    return { ...result, content: [{ type: 'text', text: `${first.text}\n\n${notice}` }, ...rest] };
   }
 
   /**
@@ -1164,6 +1273,12 @@ export class ToolHandler {
         if (typeof check === 'object' && check !== undefined) return check;
       }
 
+      // Cross-project freshness: opt-in catch-up or bounded stale probe.
+      // Never throws, never blocks the default-project fast path.
+      if (typeof args.projectPath === 'string' && args.projectPath.length > 0) {
+        try { await this.ensureCrossProjectFresh(args.projectPath); } catch { /* advisory */ }
+      }
+
       // Read tools resolve through a single result variable so cross-cutting
       // notices — worktree-index mismatch (issue #155) and per-file
       // staleness (issue #403) — can be applied in one place. status embeds
@@ -1203,7 +1318,8 @@ export class ToolHandler {
           return this.errorResult(`Unknown tool: ${toolName}`);
       }
       const withWorktree = this.withWorktreeNotice(result, args.projectPath as string | undefined);
-      return this.withStalenessNotice(withWorktree, args.projectPath as string | undefined);
+      const withStale = this.withStalenessNotice(withWorktree, args.projectPath as string | undefined);
+      return this.withCrossProjectNotice(withStale, args.projectPath as string | undefined);
     } catch (err) {
       return this.errorResult(`Tool execution failed: ${err instanceof Error ? err.message : String(err)}`);
     }

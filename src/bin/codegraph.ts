@@ -1376,8 +1376,30 @@ program
       process.env.CODEGRAPH_NO_WATCH = '1';
     }
 
+    // Launch observability (PLAN-2 구멍 B): "MCP가 가끔 안 뜬다"는 스폰 실패가
+    // 사후 추적 불가능했다 — 기동 시도·실패를 .codegraph/mcp-launch.log에 1행씩
+    // append해 다음 발생 시 즉시 원인을 특정한다. Best-effort: 로그 실패가
+    // 서버 기동을 막지 않고, .codegraph/가 없으면 디렉터리를 만들지 않는다.
+    const launchLog = (event: string, detail?: string): void => {
+      try {
+        const root = projectPath ?? process.cwd();
+        const dir = path.join(root, '.codegraph');
+        if (!fs.existsSync(dir)) return;
+        const line = [
+          new Date().toISOString(),
+          `v${packageJson.version}`,
+          event,
+          `node=${process.execPath}`,
+          `argv=${process.argv.slice(2).join(' ')}`,
+          detail ?? '',
+        ].filter(Boolean).join(' | ');
+        fs.appendFileSync(path.join(dir, 'mcp-launch.log'), line + '\n');
+      } catch { /* observability must never break the launch */ }
+    };
+
     try {
       if (options.mcp) {
+        launchLog('serve-mcp:start');
         // Start MCP server - it handles initialization lazily based on rootUri from client
         const { MCPServer } = await import('../mcp/index');
         const server = new MCPServer(projectPath);
@@ -1410,6 +1432,7 @@ program
         console.error(chalk.cyan('  codegraph_status') + '    - Get index status');
       }
     } catch (err) {
+      launchLog('serve-mcp:fail', err instanceof Error ? err.message : String(err));
       error(`Failed to start server: ${err instanceof Error ? err.message : String(err)}`);
       process.exit(1);
     }

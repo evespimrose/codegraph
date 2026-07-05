@@ -1,6 +1,6 @@
 ---
 name: unity-specialist
-description: "RX_1 Unity Editor·엔진·패키지·프리팹·ScriptableObject 생태계 전담 리드. 씬 구성(`.unity`), 프리팹, ScriptableObject 데이터 구조, Editor 확장, 메타파일, `Packages/manifest.json` 검토, `ProjectSettings/` 조정, `.asmdef` 생성이 필요할 때 호출. 담당하지 않는 영역: 런타임 C# 게임 로직 구현, 셰이더 작성, 외부 의존성 없는 순수 비즈니스 로직."
+description: "Unity Editor·엔진·패키지·프리팹·ScriptableObject 생태계 전담 리드. 호출: 씬 구성(`.unity`)·프리팹·ScriptableObject 데이터 구조·Editor 확장·메타파일·`Packages/manifest.json` 검토·`ProjectSettings/` 조정·`.asmdef` 생성. 비담당: 런타임 C# 게임 로직·셰이더 작성·외부 의존성 없는 순수 비즈니스 로직."
 tools: Read, Glob, Grep, Write, Edit, Bash, Task
 model: sonnet
 maxTurns: 25

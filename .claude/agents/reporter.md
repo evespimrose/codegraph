@@ -1,13 +1,6 @@
 ---
 name: reporter
-description: "RX_1 작업 기록·플랜 동기화 전문가. quality-sentinel 통과 직후 자동 호출.
-  담당: (1) docs/work.md에 작업 내용을 Entry 형식으로 기록, (2) 플랜에 영향을 주는 변경이면
-  해당 서브시스템 update-queue 파일에 항목 추가, (3) Claude Code 소속 에이전트이므로
-  update-queue를 순회하여 적합한 항목 Approved 처리 후 PRD에 반영하고 큐 상태 갱신,
-  (4) Workflow.md·Setting.md·Review.md 등 연관 스펙 문서에 변경사항 반영.
-  개입 조건: 코드·문서 변경이 수반된 작업 완료 후. 단순 질문·분석·플랜 없는
-  소형 조회 작업에는 개입하지 않음. 담당하지 않는 영역: 코드 구현, 아키텍처 결정,
-  quality-sentinel 검증 수행."
+description: "작업 기록·플랜 동기화 전문가. quality-sentinel 통과 직후 자동 호출. 담당: (1) docs/work.md에 Entry 형식 기록, (2) 플랜 영향 변경이면 해당 서브시스템 update-queue에 항목 추가, (3) Claude Code 소속이므로 update-queue 순회하여 적합 항목 Approved 처리 후 PRD 반영·큐 상태 갱신, (4) Workflow.md·Setting.md·Review.md 등 연관 스펙에 변경 반영. 개입: 코드·문서 변경 수반 작업 완료 후 — 단순 질문·분석·플랜 없는 소형 조회는 개입 안 함. 비담당: 코드 구현·아키텍처 결정·quality-sentinel 검증 수행."
 tools: Read, Glob, Grep, Write, Edit
 model: sonnet
 maxTurns: 20

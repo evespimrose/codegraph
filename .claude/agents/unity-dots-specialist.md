@@ -1,6 +1,6 @@
 ---
 name: unity-dots-specialist
-description: "RX_1의 DOTS(Entities/ECS/Burst/Jobs) 전담 전문가. 대량 시뮬레이션·수천 단위 오브젝트·Burst 컴파일 가능 핫 패스 구현 시 호출. 현재 RX_1은 DOTS 패키지 미도입 상태 — 도입 결재와 초기 셋업부터 담당. 담당하지 않는 영역: 일반 MonoBehaviour 게임플레이(gameplay-programmer), URP 셰이더(unity-shader-specialist), UI(unity-ui-specialist), DOTS와 무관한 엔진 코드(engine-programmer)."
+description: "DOTS(Entities/ECS/Burst/Jobs) 전담. 호출: 대량 시뮬레이션·수천 단위 오브젝트·Burst 컴파일 가능 핫 패스 구현. 현재 DOTS 미도입 — 도입 결재·초기 셋업부터 담당. 비담당: 일반 MonoBehaviour 게임플레이(gameplay-programmer)·URP 셰이더(unity-shader-specialist)·UI(unity-ui-specialist)·DOTS 무관 엔진 코드(engine-programmer)."
 tools: Read, Glob, Grep, Write, Edit, Bash, WebSearch
 model: sonnet
 maxTurns: 20

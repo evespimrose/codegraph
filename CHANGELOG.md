@@ -11,6 +11,12 @@ and adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixes
 
+- Deleting a Markdown file now removes it from the docs index on the next sync — previously a deleted doc lived on in search results forever, polluting them with stale content, until you forced a full re-index.
+- MCP responses that query *another* project via `projectPath` now warn you when that project's index looks out of date, with the exact `codegraph sync` command to run — and setting `CODEGRAPH_CROSS_PROJECT_SYNC=1` makes those cross-project opens catch up automatically.
+- Installing into Claude Code now writes an absolute launch path for the MCP server instead of relying on the `codegraph` command being on PATH — fixing the "server sometimes doesn't start" problem when the app is launched from a GUI where PATH isn't set up.
+- When a newer CodeGraph finds an older background daemon still running, it now asks the old daemon to shut down gracefully so your next session runs the new version — no more manually killing stale daemons after an upgrade.
+- The background daemon no longer spams its log with EPIPE errors when a client disconnects mid-handshake.
+- MCP server launches (and launch failures, with the reason) are now recorded in `.codegraph/mcp-launch.log`, so an intermittent "the server didn't start" is diagnosable after the fact.
 - File names containing non-ASCII characters (Korean, Chinese, Japanese, etc.) are now indexed correctly in git-tracked projects.
 - With Markdown docs indexing enabled, your docs now stay up to date automatically as you edit them — the file watcher picks up `.md` changes and `codegraph sync` refreshes them, instead of needing a full re-index. Projects without the docs feature are unaffected.
 

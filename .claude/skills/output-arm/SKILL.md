@@ -1,12 +1,12 @@
 ---
 name: output-arm
-description: Use when the user invokes /output-arm on|off|status, or to apply the Output Arm token-suppression policy (default ON) — suppress main-context narration during work, collect must-see output to docs/output/, emit only "XX 완료" at the end. Toggle the policy on/off. Korean triggers - "출력압축 켜/꺼", "아웃풋암".
+description: Use when the user invokes /output-arm on|off|status, or to apply the Output Arm token-suppression policy (default ON). Korean triggers - "출력압축 켜/꺼", "아웃풋암". NOT for input-access control (RULE-1/Sonar) or turn limiting (turn-budget).
 ---
 
 <!-- CAVE-MAN-OUTPUT-ARM -->
 ## ⚙️ 실행 규칙 (Cave-Man Output Arm · 전 스킬 공통)
 
-> 이 스킬이 본 정책의 **정의 문서**다. 아래 본문이 규칙 전문이며, 타 스킬 헤더는 그 요약이다.
+> 이 스킬이 본 정책의 **정의 문서**다. 아래 본문이 규칙 전문이며, 타 스킬 헤더는 이 문서를 가리키는 **compact 포인터**(마커만 보존)다.
 
 - **메인 컨텍스트 타이핑 금지** · **도구 사용 허용** · **서브에이전트 디스패치 금지**(예외: 사용자 발의 초대형/병렬) · 완료 시 `XX 완료`만 · **Auto-Clarity 예외**(보안·비가역·모호 다단계·반복질문·하드블로커)
 <!-- /CAVE-MAN-OUTPUT-ARM -->
@@ -84,3 +84,10 @@ docs/output 적재·파일 이동/압축 시:
 - ON 상태에서 Auto-Clarity 경계를 무시하고 보안·비가역·블로커를 침묵 처리
 - must-see 산출물을 메인에 장황하게 흘리기(→ docs/output로)
 - 헌법급 문서(CLAUDE.md·schema) LLM lossy 압축 (Atom 7 반례 교훈: 구조 통과+의미 변질=침묵 오염)
+
+## 사용하지 말아야 할 때 (Negative Constraints)
+
+- 입력 접근(무엇을 읽을지) 통제 — RULE-1/Sonar(직교 축).
+- 턴(도구 호출 수) 제한 — `turn-budget`.
+- Auto-Clarity 경계(보안·비가역·모호·반복질문·블로커) — 이때는 본 정책을 *적용하지 말고* 정상 출력.
+- 헌법급 문서 lossy 압축 — 금지(Atom 7).

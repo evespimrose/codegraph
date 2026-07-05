@@ -359,6 +359,43 @@ describe('Shared MCP daemon (issue #411)', () => {
     }
   }, 30000);
 
+  it('sends codegraph/retire to an OLDER daemon on mismatch, never to a newer one (PLAN-2 skew succession)', async () => {
+    const net = await import('net');
+    const { connectWithHello, isNewerVersion } = await import('../src/mcp/proxy');
+    const sockPath = getDaemonSocketPath(realRoot);
+
+    // Pure compare rows first — the retire gate.
+    expect(isNewerVersion('0.9.9', '0.9.8')).toBe(true);
+    expect(isNewerVersion('0.9.8', '0.9.8')).toBe(false);
+    expect(isNewerVersion('0.9.8', '0.10.0')).toBe(false);
+
+    const runHello = async (daemonVersion: string): Promise<string[]> => {
+      const received: string[] = [];
+      const miniServer = net.createServer((sock) => {
+        sock.setEncoding('utf8');
+        sock.on('data', (d: string) => received.push(...String(d).split('\n').filter(Boolean)));
+        sock.write(JSON.stringify({ codegraph: daemonVersion, pid: 1, socketPath: sockPath, protocol: 1 }) + '\n');
+      });
+      await new Promise<void>((resolve) => miniServer.listen(sockPath, () => resolve()));
+      try {
+        const res = await connectWithHello(sockPath, '1.2.3'); // our (client) version
+        expect(res).toBe('version-mismatch');
+        await new Promise((r) => setTimeout(r, 150)); // let the retire line land
+      } finally {
+        await new Promise<void>((resolve) => miniServer.close(() => resolve()));
+      }
+      return received;
+    };
+
+    // Older daemon (1.2.2 < 1.2.3) → retire IS sent.
+    const toOld = await runHello('1.2.2');
+    expect(toOld.some((l) => l.includes('codegraph/retire'))).toBe(true);
+
+    // Newer daemon (9.9.9 > 1.2.3) → an old CLI must NOT kill a new daemon.
+    const toNew = await runHello('9.9.9');
+    expect(toNew.some((l) => l.includes('codegraph/retire'))).toBe(false);
+  }, 30000);
+
   it('daemon idle-times-out after the last client disconnects', async () => {
     const env = { CODEGRAPH_DAEMON_IDLE_TIMEOUT_MS: '800', CODEGRAPH_PPID_POLL_MS: '200' };
     const server = spawnServer(tempDir, env);

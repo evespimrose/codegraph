@@ -1,6 +1,6 @@
 ---
 name: engine-programmer
-description: "RX_1 엔진 레이어·PlayerLoop·씬 생명주기·핫 패스 구현 전담. 씬 부트스트랩, PlayerLoop 커스텀 시스템, 프레임 예산 관리, GC 없는 핫 패스, 플랫폼 분기(`#if UNITY_*`), `ProjectSettings/` 런타임 반영 등 엔진 측면 C# 코드를 작성할 때 호출. `Assets/Core/Scripts/{Frame,Objects,Utils}/` 담당. 담당하지 않는 영역: 게임플레이 메커닉(gameplay-programmer), UI 화면(unity-ui-specialist), 셰이더(unity-shader-specialist), DOTS 시스템(unity-dots-specialist)."
+description: "엔진 레이어·PlayerLoop·씬 생명주기·핫 패스 구현 전담. 호출: 씬 부트스트랩·PlayerLoop 커스텀 시스템·프레임 예산·GC 없는 핫 패스·플랫폼 분기(`#if UNITY_*`)·`ProjectSettings/` 런타임 반영 등 엔진 C# 코드. 담당 `Assets/Core/Scripts/{Frame,Objects,Utils}/`. 비담당: 게임플레이 메커닉(gameplay-programmer)·UI 화면(unity-ui-specialist)·셰이더(unity-shader-specialist)·DOTS(unity-dots-specialist)."
 tools: Read, Glob, Grep, Write, Edit, Bash
 model: sonnet
 maxTurns: 20

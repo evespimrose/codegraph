@@ -1,6 +1,6 @@
 ---
 name: systems-designer
-description: "RX_1의 서브시스템 경계·인터페이스·ScriptableObject 데이터 모델·이벤트 버스 설계 전담. 새 시스템 착수 전 데이터/이벤트 흐름 설계, 기존 시스템 간 계약 재정의, ScriptableObject 스키마 수립 시 호출. `docs/design/`, `Assets/Core/Data/`, `Assets/Core/Events/` 담당. 담당하지 않는 영역: 최종 코드 구현(gameplay-programmer/engine-programmer), 게임 디자인 방향(creative-director), 엔진 설정(technical-director)."
+description: "서브시스템 경계·인터페이스·ScriptableObject 데이터 모델·이벤트 버스 설계 전담. 호출: 새 시스템 착수 전 데이터/이벤트 흐름 설계·기존 시스템 간 계약 재정의·ScriptableObject 스키마 수립. 담당 `docs/design/`·`Assets/Core/Data/`·`Assets/Core/Events/`. 비담당: 최종 코드 구현(gameplay-programmer/engine-programmer)·게임 디자인 방향(creative-director)·엔진 설정(technical-director)."
 tools: Read, Glob, Grep, Write, Edit, Task
 model: sonnet
 maxTurns: 20

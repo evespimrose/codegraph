@@ -1,18 +1,10 @@
 ---
 name: turn-budget
-description: Use when the user invokes /turn-budget <N>|off|status|<N>:block, or asks to set/limit/check the per-session turn (tool-call) budget — "턴 예산", "도구 호출 제한", "턴버짓". Sets the session turn-count budget that warns (or, opt-in, blocks) when exceeded. Korean triggers - "턴 예산 켜/꺼", "턴 제한".
+description: Use when the user invokes /turn-budget <N>|off|status|<N>:block, or asks to set/limit/check the per-session turn (tool-call) budget — "턴 예산", "도구 호출 제한", "턴버짓", "턴 제한". NOT for precise token measurement or output suppression (use output-arm) — turn-count proxy only.
 ---
 
 <!-- CAVE-MAN-OUTPUT-ARM -->
-## ⚙️ 실행 규칙 (Cave-Man Output Arm · 전 스킬 공통)
-
-- **메인 컨텍스트 타이핑 금지** — 과정 narration·중간 요약·"이제 ~하겠습니다" 출력 안 함
-- **도구 사용 허용** — codegraph→(보완)Read/Edit 등으로 메인이 직접 작업 (hook 통제下)
-- **서브에이전트 디스패치 금지** — Agent/Task 호출 안 함 (콜드스타트 토큰세금 ~100배). 예외: 초대형 규모·병렬 독립 작업을 **사용자가 발의**한 경우만
-- **완료 보고만 허용** — 끝에 `XX 완료` 1~2단어 간단 보고만 타이핑
-- **Auto-Clarity 예외** — 보안·비가역·모호 다단계·반복질문·하드블로커 → 정상 출력 (correctness > brevity)
-
-정책: [[main-context-zero-delegation]] · `/output-arm` · CLAUDE.md RULE-9
+> **출력 규약**(메인 직접·서술0·완료만·codegraph-first·서브에이전트 manual·Auto-Clarity 예외) — 전문: `output-arm` 스킬 · CLAUDE.md RULE-9.
 <!-- /CAVE-MAN-OUTPUT-ARM -->
 
 
@@ -70,3 +62,10 @@ echo "turns : $(grep -vE '^[[:space:]]*(#|$)' .claude/state/tool-history.log 2>/
 - 사용자 동의 없이 `:block`을 기본으로 켜기(흐름 차단은 옵트인이어야 함).
 - 토큰 정밀 측정을 이 게이트에 끼워넣기(비결정·비용↑ — 본 PLAN 비-목표, §미결2).
 - 턴 카운트를 이전 세션까지 누적하기(session-start 초기화 전제를 깨면 금세션 의미 상실).
+
+## 사용하지 말아야 할 때 (Negative Constraints)
+
+- 정밀 토큰 측정 — 턴 수는 *프록시*(토큰 측정은 비-목표).
+- 출력 표현 압축 — `output-arm`.
+- 입력 접근 통제 — RULE-1/Sonar.
+- `:block`을 사용자 동의 없이 기본화 — 흐름 차단은 옵트인.

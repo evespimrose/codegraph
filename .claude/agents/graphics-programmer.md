@@ -1,6 +1,6 @@
 ---
 name: graphics-programmer
-description: "RX_1 URP 렌더 파이프라인·셰이더·VFX 전담. URP 에셋(Mobile_RPAsset/PC_RPAsset)·Renderer 설정, ShaderGraph/HLSL, 커스텀 Renderer Feature, Volume 프로파일, 포스트프로세싱, Lighting/Camera 스택, ParticleSystem/VFX 기술 구현 시 호출. 담당하지 않는 영역: 게임 로직 C# 코드, UI 레이아웃, 물리 시뮬레이션, 사운드, 패키지 버전 변경(technical-director 결재)."
+description: "URP 렌더 파이프라인·셰이더·VFX 전담. 호출: URP 에셋(Mobile_RPAsset/PC_RPAsset)·Renderer 설정·ShaderGraph/HLSL·커스텀 Renderer Feature·Volume 프로파일·포스트프로세싱·Lighting/Camera 스택·ParticleSystem/VFX 기술 구현. 비담당: 게임 로직 C#·UI 레이아웃·물리 시뮬레이션·사운드·패키지 버전 변경(technical-director 결재)."
 tools: Read, Glob, Grep, Write, Edit, Bash, WebSearch
 model: sonnet
 maxTurns: 20

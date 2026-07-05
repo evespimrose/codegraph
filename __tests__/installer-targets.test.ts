@@ -1388,3 +1388,40 @@ function listAllFiles(dir: string): string[] {
   }
   return out;
 }
+
+// ---------------------------------------------------------------------------
+// PLAN-2 Step 4 — MCP spawn hardening (구멍 B: PATH-dependent bare `codegraph`)
+// ---------------------------------------------------------------------------
+import { resolveServeCommand } from '../src/installer/targets/claude';
+
+describe('resolveServeCommand (spawn hardening)', () => {
+  const fakeNode = process.execPath;
+
+  it('pins absolute node + entry when running from a real codegraph.js', () => {
+    // Use a path that actually exists: this test file's compiled sibling is
+    // not codegraph.js, so fabricate via the repo's own bin source on disk.
+    const entry = path.join(__dirname, '..', 'dist', 'bin', 'codegraph.js');
+    if (!fs.existsSync(entry)) return; // dist not built — covered by fallback cases
+    expect(resolveServeCommand(entry, fakeNode)).toEqual({
+      command: fakeNode,
+      args: [entry, 'serve', '--mcp'],
+    });
+  });
+
+  it('falls back to bare PATH form for npx cache entries (pruned at npm whim)', () => {
+    const npxEntry = path.join('C:', 'Users', 'x', 'AppData', 'Local', 'npm-cache', '_npx', 'abc', 'codegraph.js');
+    expect(resolveServeCommand(npxEntry, fakeNode)).toEqual({
+      command: 'codegraph',
+      args: ['serve', '--mcp'],
+    });
+  });
+
+  it('falls back when the entry is not a codegraph.js (test runners, embedders)', () => {
+    expect(resolveServeCommand(process.argv[1], fakeNode).command).toBe('codegraph');
+    expect(resolveServeCommand(undefined, fakeNode).command).toBe('codegraph');
+  });
+
+  it('falls back when the entry path does not exist on disk', () => {
+    expect(resolveServeCommand(path.join(os.tmpdir(), 'nope-xyz', 'codegraph.js'), fakeNode).command).toBe('codegraph');
+  });
+});

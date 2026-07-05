@@ -1,18 +1,10 @@
 ---
 name: sync
-description: Use when the user invokes /sync or asks to install/propagate THIS repo's workflow scaffolding into OTHER project roots — the .claude / .codex / .trae / .agents / .cursor dirs, CLAUDE.md / AGENTS.md / SKILL.md, hooks·skills·commands·rules, settings.json (plugin enablement), universal feedback memory, plus a generated codegraph .mcp.json. Reads target absolute paths from projects/list.txt and the sync manifest, then installs with one of three conflict modes — --mixed (diff → back up → overwrite, DEFAULT), --soft (skip existing), --force (overwrite all). Korean triggers — "워크플로우 동기화", "워크플로우 설치", "다른 프로젝트에 배포", "sync 워크플로우", "스킬·훅 배포", "/sync".
+description: Use when the user invokes /sync or asks to install/propagate THIS repo's workflow scaffolding into OTHER project roots. Korean triggers — "워크플로우 동기화", "워크플로우 설치", "다른 프로젝트에 배포", "스킬·훅 배포", "/sync". Do NOT use to update global codegraph (use /sync-global-codegraph) or for single-file copy — multi-project scaffolding deployment only.
 ---
 
 <!-- CAVE-MAN-OUTPUT-ARM -->
-## ⚙️ 실행 규칙 (Cave-Man Output Arm · 전 스킬 공통)
-
-- **메인 컨텍스트 타이핑 금지** — 과정 narration·중간 요약·"이제 ~하겠습니다" 출력 안 함
-- **도구 사용 허용** — codegraph→(보완)Read/Edit 등으로 메인이 직접 작업 (hook 통제下)
-- **서브에이전트 디스패치 금지** — Agent/Task 호출 안 함 (콜드스타트 토큰세금 ~100배). 예외: 초대형 규모·병렬 독립 작업을 **사용자가 발의**한 경우만
-- **완료 보고만 허용** — 끝에 `XX 완료` 1~2단어 간단 보고만 타이핑
-- **Auto-Clarity 예외** — 보안·비가역·모호 다단계·반복질문·하드블로커 → 정상 출력 (correctness > brevity)
-
-정책: [[main-context-zero-delegation]] · `/output-arm` · CLAUDE.md RULE-9
+> **출력 규약**(메인 직접·서술0·완료만·codegraph-first·서브에이전트 manual·Auto-Clarity 예외) — 전문: `output-arm` 스킬 · CLAUDE.md RULE-9.
 <!-- /CAVE-MAN-OUTPUT-ARM -->
 
 # Sync — 워크플로우 스캐폴딩 배포기
@@ -30,7 +22,8 @@ description: Use when the user invokes /sync or asks to install/propagate THIS r
 
 - **포함(스캐폴딩)**: `.claude/{skills,commands,hooks,rules,agents,settings.json}` · `.codex` · `.trae` · `.agents` · `.cursor` · `CLAUDE.md` · `AGENTS.md` · `SKILL.md`
 - **포함(범용 feedback)**: `memory/feedback_korean_communication.md` (사용자 전역 선호 — 모든 프로젝트 적용)
-- **제외(이 repo 고유 런타임 상태 — 절대 안 보냄)**: `.claude/state`, `.claude/memory-bank`, `settings.local.json`, `memory/MEMORY.md`+프로젝트 메모리, `.codegraph`·`node_modules`·`dist`·`src`·`docs` 등
+- **force-only(타깃 런타임 상태 — mixed/soft는 건너뜀, `--force`로만 덮어씀)**: `.claude/memory-bank`(`.riper-state`+브랜치 메모리) · `memory/MEMORY.md`. 평소 동기화는 타깃의 RIPER 상태·메모리를 **보존**하고, `--force`만 백업 후 덮어쓴다(타깃 하드 리셋용). `manifest.txt`에서 `!` 접두로 표기.
+- **제외(이 repo 고유 런타임 상태 — 절대 안 보냄)**: `.claude/state`, `settings.local.json`, 프로젝트별 메모리, `.codegraph`·`node_modules`·`dist`·`src`·`docs` 등
 - **생성**: 각 타깃 루트에 `.mcp.json` (codegraph MCP, `@evespimrose/codegraph` 전역 설치 기준). 기존 `.mcp.json`이 있으면 **다른 서버는 보존하고 codegraph만 병합**한다.
 
 ## 플래그 (3 모드)
@@ -42,6 +35,8 @@ description: Use when the user invokes /sync or asks to install/propagate THIS r
 | `--force` | 모든 대상 파일 **덮어쓰기** (프롬프트 없음) | 덮어쓴 파일 자동 백업 (`-NoBackup`로 생략) |
 
 백업 위치: `<타깃>\.sync-backup\<YYYYMMDD-HHmmss>\<원래경로>` (복구 가능). 타깃은 `.sync-backup/`를 gitignore 권장.
+
+**force-only 경로** (`manifest.txt`의 `!` 접두 — `.claude/memory-bank`·`memory/MEMORY.md`): mixed/soft는 `skipped-protected`로 **건너뛰어 타깃 상태를 보존**하고, `--force`만 백업 후 덮어쓴다. ⚠️ `--force`는 이 repo의 `.riper-state`·플랜·세션 메모리를 타깃에 밀어넣으므로(타깃 RIPER 상태 덮어씀) 의도적 하드 리셋일 때만 사용.
 
 ## 실행 워크플로 (메인 직접 — 서브에이전트 금지)
 
@@ -73,8 +68,15 @@ description: Use when the user invokes /sync or asks to install/propagate THIS r
 
 - **소스 = 스킬이 있는 repo 루트.** 이 스킬은 자기 자신(`.claude/skills/sync`)도 복사하므로 타깃의 `list.txt`/`manifest.txt`도 동기화 대상이다 — mixed가 백업으로 보호하나, 타깃별 목록을 따로 쓰는 경우 `--soft`를 쓰거나 적용 후 복원할 것.
 - `.mcp.json` 병합은 codegraph 키만 갱신/추가하고 형제 서버는 보존한다. 그래도 기존 파일 형식이 다르면 mixed가 충돌로 잡아 백업 후 정규화한다.
-- 타깃의 `memory/MEMORY.md` 인덱스는 건드리지 않는다. 동기화된 feedback 파일 포인터가 필요하면 사용자 확인 후 한 줄 추가.
+- 타깃의 `memory/MEMORY.md`·`.claude/memory-bank`는 **force-only**라 mixed/soft에선 건드리지 않는다(타깃 RIPER 상태·메모리 보존). `--force`만 백업 후 덮어쓴다. 동기화된 feedback 파일 포인터가 필요하면 사용자 확인 후 한 줄 추가.
 
 ## 검증 (이 스킬 수정 시)
 - frontmatter 유효 + `<!-- CAVE-MAN-OUTPUT-ARM -->` 마커 존재
 - `sync.ps1 -DryRun`이 쓰기 없이 충돌만 보고하는지 확인
+- `-Mode mixed -DryRun`에서 force-only(`memory-bank`·`MEMORY.md`)가 `skipped-protected`로 잡히고, `-Mode force -DryRun`에선 잡히지 않는지(overwritten/added로 전환) 확인
+
+## 사용하지 말아야 할 때 (Negative Constraints)
+
+- 전역 `codegraph` 명령 갱신 — `/sync-global-codegraph`.
+- 단일 파일을 wiki/raw로 이동 — `move-to-raw`.
+- 이 repo 내부 작업 — sync는 *타 프로젝트 루트*로의 배포 전용(list.txt 비면 안전 no-op).

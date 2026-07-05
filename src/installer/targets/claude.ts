@@ -197,7 +197,8 @@ class ClaudeCodeTarget implements AgentTarget {
 
   printConfig(loc: Location): string {
     const target = mcpJsonPath(loc);
-    const snippet = JSON.stringify({ mcpServers: { codegraph: getMcpServerConfig() } }, null, 2);
+    const snippet = JSON.stringify(
+      { mcpServers: { codegraph: { ...getMcpServerConfig(), ...resolveServeCommand() } } }, null, 2);
     return `# Add to ${target}\n\n${snippet}\n`;
   }
 
@@ -213,11 +214,37 @@ class ClaudeCodeTarget implements AgentTarget {
  * writes all three files. Without this split the shims silently
  * cause side effects callers don't expect.
  */
+/**
+ * Spawn hardening (PLAN-2 구멍 B): the bare `codegraph` command resolves
+ * through the npm global shim on PATH — and GUI-launched MCP clients often
+ * run WITHOUT that PATH, so the server intermittently never spawns. When the
+ * installer itself is running from a real on-disk CLI entry (dist/bin/
+ * codegraph.js — true for the npm global install AND the bundled runtime),
+ * pin the absolute node executable + entry script instead; spawning node
+ * directly also sidesteps the Windows `.cmd` EINVAL quirk. Falls back to the
+ * bare PATH form when the entry is ephemeral (`npx` cache — pruned at npm's
+ * whim) or unrecognizable (tests, embedded runners).
+ */
+export function resolveServeCommand(
+  entryFilename: string | undefined = require.main?.filename,
+  execPath: string = process.execPath,
+): { command: string; args: string[] } {
+  if (
+    entryFilename &&
+    /codegraph\.js$/i.test(entryFilename) &&
+    !/[\\/]_npx[\\/]/.test(entryFilename) &&
+    fs.existsSync(entryFilename)
+  ) {
+    return { command: execPath, args: [entryFilename, 'serve', '--mcp'] };
+  }
+  return { command: 'codegraph', args: ['serve', '--mcp'] };
+}
+
 export function writeMcpEntry(loc: Location): WriteResult['files'][number] {
   const file = mcpJsonPath(loc);
   const existing = readJsonFile(file);
   const before = existing.mcpServers?.codegraph;
-  const after = getMcpServerConfig();
+  const after = { ...getMcpServerConfig(), ...resolveServeCommand() };
 
   if (jsonDeepEqual(before, after)) {
     // Already exactly what we'd write — preserve byte-identical file.

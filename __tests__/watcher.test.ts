@@ -20,8 +20,16 @@
 import { vi } from 'vitest';
 // Hoisted: chokidar is replaced by the controllable mock for the whole file.
 vi.mock('chokidar', async () => (await import('./__helpers__/chokidar-mock')).chokidarMockModule);
+// Hoisted: deterministic embedder so the md-lifecycle e2e below runs without
+// @xenova/transformers or a model download (same stub as docs-search tests).
+vi.mock('../src/docs/embed', () => ({
+  embed: async () => { const v = new Float32Array(384); v[0] = 1; return v; },
+  isEmbedAvailable: async () => true,
+  embedBatch: async () => [],
+  getEmbedder: async () => null,
+}));
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, beforeAll, afterAll } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
@@ -29,6 +37,7 @@ import { FileWatcher, LockUnavailableError } from '../src/sync/watcher';
 import CodeGraph from '../src/index';
 import { triggerFileEvent } from './__helpers__/chokidar-mock';
 import { isMarkdownFile } from '../src/docs/scan-files';
+import { isVecAvailable } from '../src/docs/vec';
 
 /**
  * Helper to wait for a condition with timeout. Most tests no longer need
@@ -477,5 +486,76 @@ describe('FileWatcher', () => {
 
       cg.unwatch();
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// PLAN-2 Step 6 — md lifecycle through sync(): create / modify / DELETE.
+// The delete leg pins the 2026-07-02 defect: a doc removed from disk survived
+// in the index through live syncs AND catch-up (both funnel through
+// indexMarkdown, which had no deletion reconciliation). vec-gated; embeds
+// are stubbed at module top so no model download is involved.
+// ---------------------------------------------------------------------------
+describe.skipIf(!isVecAvailable())('markdown lifecycle via sync (docs-on e2e)', () => {
+  let dir: string;
+  let cg: CodeGraph;
+  let savedEnv: string | undefined;
+
+  const mdRows = (): string[] =>
+    (cg.getDb().prepare('SELECT file_path FROM mdast_metadata ORDER BY file_path').all() as Array<{ file_path: string }>)
+      .map((r) => r.file_path);
+  const nodeCount = (): number =>
+    (cg.getDb().prepare('SELECT count(*) c FROM nodes').get() as { c: number }).c;
+
+  beforeAll(async () => {
+    savedEnv = process.env.CODEGRAPH_DOCS;
+    process.env.CODEGRAPH_DOCS = '1';
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'codegraph-md-lifecycle-'));
+    fs.mkdirSync(path.join(dir, 'src'));
+    fs.mkdirSync(path.join(dir, 'docs'));
+    fs.writeFileSync(path.join(dir, 'src', 'a.ts'), 'export function keep() { return 1; }\n');
+    fs.writeFileSync(path.join(dir, 'docs', 'first.md'), '# First\n\nOriginal body.\n');
+    cg = CodeGraph.initSync(dir);
+    await cg.indexAll();
+  });
+
+  afterAll(() => {
+    if (savedEnv === undefined) delete process.env.CODEGRAPH_DOCS;
+    else process.env.CODEGRAPH_DOCS = savedEnv;
+    try { cg.close(); } catch { /* ignore */ }
+    try { fs.rmSync(dir, { recursive: true, force: true }); } catch { /* Windows lock lag */ }
+  });
+
+  it('creation: a new md lands in the doc index after sync', async () => {
+    expect(mdRows()).toContain('docs/first.md'); // from indexAll
+    fs.writeFileSync(path.join(dir, 'docs', 'second.md'), '# Second\n\nNew doc.\n');
+    await cg.sync();
+    expect(mdRows()).toContain('docs/second.md');
+  });
+
+  it('modification: content-hash refresh on sync', async () => {
+    const hashOf = (): string =>
+      (cg.getDb().prepare("SELECT content_hash h FROM mdast_metadata WHERE file_path = 'docs/second.md'").get() as { h: string }).h;
+    const before = hashOf();
+    fs.writeFileSync(path.join(dir, 'docs', 'second.md'), '# Second\n\nEdited body.\n');
+    await cg.sync();
+    expect(hashOf()).not.toBe(before);
+  });
+
+  it('DELETION: a removed md leaves the index on the next sync (2026-07-02 defect)', async () => {
+    const nodesBefore = nodeCount();
+    expect(mdRows()).toContain('docs/second.md');
+    fs.rmSync(path.join(dir, 'docs', 'second.md'));
+    await cg.sync();
+    expect(mdRows()).not.toContain('docs/second.md');
+    // Markdown nodes for the deleted doc are reconciled away too.
+    const orphanNodes = cg.getDb()
+      .prepare("SELECT count(*) c FROM nodes WHERE file_path = 'docs/second.md'")
+      .get() as { c: number };
+    expect(orphanNodes.c).toBe(0);
+    // No explosion: node count can only stay or shrink from the delete.
+    expect(nodeCount()).toBeLessThanOrEqual(nodesBefore);
+    // Survivor untouched.
+    expect(mdRows()).toContain('docs/first.md');
   });
 });

@@ -7,9 +7,10 @@
 # Examples (uncomment / edit):
 # D:\Fork\RX_1
 # C:\dev\some-other-project
-
-D:\Unity\claude-personal-integrated-workflow
 D:\Unity\codegraph
 D:\Unity\BLADE
-D:\Unity\WIKI
 D:\Unity\RX_1
+D:\Unity\WIKI
+D:\Unity\Western-Salon
+D:\Unity\Hercules
+D:\Unity\.PRODUCT

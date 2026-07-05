@@ -1,23 +1,14 @@
 ---
 name: visualize-graph
 description: >
-  Use this skill whenever the user wants to visualize the codegraph, generate an HTML dependency graph,
-  see the architecture as a graph, or asks for "visualize-graph". Reads the existing .codegraph/codegraph.db
-  SQLite index and generates (or overwrites) docs/codegraph-viz.html — an interactive Cytoscape.js graph
-  showing class-level dependencies aggregated from method-level call relationships.
-  Trigger on: "visualize-graph", "codegraph 시각화", "아키텍처 그래프 만들어줘", "dependency graph", "HTML 그래프 생성".
+  Use when the user wants to visualize the codegraph / generate an HTML dependency graph / see the
+  architecture as a graph. Outputs interactive docs/codegraph-viz.html. Trigger on:
+  "visualize-graph", "codegraph 시각화", "아키텍처 그래프 만들어줘", "dependency graph", "HTML 그래프 생성".
+  Do NOT use for symbol lookup or code navigation (use codegraph_* tools), or code editing — HTML visualization only.
 ---
 
 <!-- CAVE-MAN-OUTPUT-ARM -->
-## ⚙️ 실행 규칙 (Cave-Man Output Arm · 전 스킬 공통)
-
-- **메인 컨텍스트 타이핑 금지** — 과정 narration·중간 요약·"이제 ~하겠습니다" 출력 안 함
-- **도구 사용 허용** — codegraph→(보완)Read/Edit 등으로 메인이 직접 작업 (hook 통제下)
-- **서브에이전트 디스패치 금지** — Agent/Task 호출 안 함 (콜드스타트 토큰세금 ~100배). 예외: 초대형 규모·병렬 독립 작업을 **사용자가 발의**한 경우만
-- **완료 보고만 허용** — 끝에 `XX 완료` 1~2단어 간단 보고만 타이핑
-- **Auto-Clarity 예외** — 보안·비가역·모호 다단계·반복질문·하드블로커 → 정상 출력 (correctness > brevity)
-
-정책: [[main-context-zero-delegation]] · `/output-arm` · CLAUDE.md RULE-9
+> **출력 규약**(메인 직접·서술0·완료만·codegraph-first·서브에이전트 manual·Auto-Clarity 예외) — 전문: `output-arm` 스킬 · CLAUDE.md RULE-9.
 <!-- /CAVE-MAN-OUTPUT-ARM -->
 
 
@@ -118,3 +109,9 @@ class X --calls--> class Y
 ## 재생성
 
 아무때나 재실행하면 HTML이 덮어써진다. 코드 변경 후 codegraph.db가 갱신되면 재실행으로 그래프 최신화.
+
+## 사용하지 말아야 할 때 (Negative Constraints)
+
+- 심볼 조회·호출 관계 *질의* — `codegraph_*` 도구(본 스킬은 정적 HTML 산출).
+- 코드 수정·구현 — 시각화 전용, 무변경.
+- `.codegraph/codegraph.db` 부재 시 — 먼저 `codegraph init -i`.

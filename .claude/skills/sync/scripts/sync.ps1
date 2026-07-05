@@ -81,23 +81,34 @@ function Build-DesiredMcp($targetRoot){
   return ([ordered]@{ mcpServers = $servers } | ConvertTo-Json -Depth 8)
 }
 
-$manifest = Read-Lines $ManifestFile
+# Parse manifest. A leading '!' marks a FORCE-ONLY path: synced (overwritten) only in
+# -Mode force; skipped entirely in mixed/soft so each target's own runtime state
+# (RIPER .riper-state, branch memories, MEMORY.md) is left untouched by routine syncs.
+$items = New-Object System.Collections.Generic.List[object]
+foreach($m in (Read-Lines $ManifestFile)){
+  if($m.StartsWith('!')){ $items.Add([pscustomobject]@{ Path=$m.Substring(1).Trim(); ForceOnly=$true }) }
+  else { $items.Add([pscustomobject]@{ Path=$m; ForceOnly=$false }) }
+}
 if($Targets){ $targetRoots = @($Targets) } else { $targetRoots = @(Read-Lines $ListFile) }
 
 # Build generic file ops from the manifest (.mcp.json handled separately via merge)
 $ops = New-Object System.Collections.Generic.List[object]
-foreach($item in $manifest){
-  $full = Join-Path $Source $item
-  if(-not (Test-Path -LiteralPath $full)){ Write-Warning "manifest item missing in source: $item"; continue }
+foreach($it in $items){
+  $full = Join-Path $Source $it.Path
+  if(-not (Test-Path -LiteralPath $full)){
+    # Force-only entries are protective markers; absence in source is expected, not a warning.
+    if(-not $it.ForceOnly){ Write-Warning "manifest item missing in source: $($it.Path)" }
+    continue
+  }
   $gi = Get-Item -LiteralPath $full
   if($gi.PSIsContainer){
     Get-ChildItem -LiteralPath $full -Recurse -File -Force | ForEach-Object {
       $rel = $_.FullName.Substring($Source.Length).TrimStart('\','/')
-      $ops.Add([pscustomobject]@{ Rel=$rel; SourceFull=$_.FullName })
+      $ops.Add([pscustomobject]@{ Rel=$rel; SourceFull=$_.FullName; ForceOnly=$it.ForceOnly })
     }
   } else {
     $rel = $gi.FullName.Substring($Source.Length).TrimStart('\','/')
-    $ops.Add([pscustomobject]@{ Rel=$rel; SourceFull=$gi.FullName })
+    $ops.Add([pscustomobject]@{ Rel=$rel; SourceFull=$gi.FullName; ForceOnly=$it.ForceOnly })
   }
 }
 
@@ -110,7 +121,7 @@ foreach($t in $targetRoots){
   $t = $t.TrimEnd('\','/')
   $r = @{
     Target=$t; Mode=$Mode; DryRun=[bool]$DryRun
-    Added=0; Overwritten=0; SkippedExisting=0; SkippedIdentical=0
+    Added=0; Overwritten=0; SkippedExisting=0; SkippedIdentical=0; SkippedProtected=0
     Conflicts=@(); BackupDir=$null; Error=$null
   }
   if(-not (Test-Path -LiteralPath $t)){ $r.Error='TARGET_NOT_FOUND'; $report.Add([pscustomobject]$r); continue }
@@ -118,6 +129,9 @@ foreach($t in $targetRoots){
   $conflicts = New-Object System.Collections.Generic.List[string]
 
   foreach($op in $ops){
+    # FORCE-ONLY paths (memory-bank, MEMORY.md, ...): only sync under -Mode force, so
+    # mixed/soft never clobber the target's own RIPER state and memories.
+    if($op.ForceOnly -and $Mode -ne 'force'){ $r.SkippedProtected++; continue }
     $tgtFile = Join-Path $t $op.Rel
     $exists = Test-Path -LiteralPath $tgtFile
     if($Mode -eq 'soft'){
@@ -183,7 +197,7 @@ foreach($r in $report){
   Write-Output ("-"*60)
   Write-Output "Target: $($r.Target)"
   if($r.Error){ Write-Output "  ! $($r.Error)"; continue }
-  Write-Output "  added=$($r.Added)  overwritten=$($r.Overwritten)  skipped-existing=$($r.SkippedExisting)  skipped-identical=$($r.SkippedIdentical)"
+  Write-Output "  added=$($r.Added)  overwritten=$($r.Overwritten)  skipped-existing=$($r.SkippedExisting)  skipped-identical=$($r.SkippedIdentical)  skipped-protected=$($r.SkippedProtected)"
   if($r.Conflicts.Count -gt 0){
     Write-Output "  conflicts ($($r.Conflicts.Count)) — would back up + overwrite:"
     $r.Conflicts | ForEach-Object { Write-Output "    ~ $_" }

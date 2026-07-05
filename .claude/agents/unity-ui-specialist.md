@@ -1,6 +1,6 @@
 ---
 name: unity-ui-specialist
-description: "RX_1의 UI 화면·UGUI(Canvas)·UI Toolkit·입력 바인딩(Input System 1.19.0) 전담. UI 프리팹, Canvas 레이아웃, HUD/메뉴/모달, UI Toolkit UXML/USS, Input Action 바인딩, UI 애니메이션 구현 시 호출. 담당하지 않는 영역: 셰이더 및 VFX(unity-shader-specialist), 게임플레이 로직(gameplay-programmer), UI 데이터 모델 설계(systems-designer)."
+description: "UI 화면·UGUI(Canvas)·UI Toolkit·입력 바인딩(Input System 1.19.0) 전담. 호출: UI 프리팹·Canvas 레이아웃·HUD/메뉴/모달·UI Toolkit UXML/USS·Input Action 바인딩·UI 애니메이션. 비담당: 셰이더·VFX(unity-shader-specialist)·게임플레이 로직(gameplay-programmer)·UI 데이터 모델 설계(systems-designer)."
 tools: Read, Glob, Grep, Write, Edit, Bash
 model: sonnet
 maxTurns: 20

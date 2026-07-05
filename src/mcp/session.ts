@@ -74,6 +74,13 @@ export interface MCPSessionOptions {
    * where the project lives.
    */
   explicitProjectPath?: string | null;
+  /**
+   * Invoked when a client sends the `codegraph/retire` notification — a newer
+   * CLI found this (older) daemon during hello and asks it to shut down
+   * gracefully so the NEXT session spawns the new version (PLAN-2 skew
+   * succession). Only the daemon wires this; in-process sessions ignore it.
+   */
+  onRetire?: () => void;
 }
 
 /**
@@ -86,12 +93,15 @@ export class MCPSession {
   private resolvePromise: Promise<void> | null = null;
   private explicitProjectPath: string | null;
 
+  private onRetire: (() => void) | null;
+
   constructor(
     private transport: JsonRpcTransport,
     private engine: MCPEngine,
     opts: MCPSessionOptions = {},
   ) {
     this.explicitProjectPath = opts.explicitProjectPath ?? null;
+    this.onRetire = opts.onRetire ?? null;
   }
 
   /**
@@ -132,6 +142,10 @@ export class MCPSession {
         break;
       case 'ping':
         if (isRequest) this.transport.sendResult((message as JsonRpcRequest).id, {});
+        break;
+      case 'codegraph/retire':
+        // Notification-only skew-succession channel (see MCPSessionOptions.onRetire).
+        if (!isRequest) this.onRetire?.();
         break;
       default:
         if (isRequest) {

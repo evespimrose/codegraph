@@ -49,7 +49,7 @@ import json
 msg = '''⚠️ PRE-COMPACT: /compact 실행 전 필수 단계
 
 다음을 즉시 수행하세요:
-  1. /memory:save 실행 — 현재 세션 핵심 내용을 claude-mem에 저장
+  1. /memory:save 실행 — 현재 세션 핵심 내용을 로컬 memory-bank에 저장
   2. .riper-state 확인 — 현재 RIPER 모드 기억
   3. 이후 /compact 실행
 

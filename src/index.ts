@@ -25,6 +25,7 @@ import {
 import { DatabaseConnection, getDatabasePath } from './db';
 import type { SqliteDatabase } from './db/sqlite-adapter';
 import { indexMarkdown } from './docs/indexer';
+import { setCodeGraphClass } from './cg-ref';
 import { resolveDocsEnabled } from './docs/config';
 import { linkGovernsEdges } from './docs/governs-linker';
 import { linkDocEdges } from './docs/doc-links-linker';
@@ -1151,6 +1152,10 @@ export class CodeGraph {
     removeDirectory(this.projectRoot);
   }
 }
+
+// Register with the late-binding ref so mcp/tools|engine's lazy loader can
+// resolve the class in contexts where require('../index') can't (vitest ESM).
+setCodeGraphClass(CodeGraph);
 
 // Default export
 export default CodeGraph;

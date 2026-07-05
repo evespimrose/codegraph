@@ -1,6 +1,6 @@
 ---
 name: gameplay-programmer
-description: "RX_1 게임플레이 로직·MonoBehaviour·코어 루프 구현 전담. 플레이어 컨트롤러, 적/NPC 상태머신, 전투·스코어·진행 시스템, 게임 매니저, 이벤트 디스패처, 세이브/로드 런타임 로직을 C#으로 작성할 때 호출. `Assets/Core/Scripts/{Units,Gameloop,Map,Item,Fragments}/` 담당. 담당하지 않는 영역: PlayerLoop·핫 패스(engine-programmer), UI 화면·Input 바인딩(unity-ui-specialist), 셰이더·VFX(unity-shader-specialist), DOTS 시스템(unity-dots-specialist), 인터페이스/SO 설계(systems-designer)."
+description: "게임플레이 로직·MonoBehaviour·코어 루프 구현 전담. 호출: 플레이어 컨트롤러·적/NPC 상태머신·전투·스코어·진행 시스템·게임 매니저·이벤트 디스패처·세이브/로드 런타임 로직(C#). 담당 `Assets/Core/Scripts/{Units,Gameloop,Map,Item,Fragments}/`. 비담당: PlayerLoop·핫 패스(engine-programmer)·UI 화면·Input 바인딩(unity-ui-specialist)·셰이더·VFX(unity-shader-specialist)·DOTS(unity-dots-specialist)·인터페이스/SO 설계(systems-designer)."
 tools: Read, Glob, Grep, Write, Edit, Bash
 model: sonnet
 maxTurns: 20

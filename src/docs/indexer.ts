@@ -29,6 +29,8 @@ export interface MarkdownIndexResult {
   scanned: number;
   indexed: number;
   skipped: number;
+  /** Docs deleted from disk whose index entries were reconciled away. */
+  removed: number;
   warnings: string[];
 }
 
@@ -58,7 +60,7 @@ export async function indexMarkdown(
   opts: { onWarn?: (msg: string) => void; respectGitignore?: boolean } = {}
 ): Promise<MarkdownIndexResult> {
   const result: MarkdownIndexResult = {
-    enabled: false, available: false, scanned: 0, indexed: 0, skipped: 0, warnings: [],
+    enabled: false, available: false, scanned: 0, indexed: 0, skipped: 0, removed: 0, warnings: [],
   };
 
   // Gate 1 — opt-in (env CODEGRAPH_DOCS or persisted project flag).
@@ -103,6 +105,40 @@ export async function indexMarkdown(
 
   const files = listMarkdownFiles(projectRoot, { respectGitignore: opts.respectGitignore });
   result.scanned = files.length;
+
+  // Deletion reconciliation (2026-07-02 실측 결함): a doc deleted from disk
+  // used to survive in the index forever — neither the live watcher sync nor
+  // the post-open catch-up removed it, so stale docs polluted search. Both
+  // paths funnel through indexMarkdown, so reconciling here covers both:
+  // any DB doc absent from the just-scanned disk set loses its metadata row,
+  // vector, and that file's markdown-language nodes (doc/concept) + their
+  // edges. Content-hash incrementality for surviving docs is untouched.
+  try {
+    const diskRels = new Set(files.map((abs) => normalizeRel(projectRoot, abs)));
+    const dbDocs = db.prepare('SELECT id, file_path FROM mdast_metadata').all() as Array<{
+      id: number; file_path: string;
+    }>;
+    const orphans = dbDocs.filter((d) => !diskRels.has(d.file_path));
+    if (orphans.length > 0) {
+      const delMeta = db.prepare('DELETE FROM mdast_metadata WHERE id = ?');
+      const selNodeIds = db.prepare(`SELECT id FROM nodes WHERE file_path = ? AND language = 'markdown'`);
+      const delEdge = db.prepare('DELETE FROM edges WHERE source = ? OR target = ?');
+      const delNodes = db.prepare(`DELETE FROM nodes WHERE file_path = ? AND language = 'markdown'`);
+      db.transaction(() => {
+        for (const o of orphans) {
+          delVec.run(BigInt(o.id));
+          delMeta.run(o.id);
+          const nodeRows = selNodeIds.all(o.file_path) as Array<{ id: string }>;
+          for (const n of nodeRows) delEdge.run(n.id, n.id);
+          delNodes.run(o.file_path);
+        }
+      })();
+      result.removed = orphans.length;
+    }
+  } catch (e) {
+    // Reconciliation is best-effort — never fail the indexing pass over it.
+    pushWarn(result, opts, `doc deletion reconciliation failed: ${e instanceof Error ? e.message : String(e)}`);
+  }
 
   for (const abs of files) {
     const rel = normalizeRel(projectRoot, abs);

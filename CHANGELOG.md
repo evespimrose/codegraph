@@ -1,13 +1,35 @@
 # Changelog
 
 All notable changes to CodeGraph are documented here. Each entry also ships as
-a [GitHub Release](https://github.com/colbymchenry/codegraph/releases) tagged
+a [GitHub Release](https://github.com/evespimrose/codegraph/releases) tagged
 `vX.Y.Z`, which is where most people will look.
 
 This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+### Fixes
+
+- Deleting a Markdown file now removes it from the docs index on the next sync — previously a deleted doc lived on in search results forever, polluting them with stale content, until you forced a full re-index.
+- MCP responses that query *another* project via `projectPath` now warn you when that project's index looks out of date, with the exact `codegraph sync` command to run — and setting `CODEGRAPH_CROSS_PROJECT_SYNC=1` makes those cross-project opens catch up automatically.
+- Installing into Claude Code now writes an absolute launch path for the MCP server instead of relying on the `codegraph` command being on PATH — fixing the "server sometimes doesn't start" problem when the app is launched from a GUI where PATH isn't set up.
+- When a newer CodeGraph finds an older background daemon still running, it now asks the old daemon to shut down gracefully so your next session runs the new version — no more manually killing stale daemons after an upgrade.
+- The background daemon no longer spams its log with EPIPE errors when a client disconnects mid-handshake.
+- MCP server launches (and launch failures, with the reason) are now recorded in `.codegraph/mcp-launch.log`, so an intermittent "the server didn't start" is diagnosable after the fact.
+- File names containing non-ASCII characters (Korean, Chinese, Japanese, etc.) are now indexed correctly in git-tracked projects.
+- With Markdown docs indexing enabled, your docs now stay up to date automatically as you edit them — the file watcher picks up `.md` changes and `codegraph sync` refreshes them, instead of needing a full re-index. Projects without the docs feature are unaffected.
+
+### New Features
+
+- You can now index your project's Markdown documentation (design docs, specs, ADRs) alongside the code graph and search it by meaning with the new `codegraph_docs` tool — it returns the most relevant documents plus the code symbols each one governs, so you can jump straight from "what's the intent here" to the implementation. It's opt-in: index with `codegraph index --with-docs` (or set `CODEGRAPH_DOCS=1`) and install the optional embeddings dependency. Embeddings run entirely on your machine, and projects that don't opt in are completely unaffected.
+- When the docs feature is enabled, the docs that govern a file also surface automatically inside `codegraph_context`, `codegraph_node`, and `codegraph_impact`, so the design note explaining a piece of code shows up right where you're already looking.
+- Design docs tagged with `<!-- BLK: BLK-XXX -->` now create canonical concept nodes that are linked to every code symbol marked `// [BLK-XXX]` — so `codegraph_impact` on a function correctly surfaces the design spec it belongs to, and agents can trace from implementation back to intent without reading every file. Class-level and file-header markers are also recognized. Docs in project-designated canonical directories are preferred when the same tag appears in multiple files.
+- A manual `codegraph index` now refreshes your Markdown docs alongside the code (when the docs feature is on) and tells you how many were re-indexed, and `codegraph status` shows the indexed-doc count — so one command keeps docs and code in sync, and you can confirm at a glance that your docs are indexed.
+- `codegraph init` now builds your Markdown docs layer automatically, the same way a forced re-index does — initializing a project is a full build, so it sets up the docs and concept graph in one step instead of needing a separate `--with-docs` run. (It stays a graceful no-op if you haven't installed the optional embeddings dependency, and an explicit `CODEGRAPH_DOCS=0` still turns it off.)
+- `codegraph init`, `codegraph index`, and `codegraph status` now report the Markdown graph — the concept nodes and governs edges derived from your docs — distinctly from the code graph. `status` gives it a dedicated section (and adds an edges-by-kind breakdown), and the index/init summary appends the concept-node and governs-edge counts to the Markdown line, so you can always tell at a glance how much of the graph comes from documentation versus code.
+- In Markdown-only projects (notes, wikis, Obsidian-style vaults), the links between your notes are now first-class graph citizens: `codegraph_callers` shows a note's backlinks, `codegraph_callees` shows the notes it links to, and `codegraph_impact` follows note-to-note links — so you can navigate a documentation vault as a graph, not just search it. It turns on automatically for documentation-only projects and stays off for code projects (whose graph is untouched); force it either way with the `CODEGRAPH_DOC_GRAPH` environment variable.
+- You can now keep extra files out of the index with a `.codegraphignore` file at your project root. It uses the same syntax as `.gitignore` and layers on top of it, so you can drop generated code, vendored dependencies, or stale docs from the graph (code *and* Markdown docs) without touching `.gitignore` — and a leading `!` re-includes a match. `codegraph init` now drops a commented starter file you can fill in. If you'd rather the indexer ignore your `.gitignore` altogether, pass `--no-gitignore` to `codegraph index` or `codegraph sync` (the built-in defaults and `.codegraphignore` still apply).
 
 
 ## [0.9.8] - 2026-06-01
@@ -20,7 +42,7 @@ and adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Swift deferred-validation flows (and similar "handler array" patterns) now connect end-to-end in `codegraph_trace` and `codegraph_explore` — following a request's lifecycle reaches the validators registered with `.validate { … }` instead of dead-ending where the framework runs them by iterating a stored list of closures. Any pattern where closures are appended to a collection and later invoked by looping over it is now traced.
 - `codegraph_explore` now spells out the dynamic-dispatch relationships of the symbols you ask about — e.g. "the closures registered here are run by `didCompleteTask`" — so the indirect hops you'd otherwise grep to reconstruct are listed alongside the call flow.
 - `codegraph_explore` answers multi-phase questions that span a large "god file" far more completely. For a flow like "build, send, and validate a request" — where one big file holds the build chain and the validate logic lives in others — it now keeps every method *on the flow path* in full, collapses the file's off-path methods to one-line signatures, and guarantees each phase's defining file is shown (instead of truncating at a fixed size and dropping whichever phase came last, which sent you to read it by hand). Incidental files that merely name-drop the flow are still trimmed, so the response stays focused on the code that answers the question.
-- CodeGraph is usable as an embedded library again: `require("@colbymchenry/codegraph")` and `import` now resolve the programmatic API — the `CodeGraph` class plus building blocks like `DatabaseConnection`, `QueryBuilder`, `initGrammars`, and `FileLock` — so you can drive the graph directly from your own app (for example an Electron process) instead of only through the CLI or MCP server. Embedding runs on your own runtime, so it needs Node 22.5+ for the built-in SQLite. (#354)
+- CodeGraph is usable as an embedded library again: `require("@evespimrose/codegraph")` and `import` now resolve the programmatic API — the `CodeGraph` class plus building blocks like `DatabaseConnection`, `QueryBuilder`, `initGrammars`, and `FileLock` — so you can drive the graph directly from your own app (for example an Electron process) instead of only through the CLI or MCP server. Embedding runs on your own runtime, so it needs Node 22.5+ for the built-in SQLite. (#354)
 
 ### Fixes
 
@@ -113,7 +135,7 @@ and adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - Several static-extraction and resolution correctness fixes underpin the routing work above: C++ inheritance edges that were previously missing, Dart methods that were extracted signature-only, Python handlers named `index`/`get`/`update` that were being silently dropped, and an explore output-budget issue that under-returned source on repos with very large files.
 - `codegraph serve --mcp` no longer keeps running after its parent agent is force-killed (OOM, `kill -9`, or container teardown) on Linux, where it used to hold inotify watches, file descriptors, and the SQLite WAL indefinitely; the server now shuts down as soon as its parent process changes, tunable via `CODEGRAPH_PPID_POLL_MS` (#277).
-- Installing `@colbymchenry/codegraph` through a registry mirror that hadn't yet mirrored the matching per-platform package no longer fails with `no prebuilt bundle for <platform>`; the launcher now downloads the bundle from GitHub Releases and caches it, with `CODEGRAPH_NO_DOWNLOAD=1` to disable the fallback and `CODEGRAPH_DOWNLOAD_BASE` to point it at your own mirror (#303).
+- Installing `@evespimrose/codegraph` through a registry mirror that hadn't yet mirrored the matching per-platform package no longer fails with `no prebuilt bundle for <platform>`; the launcher now downloads the bundle from GitHub Releases and caches it, with `CODEGRAPH_NO_DOWNLOAD=1` to disable the fallback and `CODEGRAPH_DOWNLOAD_BASE` to point it at your own mirror (#303).
 - `install.sh` no longer fails with `403` / "could not resolve latest version" on shared or cloud hosts that exhaust GitHub's unauthenticated API rate limit; it now resolves the version through the unthrottled releases redirect, and `CODEGRAPH_VERSION` accepts a bare version like `0.9.4` as well as `v0.9.4` (#325).
 
 ## [0.9.3] - 2026-05-22
@@ -238,17 +260,17 @@ Thanks @andreinknv for the substantive draft this release was based on.
 
 - Fixed the `codegraph` command failing with `permission denied` right after a fresh global install — the 0.7.5 package shipped the CLI without its executable bit, so your shell refused to run it. New installs work out of the box. If you're stuck on 0.7.5, upgrade to 0.7.6 or unblock yourself in place by making the installed binary executable with `chmod +x`.
 
-[0.9.7]: https://github.com/colbymchenry/codegraph/releases/tag/v0.9.7
-[0.9.6]: https://github.com/colbymchenry/codegraph/releases/tag/v0.9.6
-[0.9.5]: https://github.com/colbymchenry/codegraph/releases/tag/v0.9.5
-[0.9.4]: https://github.com/colbymchenry/codegraph/releases/tag/v0.9.4
-[0.9.3]: https://github.com/colbymchenry/codegraph/releases/tag/v0.9.3
-[0.9.2]: https://github.com/colbymchenry/codegraph/releases/tag/v0.9.2
-[0.9.1]: https://github.com/colbymchenry/codegraph/releases/tag/v0.9.1
-[0.9.0]: https://github.com/colbymchenry/codegraph/releases/tag/v0.9.0
-[0.8.0]: https://github.com/colbymchenry/codegraph/releases/tag/v0.8.0
-[0.7.10]: https://github.com/colbymchenry/codegraph/releases/tag/v0.7.10
-[0.7.9]: https://github.com/colbymchenry/codegraph/releases/tag/v0.7.9
-[0.7.7]: https://github.com/colbymchenry/codegraph/releases/tag/v0.7.7
-[0.7.6]: https://github.com/colbymchenry/codegraph/releases/tag/v0.7.6
-[0.9.8]: https://github.com/colbymchenry/codegraph/releases/tag/v0.9.8
+[0.9.7]: https://github.com/evespimrose/codegraph/releases/tag/v0.9.7
+[0.9.6]: https://github.com/evespimrose/codegraph/releases/tag/v0.9.6
+[0.9.5]: https://github.com/evespimrose/codegraph/releases/tag/v0.9.5
+[0.9.4]: https://github.com/evespimrose/codegraph/releases/tag/v0.9.4
+[0.9.3]: https://github.com/evespimrose/codegraph/releases/tag/v0.9.3
+[0.9.2]: https://github.com/evespimrose/codegraph/releases/tag/v0.9.2
+[0.9.1]: https://github.com/evespimrose/codegraph/releases/tag/v0.9.1
+[0.9.0]: https://github.com/evespimrose/codegraph/releases/tag/v0.9.0
+[0.8.0]: https://github.com/evespimrose/codegraph/releases/tag/v0.8.0
+[0.7.10]: https://github.com/evespimrose/codegraph/releases/tag/v0.7.10
+[0.7.9]: https://github.com/evespimrose/codegraph/releases/tag/v0.7.9
+[0.7.7]: https://github.com/evespimrose/codegraph/releases/tag/v0.7.7
+[0.7.6]: https://github.com/evespimrose/codegraph/releases/tag/v0.7.6
+[0.9.8]: https://github.com/evespimrose/codegraph/releases/tag/v0.9.8

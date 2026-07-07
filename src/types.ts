@@ -38,6 +38,8 @@ export const NODE_KINDS = [
   'export',
   'route',
   'component',
+  'concept',
+  'doc',
 ] as const;
 
 export type NodeKind = (typeof NODE_KINDS)[number];
@@ -57,7 +59,24 @@ export type EdgeKind =
   | 'returns'         // Function returns type
   | 'instantiates'    // Creates instance of class
   | 'overrides'       // Method overrides parent method
-  | 'decorates';      // Decorator applied to symbol
+  | 'decorates'       // Decorator applied to symbol
+  | 'governs'         // Markdown doc governs a symbol
+  | 'doc_link';       // Markdown doc links to another doc (Obsidian/wiki link)
+
+/**
+ * Node kinds belonging to the markdown graph (derived from Markdown docs),
+ * as opposed to the tree-sitter code graph. Used to report and filter the
+ * markdown layer distinctly from code nodes. `concept` = a BLK marker;
+ * `doc` = one node per Markdown file (for Obsidian/wiki doc-link promotion).
+ */
+export const MARKDOWN_NODE_KINDS: readonly NodeKind[] = ['concept', 'doc'];
+
+/**
+ * Edge kinds belonging to the markdown graph, as opposed to the code graph.
+ * `governs` = concept → code symbol; `doc_link` = doc → doc (a citing
+ * Markdown file links to a cited one — forward link; reverse = backlink).
+ */
+export const MARKDOWN_EDGE_KINDS: readonly EdgeKind[] = ['governs', 'doc_link'];
 
 /**
  * Supported programming languages. See NODE_KINDS for why this is a
@@ -468,6 +487,19 @@ export interface GraphStats {
 
   /** File counts by language */
   filesByLanguage: Record<Language, number>;
+
+  /**
+   * Markdown-graph nodes (`language='markdown'`, e.g. `concept` nodes derived
+   * from BLK markers). A subset of `nodeCount`; surfaced separately so callers
+   * can report the markdown graph distinctly from the code graph.
+   */
+  markdownNodeCount: number;
+
+  /**
+   * Markdown-graph edges (`governs` — concept → code symbol). A subset of
+   * `edgeCount`; surfaced separately from the code graph for the same reason.
+   */
+  markdownEdgeCount: number;
 
   /** Database size in bytes */
   dbSizeBytes: number;

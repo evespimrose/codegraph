@@ -103,6 +103,27 @@ cache/
 
     fs.writeFileSync(gitignorePath, gitignoreContent, 'utf-8');
   }
+
+  // Scaffold a commented `.codegraphignore` at the PROJECT ROOT (not inside
+  // .codegraph/). It's an additive exclude layer on top of .gitignore, in the
+  // same gitignore syntax — uncomment a pattern to drop those paths from the
+  // index without touching .gitignore. Left fully commented so a fresh project
+  // indexes exactly as before until the user opts in. Never overwritten.
+  const codegraphignorePath = path.join(projectRoot, '.codegraphignore');
+  if (!fs.existsSync(codegraphignorePath)) {
+    const codegraphignoreContent = `# .codegraphignore — extra paths CodeGraph should NOT index.
+# Additive layer on top of .gitignore, using identical gitignore syntax.
+# Built-in defaults (node_modules/, dist/, .git/, ...) always apply.
+# Uncomment or add patterns below; a leading "!" re-includes a match.
+#
+# Examples:
+# *.gen.cs            # generated sources
+# vendor/             # vendored third-party code
+# docs/legacy/**      # stale docs you don't want surfaced
+`;
+
+    fs.writeFileSync(codegraphignorePath, codegraphignoreContent, 'utf-8');
+  }
 }
 
 /**

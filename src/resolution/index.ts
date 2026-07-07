@@ -577,6 +577,9 @@ export class ReferenceResolver {
    * Resolve a single reference
    */
   resolveOne(ref: UnresolvedRef): ResolvedRef | null {
+    // governs refs are resolved by linkGovernsEdges after indexMarkdown — skip here
+    if (ref.referenceKind === 'governs') return null;
+
     // Skip built-in/external references
     if (this.isBuiltInOrExternal(ref)) {
       return null;
@@ -754,10 +757,13 @@ export class ReferenceResolver {
         );
       }
 
-      // Delete unresolvable refs from this batch to avoid re-processing them
-      if (result.unresolved.length > 0) {
+      // Delete unresolvable refs from this batch to avoid re-processing them.
+      // governs refs are intentionally preserved — linkGovernsEdges resolves them
+      // after indexMarkdown creates concept nodes.
+      const toDelete = result.unresolved.filter((r) => r.referenceKind !== 'governs');
+      if (toDelete.length > 0) {
         this.queries.deleteSpecificResolvedReferences(
-          result.unresolved.map((r) => ({
+          toDelete.map((r) => ({
             fromNodeId: r.fromNodeId,
             referenceName: r.referenceName,
             referenceKind: r.referenceKind,

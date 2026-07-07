@@ -23,6 +23,12 @@ import {
   FindRelevantContextOptions,
 } from './types';
 import { DatabaseConnection, getDatabasePath } from './db';
+import type { SqliteDatabase } from './db/sqlite-adapter';
+import { indexMarkdown } from './docs/indexer';
+import { setCodeGraphClass } from './cg-ref';
+import { resolveDocsEnabled } from './docs/config';
+import { linkGovernsEdges } from './docs/governs-linker';
+import { linkDocEdges } from './docs/doc-links-linker';
 import { QueryBuilder } from './db/queries';
 import {
   isInitialized,
@@ -117,6 +123,13 @@ export interface IndexOptions {
 
   /** Enable verbose logging (worker lifecycle, memory, timeouts) */
   verbose?: boolean;
+
+  /**
+   * When `false`, the project's root `.gitignore` is not consulted while
+   * scanning (built-in defaults and `.codegraphignore` still apply). Maps to the
+   * CLI `--no-gitignore` flag. Default `true`.
+   */
+  respectGitignore?: boolean;
 }
 
 /**
@@ -313,6 +326,18 @@ export class CodeGraph {
     return this.projectRoot;
   }
 
+  /**
+   * Get the underlying SQLite database handle.
+   *
+   * Exposed for the optional Markdown docs feature (hybrid search + the
+   * governing-doc relevance gate), which queries the shared codegraph.db
+   * directly. Returns the same live connection the code graph uses — callers
+   * must NOT close it.
+   */
+  getDb(): SqliteDatabase {
+    return this.db.getDb();
+  }
+
   // ===========================================================================
   // Indexing
   // ===========================================================================
@@ -331,7 +356,9 @@ export class CodeGraph {
       }
       try {
         const before = this.queries.getNodeAndEdgeCount();
-        const result = await this.orchestrator.indexAll(options.onProgress, options.signal, options.verbose);
+        const result = await this.orchestrator.indexAll(options.onProgress, options.signal, options.verbose, {
+          respectGitignore: options.respectGitignore,
+        });
 
         // Re-detect frameworks now that the index is populated. The resolver
         // is constructed with createResolver() before any files exist, so
@@ -382,6 +409,52 @@ export class CodeGraph {
           result.edgesCreated = after.edges - before.edges;
         }
 
+        // Markdown docs (opt-in): index .md into the vector store AFTER code
+        // indexing + resolution, so a doc's code_refs/BLK resolve against real
+        // nodes. Gated by resolveDocsEnabled (a no-op when off) and best-effort:
+        // any failure is swallowed so docs never break the code index.
+        if (result.success) {
+          try {
+            const docs = await indexMarkdown(this.db.getDb(), this.projectRoot, {
+              respectGitignore: options.respectGitignore,
+            });
+            // Surface the summary to callers (CLI index/init reporting) only
+            // when the feature actually ran, so docs-off runs stay unchanged.
+            if (docs.enabled) {
+              result.docs = {
+                enabled: docs.enabled,
+                available: docs.available,
+                scanned: docs.scanned,
+                indexed: docs.indexed,
+                skipped: docs.skipped,
+              };
+              // Link governs edges: concept nodes now exist, resolve preserved refs.
+              // Barrier: no-op for projects without BLK markers or non-canonical docs.
+              try {
+                const governs = linkGovernsEdges(this.db.getDb(), this.queries);
+                if (governs.linked > 0) result.docs.governsLinked = governs.linked;
+              } catch { /* best-effort: governs failure never breaks the code index */ }
+              // Markdown-graph totals (concept nodes + governs edges) for the CLI
+              // index/init summary, reported distinctly from the code node/edge
+              // counts. Best-effort: a count failure never breaks the code index.
+              try {
+                const md = this.queries.getMarkdownGraphCounts();
+                result.docs.conceptNodes = md.nodes;
+                result.docs.governsEdges = md.edges;
+              } catch { /* non-fatal */ }
+              // Promote Obsidian/wiki doc_links into doc nodes + doc_link edges
+              // so callers/callees/impact follow them. Gated: pure-Markdown
+              // projects (or CODEGRAPH_DOC_GRAPH override) only — code projects
+              // get zero rows. Best-effort: never breaks the code index.
+              try {
+                const dl = linkDocEdges(this.db.getDb(), this.queries);
+                if (dl.nodes > 0) result.docs.docLinkNodes = dl.nodes;
+                if (dl.edges > 0) result.docs.docLinkEdges = dl.edges;
+              } catch { /* best-effort: doc-link promotion never breaks the code index */ }
+            }
+          } catch { /* docs are best-effort; never fail the code index */ }
+        }
+
         return result;
       } finally {
         this.fileLock.release();
@@ -422,7 +495,9 @@ export class CodeGraph {
         return { filesChecked: 0, filesAdded: 0, filesModified: 0, filesRemoved: 0, nodesUpdated: 0, durationMs: 0 };
       }
       try {
-        const result = await this.orchestrator.sync(options.onProgress);
+        const result = await this.orchestrator.sync(options.onProgress, {
+          respectGitignore: options.respectGitignore,
+        });
 
         // Cross-file finalization (e.g. NestJS RouterModule prefixes). Run on
         // every sync that touched files so edits to `app.module.ts` propagate
@@ -471,10 +546,41 @@ export class CodeGraph {
           }
         }
 
+        // Re-link governs edges: code changes may create new governs refs.
+        // Concept nodes persist from the last full index (or indexMarkdown run).
+        // Barrier: no-op for projects without BLK markers — returns {0,0} immediately.
+        if (result.filesAdded > 0 || result.filesModified > 0) {
+          try {
+            linkGovernsEdges(this.db.getDb(), this.queries);
+          } catch { /* best-effort: governs relink never breaks sync */ }
+          // Re-promote doc_links after edits (gated; no-op on code projects).
+          try {
+            linkDocEdges(this.db.getDb(), this.queries);
+          } catch { /* best-effort: doc-link relink never breaks sync */ }
+        }
+
         // Refresh planner stats + checkpoint the WAL after bulk writes.
         if (result.filesAdded > 0 || result.filesModified > 0 || result.filesRemoved > 0) {
           this.db.runMaintenance();
         }
+
+        // Markdown docs (opt-in): refresh the vector store + concept nodes for
+        // any changed .md. orchestrator.sync() filters to source files, so .md
+        // edits never appear in filesAdded/Modified — catch them here. Always
+        // called (a cheap content-hash compare over the doc set skips unchanged
+        // files); internally gated by resolveDocsEnabled, a no-op when docs is
+        // off. Best-effort: docs never fail a sync.
+        try {
+          const docs = await indexMarkdown(this.db.getDb(), this.projectRoot, {
+            respectGitignore: options.respectGitignore,
+          });
+          // New/updated concept nodes — re-link governs + doc edges so
+          // callers/impact follow them. Skipped when nothing was (re)indexed.
+          if (docs.enabled && docs.indexed > 0) {
+            try { linkGovernsEdges(this.db.getDb(), this.queries); } catch { /* best-effort */ }
+            try { linkDocEdges(this.db.getDb(), this.queries); } catch { /* best-effort */ }
+          }
+        } catch { /* docs are best-effort; never fail a sync */ }
 
         return result;
       } finally {
@@ -506,6 +612,12 @@ export class CodeGraph {
   watch(options: WatchOptions = {}): boolean {
     if (this.watcher?.isActive()) return true;
 
+    // Resolve the docs opt-in once at watch start so the watcher lets .md edits
+    // through (docs-on only — a no-op gate otherwise, avoiding a full reconcile
+    // sync per Markdown edit). Re-enabling docs after watch starts needs a
+    // re-watch, same as respectGitignore.
+    const docsEnabled = resolveDocsEnabled(this.db.getDb());
+
     this.watcher = new FileWatcher(
       this.projectRoot,
       async () => {
@@ -521,7 +633,7 @@ export class CodeGraph {
         const filesChanged = result.filesAdded + result.filesModified + result.filesRemoved;
         return { filesChanged, durationMs: result.durationMs };
       },
-      options
+      { ...options, docsEnabled }
     );
 
     return this.watcher.start();
@@ -1040,6 +1152,10 @@ export class CodeGraph {
     removeDirectory(this.projectRoot);
   }
 }
+
+// Register with the late-binding ref so mcp/tools|engine's lazy loader can
+// resolve the class in contexts where require('../index') can't (vitest ESM).
+setCodeGraphClass(CodeGraph);
 
 // Default export
 export default CodeGraph;

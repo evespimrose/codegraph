@@ -5,14 +5,20 @@
  */
 
 import type CodeGraph from '../index';
+import { getCodeGraphClass } from '../cg-ref';
 import { findNearestCodeGraphRoot } from '../directory';
 // Lazy-load the heavy CodeGraph chain off the MCP startup path — see the same
 // helper in engine.ts. ToolHandler must load to answer tools/list (static
 // schemas), but it must NOT drag in sqlite/query layers before the daemon binds;
-// CodeGraph is pulled in only when a tool actually opens a project. require() is
-// sync + cached (CommonJS build).
-const loadCodeGraph = (): typeof import('../index').default =>
-  (require('../index') as typeof import('../index')).default;
+// CodeGraph is pulled in only when a tool actually opens a project. The cg-ref
+// registry resolves first (populated the moment anything imports '../index' —
+// every test and embedding app); the CJS require covers the daemon path where
+// nothing has loaded the module yet.
+const loadCodeGraph = (): typeof import('../index').default => {
+  const fromRef = getCodeGraphClass();
+  if (fromRef) return fromRef as typeof import('../index').default;
+  return (require('../index') as typeof import('../index')).default;
+};
 import {
   detectWorktreeIndexMismatch,
   worktreeMismatchWarning,
@@ -21,6 +27,8 @@ import {
 } from '../sync/worktree';
 import type { PendingFile } from '../sync';
 import type { Node, Edge, SearchResult, Subgraph, TaskContext, NodeKind } from '../types';
+import { searchDocs, findGoverningDocs, findBacklinks, type DocHit } from '../docs/search';
+import { resolveDocsEnabled, docsEnvOverride } from '../docs/config';
 import { createHash } from 'crypto';
 import {
   constants as fsConstants,
@@ -29,6 +37,7 @@ import {
   lstatSync,
   openSync,
   readFileSync,
+  readdirSync,
   statSync,
   writeSync,
 } from 'fs';
@@ -467,6 +476,31 @@ export const tools: ToolDefinition[] = [
     },
   },
   {
+    name: 'codegraph_docs',
+    description: "Semantic search over the project's Markdown documentation (design docs, specs, ADRs). Returns ranked docs with a compact summary plus the code symbols each doc governs (via frontmatter code_refs), so you can jump from intent to implementation. Opt-in: requires indexing with `--with-docs` (or CODEGRAPH_DOCS=1) and the optional @xenova/transformers dependency.",
+    inputSchema: {
+      type: 'object',
+      properties: {
+        query: {
+          type: 'string',
+          description: 'Natural-language description of the documentation you are looking for.',
+        },
+        topk: {
+          type: 'number',
+          description: 'Maximum number of documents to return (default: 8).',
+          default: 8,
+        },
+        codeLimit: {
+          type: 'number',
+          description: 'Maximum code symbols to resolve per document hit (default: 8).',
+          default: 8,
+        },
+        projectPath: projectPathProperty,
+      },
+      required: ['query'],
+    },
+  },
+  {
     name: 'codegraph_callers',
     description: 'List functions that call <symbol>. For deep flow use codegraph_trace.',
     inputSchema: {
@@ -628,6 +662,26 @@ export const tools: ToolDefinition[] = [
       required: ['from', 'to'],
     },
   },
+  {
+    name: 'codegraph_backlinks',
+    description: 'Find both forward links (documents the target references) and backlinks (documents that reference the target) for a given Markdown document. Useful for structural Zettelkasten exploration.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        filePath: {
+          type: 'string',
+          description: 'Path to the Markdown file (e.g., "docs/architecture.md")',
+        },
+        depth: {
+          type: 'number',
+          description: 'How many levels of backlinks to traverse recursively (default: 1, max: 5)',
+          default: 1,
+        },
+        projectPath: projectPathProperty,
+      },
+      required: ['filePath'],
+    },
+  },
 ];
 
 /**
@@ -637,10 +691,65 @@ export const tools: ToolDefinition[] = [
  * note in a description only adds once `cg` is loaded; the schemas are static).
  */
 export function getStaticTools(): ToolDefinition[] {
+  // No engine here, so the persisted docs flag is unreadable — gate the opt-in
+  // codegraph_docs tool on the env override only. Once a project opens,
+  // ToolHandler.getTools() is authoritative and honors the persisted flag.
+  const base = docsEnvOverride() === true ? tools : tools.filter(t => t.name !== 'codegraph_docs');
   const raw = process.env.CODEGRAPH_MCP_TOOLS;
-  if (!raw || !raw.trim()) return tools;
+  if (!raw || !raw.trim()) return base;
   const allow = new Set(raw.split(',').map(s => s.trim().replace(/^codegraph_/, '')).filter(Boolean));
-  return allow.size ? tools.filter(t => allow.has(t.name.replace(/^codegraph_/, ''))) : tools;
+  return allow.size ? base.filter(t => allow.has(t.name.replace(/^codegraph_/, ''))) : base;
+}
+
+/** Re-probe a cross-project root's staleness at most this often per handler. */
+const CROSS_PROJECT_STALE_TTL_MS = 30_000;
+/** Bounds for the stale probe — advisory heuristic, never exhaustive. */
+const STALE_PROBE_MAX_ENTRIES = 500;
+const STALE_PROBE_MAX_DEPTH = 5;
+const STALE_PROBE_SKIP_DIRS = new Set([
+  'node_modules', 'vendor', 'dist', 'build', 'out', 'target', 'coverage',
+  'Library', 'Temp', 'obj', 'Logs', 'venv', '__pycache__', 'Pods',
+]);
+
+/**
+ * Bounded mtime probe: is anything under `root` newer than its index DB?
+ * Compares the newest of codegraph.db/-wal/-shm against a capped BFS of
+ * file/dir mtimes (dot-dirs and dependency/build dirs skipped). Returns the
+ * one-line advisory notice, or null when the index looks current. A capped
+ * probe can miss deep edits — acceptable: this is a hint, not a guarantee.
+ */
+function detectCrossProjectStaleNotice(root: string): string | null {
+  let dbM = 0;
+  for (const f of ['codegraph.db', 'codegraph.db-wal', 'codegraph.db-shm']) {
+    try { dbM = Math.max(dbM, statSync(pathModule.join(root, '.codegraph', f)).mtimeMs); } catch { /* absent */ }
+  }
+  if (dbM === 0) return null; // no DB — getCodeGraph would have thrown already
+
+  const queue: Array<{ dir: string; depth: number }> = [{ dir: root, depth: 0 }];
+  let seen = 0;
+  while (queue.length > 0) {
+    const { dir, depth } = queue.shift()!;
+    let entries;
+    try { entries = readdirSync(dir, { withFileTypes: true }); } catch { continue; }
+    for (const e of entries) {
+      if (e.name.startsWith('.') || STALE_PROBE_SKIP_DIRS.has(e.name)) continue;
+      if (++seen > STALE_PROBE_MAX_ENTRIES) return null; // budget exhausted — assume fresh
+      const p = pathModule.join(dir, e.name);
+      try {
+        if (statSync(p).mtimeMs > dbM) {
+          return (
+            `(Note: this cross-project index may be stale — files under ${root} changed after the last ` +
+            'index write. Run `codegraph sync` in that project, or set CODEGRAPH_CROSS_PROJECT_SYNC=1 ' +
+            'to auto-sync cross-project opens.)'
+          );
+        }
+      } catch { continue; }
+      if (e.isDirectory() && depth + 1 <= STALE_PROBE_MAX_DEPTH) {
+        queue.push({ dir: p, depth: depth + 1 });
+      }
+    }
+  }
+  return null;
 }
 
 /**
@@ -652,6 +761,10 @@ export function getStaticTools(): ToolDefinition[] {
 export class ToolHandler {
   // Cache of opened CodeGraph instances for cross-project queries
   private projectCache: Map<string, CodeGraph> = new Map();
+  // Cross-project freshness bookkeeping (PLAN-2 구멍 A) — keyed by resolved root.
+  private crossProjectSynced: Set<string> = new Set();
+  private crossProjectNotice: Map<string, string | null> = new Map();
+  private crossProjectCheckedAt: Map<string, number> = new Map();
   // The directory the server last searched for a default project. Surfaced in
   // the "not initialized" error so users can see why detection missed.
   private defaultProjectHint: string | null = null;
@@ -728,6 +841,20 @@ export class ToolHandler {
   }
 
   /**
+   * Whether to advertise the opt-in codegraph_docs tool. With a loaded project
+   * this honors the persisted/env docs flag; without one (static surface) it can
+   * only see the env override. Any failure resolves to "off" so the default
+   * tool surface never gains a tool by accident.
+   */
+  private docsToolEnabled(): boolean {
+    try {
+      return this.cg ? resolveDocsEnabled(this.cg.getDb()) : docsEnvOverride() === true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
    * Get tool definitions with dynamic descriptions based on project size.
    * The codegraph_explore tool description includes a budget recommendation
    * scaled to the number of indexed files. Honors the CODEGRAPH_MCP_TOOLS
@@ -738,6 +865,12 @@ export class ToolHandler {
     let visible = allow
       ? tools.filter(t => allow.has(t.name.replace(/^codegraph_/, '')))
       : tools;
+    // codegraph_docs is opt-in: only advertise it when the docs feature is
+    // enabled, so the default (docs off) tool surface is byte-identical to
+    // before this feature existed — zero regression on every code-only repo.
+    if (!this.docsToolEnabled()) {
+      visible = visible.filter(t => t.name !== 'codegraph_docs');
+    }
     if (!this.cg) return visible;
 
     try {
@@ -775,7 +908,11 @@ export class ToolHandler {
         'codegraph_trace',
       ]);
       if (stats.fileCount < TINY_REPO_FILE_THRESHOLD) {
-        visible = visible.filter(t => TINY_REPO_CORE_TOOLS.has(t.name));
+        // codegraph_docs is already gated by docsToolEnabled() above, so when it
+        // reaches here the feature is on — keep it visible even on tiny repos.
+        visible = visible.filter(
+          t => TINY_REPO_CORE_TOOLS.has(t.name) || t.name === 'codegraph_docs'
+        );
       }
 
       return visible.map(tool => {
@@ -790,6 +927,53 @@ export class ToolHandler {
     } catch {
       return visible;
     }
+  }
+
+  /**
+   * Cross-project freshness (PLAN-2 구멍 A): a `projectPath` open is an
+   * in-process DB read — no watcher, no catch-up — so the target's index can
+   * silently lag its filesystem. Before dispatch we either catch up (opt-in
+   * env CODEGRAPH_CROSS_PROJECT_SYNC=1, once per root per handler) or run a
+   * bounded mtime probe and remember a one-line advisory notice for the
+   * response footer. Both are best-effort and never block or fail a tool.
+   */
+  private async ensureCrossProjectFresh(projectPath: string): Promise<void> {
+    let cg: CodeGraph;
+    try { cg = this.getCodeGraph(projectPath); } catch { return; }
+    if (this.cg && cg === this.cg) return; // default project — watcher owns freshness
+    let root: string;
+    try { root = cg.getProjectRoot(); } catch { return; }
+
+    if (process.env.CODEGRAPH_CROSS_PROJECT_SYNC === '1') {
+      if (!this.crossProjectSynced.has(root)) {
+        this.crossProjectSynced.add(root); // mark first — no re-entry on failure
+        try { await cg.sync(); } catch { /* advisory only */ }
+      }
+      this.crossProjectNotice.set(root, null);
+      return;
+    }
+
+    const now = Date.now();
+    if (now - (this.crossProjectCheckedAt.get(root) ?? 0) < CROSS_PROJECT_STALE_TTL_MS) return;
+    this.crossProjectCheckedAt.set(root, now);
+    try {
+      this.crossProjectNotice.set(root, detectCrossProjectStaleNotice(root));
+    } catch { /* stat/readdir hiccup — no notice */ }
+  }
+
+  /** Append the remembered stale advisory to a cross-project response. */
+  private withCrossProjectNotice(result: ToolResult, projectPath?: string): ToolResult {
+    if (!projectPath || result.isError) return result;
+    let cg: CodeGraph;
+    try { cg = this.getCodeGraph(projectPath); } catch { return result; }
+    if (this.cg && cg === this.cg) return result;
+    let root: string;
+    try { root = cg.getProjectRoot(); } catch { return result; }
+    const notice = this.crossProjectNotice.get(root);
+    if (!notice) return result;
+    const [first, ...rest] = result.content;
+    if (!first || first.type !== 'text') return result;
+    return { ...result, content: [{ type: 'text', text: `${first.text}\n\n${notice}` }, ...rest] };
   }
 
   /**
@@ -1089,6 +1273,12 @@ export class ToolHandler {
         if (typeof check === 'object' && check !== undefined) return check;
       }
 
+      // Cross-project freshness: opt-in catch-up or bounded stale probe.
+      // Never throws, never blocks the default-project fast path.
+      if (typeof args.projectPath === 'string' && args.projectPath.length > 0) {
+        try { await this.ensureCrossProjectFresh(args.projectPath); } catch { /* advisory */ }
+      }
+
       // Read tools resolve through a single result variable so cross-cutting
       // notices — worktree-index mismatch (issue #155) and per-file
       // staleness (issue #403) — can be applied in one place. status embeds
@@ -1120,11 +1310,16 @@ export class ToolHandler {
           result = await this.handleFiles(args); break;
         case 'codegraph_trace':
           result = await this.handleTrace(args); break;
+        case 'codegraph_docs':
+          result = await this.handleDocs(args); break;
+        case 'codegraph_backlinks':
+          result = await this.handleBacklinks(args); break;
         default:
           return this.errorResult(`Unknown tool: ${toolName}`);
       }
       const withWorktree = this.withWorktreeNotice(result, args.projectPath as string | undefined);
-      return this.withStalenessNotice(withWorktree, args.projectPath as string | undefined);
+      const withStale = this.withStalenessNotice(withWorktree, args.projectPath as string | undefined);
+      return this.withCrossProjectNotice(withStale, args.projectPath as string | undefined);
     } catch (err) {
       return this.errorResult(`Tool execution failed: ${err instanceof Error ? err.message : String(err)}`);
     }
@@ -1148,6 +1343,12 @@ export class ToolHandler {
     });
 
     if (results.length === 0) {
+      // Fallback: search mdast_metadata by basename/title when no code symbol matches.
+      // Allows `search "강은휘"` to find `character/인물_강은휘.md` without knowing the path.
+      if (!kind) {
+        const mdastHits = this.searchMdastByName(cg, query, limit);
+        if (mdastHits.length > 0) return this.textResult(mdastHits.join('\n'));
+      }
       return this.textResult(`No results found for "${query}"`);
     }
 
@@ -1162,6 +1363,189 @@ export class ToolHandler {
 
     const formatted = this.formatSearchResults(ranked);
     return this.textResult(this.truncateOutput(formatted));
+  }
+
+  /**
+   * Fallback: search mdast_metadata when no code symbol matched the query.
+   * Matches against file basename (without extension) and content_summary.
+   * Returns formatted lines ready for textResult.
+   */
+  private searchMdastByName(cg: CodeGraph, query: string, limit: number): string[] {
+    try {
+      const db = cg.getDb();
+      // Quick existence check — table may not exist on pre-docs projects.
+      const exists = db.prepare(
+        "SELECT 1 FROM sqlite_master WHERE name='mdast_metadata' LIMIT 1"
+      ).get();
+      if (!exists) return [];
+
+      const rows = db.prepare(
+        'SELECT file_path, content_summary FROM mdast_metadata'
+      ).all() as Array<{ file_path: string; content_summary: string | null }>;
+
+      const q = query.toLowerCase();
+      const matched = rows.filter(r => {
+        const base = r.file_path.split('/').pop()?.replace(/\.[^.]+$/, '').toLowerCase() ?? '';
+        const summary = (r.content_summary ?? '').toLowerCase();
+        return base.includes(q) || summary.includes(q);
+      });
+
+      if (matched.length === 0) return [];
+
+      const lines = [`## Markdown docs matching "${query}"`, ''];
+      for (const r of matched.slice(0, limit)) {
+        const summary = r.content_summary
+          ? ` — ${r.content_summary.slice(0, 120).trimEnd()}${r.content_summary.length > 120 ? '…' : ''}`
+          : '';
+        lines.push(`- **${r.file_path}**${summary}`);
+      }
+      lines.push('', `> Use \`codegraph_backlinks\` with the file path above to navigate links.`);
+      return lines;
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * Handle codegraph_docs — semantic search over the project's Markdown docs.
+   * Opt-in: when the docs feature is off or its optional deps are missing, this
+   * returns an actionable how-to-enable message rather than failing.
+   */
+  private async handleDocs(args: Record<string, unknown>): Promise<ToolResult> {
+    const query = this.validateString(args.query, 'query');
+    if (typeof query !== 'string') return query;
+
+    const cg = this.getCodeGraph(args.projectPath as string | undefined);
+    const topk = clamp(Number(args.topk) || 8, 1, 50);
+    const codeLimit = clamp(Number(args.codeLimit) || 8, 0, 100);
+
+    const res = await searchDocs(cg.getDb(), query, { topk, codeLimit });
+
+    if (!res.enabled) {
+      return this.textResult(
+        'The Markdown docs feature is off for this project.\n' +
+        'Enable it by re-indexing with docs: `codegraph index --with-docs` (or set ' +
+        'CODEGRAPH_DOCS=1), and install the optional embeddings dependency: ' +
+        '`npm i @xenova/transformers`.'
+      );
+    }
+    if (!res.available) {
+      const why = res.warnings.length ? res.warnings.join(' ') : 'documentation search is unavailable.';
+      return this.textResult(`The Markdown docs feature is enabled, but ${why}`);
+    }
+    if (res.hits.length === 0) {
+      return this.textResult(`No documentation matched "${query}".`);
+    }
+
+    return this.textResult(this.truncateOutput(this.formatDocs(query, res.hits)));
+  }
+
+  /**
+   * Handle codegraph_backlinks
+   */
+  private async handleBacklinks(args: Record<string, unknown>): Promise<ToolResult> {
+    const filePath = this.validateString(args.filePath, 'filePath');
+    if (typeof filePath !== 'string') return filePath;
+
+    const cg = this.getCodeGraph(args.projectPath as string | undefined);
+    
+    const depth = clamp(Number(args.depth) || 1, 1, 5);
+    const res = findBacklinks(cg.getDb(), filePath, depth);
+    if (!res) {
+      return this.textResult(
+        `No links found for "${filePath}". Either the file is not indexed, ` +
+        'the docs feature is off (`CODEGRAPH_DOCS=1` missing), or it has no links.'
+      );
+    }
+
+    const lines: string[] = [`# Links for "${res.file}"`, ''];
+    
+    lines.push('## Forward Links (Documents this file references)');
+    if (res.forwardLinks.length > 0) {
+      for (const link of res.forwardLinks) lines.push(`- ${link}`);
+    } else {
+      lines.push('None.');
+    }
+    lines.push('');
+
+    lines.push('## Backlinks (Documents that reference this file)');
+    if (res.backLinks.length > 0) {
+      for (const link of res.backLinks) lines.push(`- ${link}`);
+    } else {
+      lines.push('None.');
+    }
+
+    return this.textResult(lines.join('\n'));
+  }
+
+  /** Render doc hits as compact markdown: file + BLK, summary, governed symbols. */
+  private formatDocs(query: string, hits: DocHit[]): string {
+    const lines: string[] = [`# Docs matching "${query}"`, ''];
+    for (const h of hits) {
+      const blk = h.blk ? ` [${h.blk}]` : '';
+      lines.push(`## ${h.file}${blk}`);
+      if (h.summary) lines.push(h.summary);
+      if (h.symbols.length) {
+        lines.push('', 'Governs:');
+        for (const s of h.symbols) {
+          const sig = s.signature ? ` — ${s.signature}` : '';
+          lines.push(`- \`${s.symbol}\` (${s.kind}) ${s.file}:${s.line}${sig}`);
+        }
+      }
+      lines.push('');
+    }
+    return lines.join('\n').trimEnd();
+  }
+
+  /**
+   * Build the context "## Related docs" section via SEMANTIC search over the
+   * project's indexed Markdown. Returns '' when the docs feature is off /
+   * unavailable / nothing matches, so context output stays byte-identical to
+   * before this feature on every code-only project. Context is the PRIMARY
+   * doc-surfacing call; node/impact use the narrower governing-doc gate.
+   */
+  private async buildRelatedDocsSection(task: string, cg: CodeGraph): Promise<string> {
+    try {
+      const res = await searchDocs(cg.getDb(), task, { topk: 3, codeLimit: 4 });
+      if (!res.enabled || !res.available || res.hits.length === 0) return '';
+      const lines: string[] = ['', '', '## Related docs', ''];
+      for (const h of res.hits) {
+        const blk = h.blk ? ` [${h.blk}]` : '';
+        const summary = h.summary ? ` — ${h.summary}` : '';
+        lines.push(`- **${h.file}**${blk}${summary}`);
+        if (h.symbols.length > 0) {
+          const syms = h.symbols.slice(0, 4).map(s => `\`${s.symbol}\``).join(', ');
+          lines.push(`  - governs: ${syms}`);
+        }
+      }
+      return lines.join('\n');
+    } catch {
+      return '';
+    }
+  }
+
+  /**
+   * Build a governing-doc relevance-gate section for node/impact: docs whose
+   * frontmatter `code_refs` govern any of `filePaths`. Pure metadata (no
+   * embeddings), capped at `cap` docs. Returns '' when the feature is off or NO
+   * doc governs the file(s) — so node/impact output is byte-identical to before
+   * whenever there is no governing doc. The narrow, low-noise counterpart to
+   * context's broad semantic surface.
+   */
+  private buildGoverningDocsSection(heading: string, cg: CodeGraph, filePaths: string[], cap: number): string {
+    try {
+      const docs = findGoverningDocs(cg.getDb(), filePaths);
+      if (docs.length === 0) return '';
+      const lines: string[] = ['', '', heading, ''];
+      for (const d of docs.slice(0, cap)) {
+        const blk = d.blk ? ` [${d.blk}]` : '';
+        const summary = d.summary ? ` — ${d.summary}` : '';
+        lines.push(`- **${d.file}**${blk}${summary}`);
+      }
+      return lines.join('\n');
+    } catch {
+      return '';
+    }
   }
 
   /**
@@ -1302,13 +1686,17 @@ export class ToolHandler {
       smallRepoTail = `\n\n---\n> **This project is small** (${sizeQualifier} indexed files). The entry points and code above cover the relevant surface — **do NOT call codegraph_explore as a follow-up; its content will largely duplicate this response**. If you need a specific flow, call \`codegraph_trace from→to\`. If you need one specific symbol's body, call \`codegraph_node <name>\`.${routingClause} Otherwise, answer from what is above.`;
     }
 
+    // Related docs (semantic) — appended at the tail; '' when the docs feature
+    // is off or nothing matches, so code-only projects stay byte-identical.
+    const relatedDocs = await this.buildRelatedDocsSection(task, cg);
+
     // buildContext returns string when format is 'markdown'
     if (typeof context === 'string') {
-      return this.textResult(this.truncateOutput(context + flowTrace + reminder + smallRepoRouteInline + smallRepoTail));
+      return this.textResult(this.truncateOutput(context + flowTrace + reminder + smallRepoRouteInline + relatedDocs + smallRepoTail));
     }
 
     // If it returns TaskContext, format it
-    return this.textResult(this.truncateOutput(this.formatTaskContext(context) + flowTrace + reminder + smallRepoRouteInline + smallRepoTail));
+    return this.textResult(this.truncateOutput(this.formatTaskContext(context) + flowTrace + reminder + smallRepoRouteInline + relatedDocs + smallRepoTail));
   }
 
   /**
@@ -1531,7 +1919,11 @@ export class ToolHandler {
       roots: allMatches.nodes.map(n => n.id),
     };
 
-    const formatted = this.formatImpact(symbol, mergedImpact) + allMatches.note;
+    // Governing docs for the affected files (gate: '' unless a doc's code_refs
+    // govern one of them, so docs-off / no-governing output is byte-identical).
+    const affectedFiles = [...new Set([...mergedNodes.values()].map(n => n.filePath))];
+    const relatedDocs = this.buildGoverningDocsSection('### Related docs', cg, affectedFiles, 3);
+    const formatted = this.formatImpact(symbol, mergedImpact) + allMatches.note + relatedDocs;
     return this.textResult(this.truncateOutput(formatted));
   }
 
@@ -2952,7 +3344,9 @@ export class ToolHandler {
     }
 
     const trail = this.formatTrail(cg, match.node);
-    const formatted = this.formatNodeDetails(match.node, code, outline) + trail + match.note;
+    // Governing docs for this symbol's file (gate: '' unless a doc governs it).
+    const relatedDocs = this.buildGoverningDocsSection('### Related docs', cg, [match.node.filePath], 2);
+    const formatted = this.formatNodeDetails(match.node, code, outline) + trail + match.note + relatedDocs;
     return this.textResult(this.truncateOutput(formatted));
   }
 
@@ -3033,6 +3427,16 @@ export class ToolHandler {
       `**Total edges:** ${stats.edgeCount}`,
       `**Database size:** ${(stats.dbSizeBytes / 1024 / 1024).toFixed(2)} MB`,
     );
+
+    // Markdown docs (opt-in): surface the indexed-doc count only when the docs
+    // feature is enabled, so the default status output is byte-identical on
+    // code-only projects.
+    try {
+      if (resolveDocsEnabled(cg.getDb())) {
+        const row = cg.getDb().prepare('SELECT count(*) AS c FROM mdast_metadata').get() as { c: number } | undefined;
+        lines.push(`**Docs indexed:** ${row?.c ?? 0} markdown`);
+      }
+    } catch { /* mdast_metadata absent — skip */ }
 
     // Surface the active SQLite backend (node:sqlite, Node's built-in real
     // SQLite — full WAL + FTS5, no native build).

@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "mdviz",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["C:\\Users\\JANGHYEONGTAEK\\AppData\\Local\\Temp\\mdviz\\serve.mjs"],
+      "port": 8771
+    }
+  ]
+}

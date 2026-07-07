@@ -26,12 +26,14 @@ import { Command } from 'commander';
 import * as path from 'path';
 import * as fs from 'fs';
 import { getCodeGraphDir, isInitialized } from '../directory';
+import { resolveDocsEnabled } from '../docs/config';
 import { detectWorktreeIndexMismatch, worktreeMismatchWarning } from '../sync/worktree';
 import { createShimmerProgress } from '../ui/shimmer-progress';
 import { getGlyphs } from '../ui/glyphs';
 
 import { buildNode25BlockBanner, buildNodeTooOldBanner, MIN_NODE_MAJOR } from './node-version-check';
 import { relaunchWithWasmRuntimeFlagsIfNeeded } from '../extraction/wasm-runtime-flags';
+import { MARKDOWN_NODE_KINDS, MARKDOWN_EDGE_KINDS, type NodeKind, type EdgeKind } from '../types';
 
 // Lazy-load heavy modules (CodeGraph, runInstaller) to keep CLI startup fast.
 async function loadCodeGraph(): Promise<typeof import('../index')> {
@@ -42,7 +44,7 @@ async function loadCodeGraph(): Promise<typeof import('../index')> {
     console.error(`\x1b[31m${getGlyphs().err}\x1b[0m Failed to load CodeGraph modules.`);
     console.error(`\n  Node: ${process.version}  Platform: ${process.platform} ${process.arch}`);
     console.error(`\n  Error: ${msg}`);
-    console.error('\n  Try reinstalling with: npm install -g @colbymchenry/codegraph\n');
+    console.error('\n  Try reinstalling with: npm install -g @evespimrose/codegraph\n');
     process.exit(1);
   }
 }
@@ -284,6 +286,17 @@ type IndexResult = {
   edgesCreated: number;
   errors: Array<{ message: string; filePath?: string; severity: string; code?: string }>;
   durationMs: number;
+  docs?: {
+    enabled: boolean;
+    available: boolean;
+    scanned: number;
+    indexed: number;
+    skipped: number;
+    /** Total concept nodes in the markdown graph (reported distinctly from code). */
+    conceptNodes?: number;
+    /** Total governs edges in the markdown graph (reported distinctly from code). */
+    governsEdges?: number;
+  };
 };
 
 /**
@@ -320,6 +333,23 @@ function printIndexResult(clack: typeof import('@clack/prompts'), result: IndexR
     clack.log.error(`Indexing failed ${getGlyphs().dash} all ${formatNumber(result.filesErrored)} files had errors`);
   } else {
     clack.log.warn('No files found to index');
+  }
+
+  // Markdown docs (opt-in): report the re-index summary when the feature ran.
+  // The concept-node / governs-edge totals are appended so the markdown graph
+  // reads distinctly from the code nodes/edges line above.
+  if (result.docs?.enabled) {
+    if (result.docs.available) {
+      let line = `Markdown: ${formatNumber(result.docs.indexed)} indexed, ${formatNumber(result.docs.skipped)} unchanged of ${formatNumber(result.docs.scanned)} docs`;
+      const concepts = result.docs.conceptNodes ?? 0;
+      const governs = result.docs.governsEdges ?? 0;
+      if (concepts > 0 || governs > 0) {
+        line += ` ${getGlyphs().dash} ${formatNumber(concepts)} concept nodes, ${formatNumber(governs)} governs edges`;
+      }
+      clack.log.info(line);
+    } else {
+      clack.log.warn(`Markdown docs enabled but unavailable ${getGlyphs().dash} install @xenova/transformers to embed docs`);
+    }
   }
 
   if (hasErrors) {
@@ -419,8 +449,17 @@ program
   .description('Initialize CodeGraph in a project directory and build the initial index')
   .option('-i, --index', 'Deprecated: indexing now runs by default; flag accepted for backward compatibility')
   .option('-v, --verbose', 'Show detailed worker lifecycle and memory info')
-  .action(async (pathArg: string | undefined, options: { index?: boolean; verbose?: boolean }) => {
+  .option('--with-docs', 'Also index Markdown docs into the vector store (requires the optional @xenova/transformers dep); persists the choice for this project')
+  .action(async (pathArg: string | undefined, options: { index?: boolean; verbose?: boolean; withDocs?: boolean }) => {
     const projectPath = path.resolve(pathArg || process.cwd());
+    // init always builds a full index into a fresh DB — exactly like
+    // `index --force`, so it implies --with-docs: build the docs/concept layer
+    // now rather than leave it empty until a later --with-docs run. Graceful
+    // no-op when @xenova/transformers is absent (warn only). An explicit
+    // CODEGRAPH_DOCS=0 still wins, since resolveDocsEnabled honors the env.
+    if (options.withDocs || process.env.CODEGRAPH_DOCS === undefined) {
+      process.env.CODEGRAPH_DOCS = '1';
+    }
     const clack = await importESM('@clack/prompts');
 
     clack.intro('Initializing CodeGraph');
@@ -536,8 +575,17 @@ program
   .option('-f, --force', 'Force full re-index even if already indexed')
   .option('-q, --quiet', 'Suppress progress output')
   .option('-v, --verbose', 'Show detailed worker lifecycle and memory info')
-  .action(async (pathArg: string | undefined, options: { force?: boolean; quiet?: boolean; verbose?: boolean }) => {
+  .option('--with-docs', 'Also index Markdown docs into the vector store (requires the optional @xenova/transformers dep); persists the choice for this project')
+  .option('--no-gitignore', 'Ignore the project root .gitignore when scanning (built-in defaults and .codegraphignore still apply)')
+  .action(async (pathArg: string | undefined, options: { force?: boolean; quiet?: boolean; verbose?: boolean; withDocs?: boolean; gitignore?: boolean }) => {
     const projectPath = resolveProjectPath(pathArg);
+    // --with-docs opts this process into Markdown indexing; indexAll then
+    // persists the flag to project_metadata so MCP-server runs pick it up.
+    // --force implies --with-docs: a force re-index wipes the whole graph
+    // (concept nodes included), so it must also rebuild the docs/concept layer
+    // rather than leave it permanently empty until a doc's content changes.
+    // When the docs deps are absent this is a graceful no-op (warn only).
+    if (options.withDocs || options.force) process.env.CODEGRAPH_DOCS = '1';
 
     try {
       if (!isInitialized(projectPath)) {
@@ -552,7 +600,7 @@ program
       if (options.quiet) {
         // Quiet mode: no UI, just run
         if (options.force) cg.clear();
-        const result = await cg.indexAll();
+        const result = await cg.indexAll({ respectGitignore: options.gitignore });
         if (!result.success) process.exit(1);
         cg.destroy();
         return;
@@ -572,12 +620,14 @@ program
         result = await cg.indexAll({
           onProgress: createVerboseProgress(),
           verbose: true,
+          respectGitignore: options.gitignore,
         });
       } else {
         process.stdout.write(`${colors.dim}${getGlyphs().rail}${colors.reset}\n`);
         const progress = createShimmerProgress();
         result = await cg.indexAll({
           onProgress: progress.onProgress,
+          respectGitignore: options.gitignore,
         });
         await progress.stop();
       }
@@ -603,7 +653,8 @@ program
   .command('sync [path]')
   .description('Sync changes since last index')
   .option('-q, --quiet', 'Suppress output (for git hooks)')
-  .action(async (pathArg: string | undefined, options: { quiet?: boolean }) => {
+  .option('--no-gitignore', 'Ignore the project root .gitignore when scanning (built-in defaults and .codegraphignore still apply)')
+  .action(async (pathArg: string | undefined, options: { quiet?: boolean; gitignore?: boolean }) => {
     const projectPath = resolveProjectPath(pathArg);
 
     try {
@@ -618,7 +669,7 @@ program
       const cg = await CodeGraph.open(projectPath);
 
       if (options.quiet) {
-        await cg.sync();
+        await cg.sync({ respectGitignore: options.gitignore });
         cg.destroy();
         return;
       }
@@ -631,6 +682,7 @@ program
 
       const result = await cg.sync({
         onProgress: progress.onProgress,
+        respectGitignore: options.gitignore,
       });
 
       await progress.stop();
@@ -692,6 +744,15 @@ program
       const changes = cg.getChangedFiles();
       const backend = cg.getBackend();
       const journalMode = cg.getJournalMode();
+      // Markdown docs count — only when the opt-in feature is enabled (else
+      // null, so code-only projects render exactly as before).
+      let docsCount: number | null = null;
+      try {
+        if (resolveDocsEnabled(cg.getDb())) {
+          const row = cg.getDb().prepare('SELECT count(*) AS c FROM mdast_metadata').get() as { c: number } | undefined;
+          docsCount = row?.c ?? 0;
+        }
+      } catch { /* mdast_metadata absent (pre-v5 DB) — leave null */ }
 
       // JSON output mode
       if (options.json) {
@@ -704,6 +765,7 @@ program
           dbSizeBytes: stats.dbSizeBytes,
           backend,
           journalMode,
+          docsIndexed: docsCount,
           nodesByKind: stats.nodesByKind,
           languages: Object.entries(stats.filesByLanguage).filter(([, count]) => count > 0).map(([lang]) => lang),
           pendingChanges: {
@@ -728,11 +790,21 @@ program
       }
       console.log();
 
-      // Index stats
+      // Markdown graph (concept nodes + governs edges) is the layer derived
+      // from docs; report it distinctly from the tree-sitter code graph. Only
+      // split the labels when a markdown graph actually exists, so plain code
+      // projects keep the original output.
+      const hasMarkdownGraph = stats.markdownNodeCount > 0 || stats.markdownEdgeCount > 0;
+      const codeNodes = stats.nodeCount - stats.markdownNodeCount;
+      const codeEdges = stats.edgeCount - stats.markdownEdgeCount;
+      const codeTag = hasMarkdownGraph ? `   ${chalk.dim('(code)')}` : '';
+
+      // Index stats — these counts are the code graph; the markdown graph is
+      // reported in its own section below.
       console.log(chalk.bold('Index Statistics:'));
       console.log(`  Files:     ${formatNumber(stats.fileCount)}`);
-      console.log(`  Nodes:     ${formatNumber(stats.nodeCount)}`);
-      console.log(`  Edges:     ${formatNumber(stats.edgeCount)}`);
+      console.log(`  Nodes:     ${formatNumber(codeNodes)}${codeTag}`);
+      console.log(`  Edges:     ${formatNumber(codeEdges)}${codeTag}`);
       console.log(`  DB Size:   ${(stats.dbSizeBytes / 1024 / 1024).toFixed(2)} MB`);
       // Surface the active SQLite backend (node:sqlite — Node's built-in real
       // SQLite, full WAL + FTS5, no native build).
@@ -748,12 +820,35 @@ program
       console.log(`  Journal:   ${journalLabel}`);
       console.log();
 
-      // Node breakdown
-      console.log(chalk.bold('Nodes by Kind:'));
+      // Markdown graph — concept nodes + governs edges + doc count, kept
+      // distinct from the code graph above. Shown whenever docs exist in any
+      // form (indexed docs, or a concept/governs layer).
+      if (docsCount !== null || hasMarkdownGraph) {
+        console.log(chalk.bold('Markdown Graph:'));
+        if (docsCount !== null) {
+          console.log(`  Docs:      ${formatNumber(docsCount)} markdown`);
+        }
+        console.log(`  Concepts:  ${formatNumber(stats.markdownNodeCount)} nodes`);
+        console.log(`  Governs:   ${formatNumber(stats.markdownEdgeCount)} edges`);
+        console.log();
+      }
+
+      // Node breakdown — code kinds only; markdown kinds live in Markdown Graph.
+      console.log(chalk.bold(hasMarkdownGraph ? 'Nodes by Kind (code):' : 'Nodes by Kind:'));
       const nodesByKind = Object.entries(stats.nodesByKind)
-        .filter(([, count]) => count > 0)
+        .filter(([kind, count]) => count > 0 && !MARKDOWN_NODE_KINDS.includes(kind as NodeKind))
         .sort((a, b) => b[1] - a[1]);
       for (const [kind, count] of nodesByKind) {
+        console.log(`  ${kind.padEnd(15)} ${formatNumber(count)}`);
+      }
+      console.log();
+
+      // Edge breakdown — code kinds only; markdown 'governs' lives in Markdown Graph.
+      console.log(chalk.bold(hasMarkdownGraph ? 'Edges by Kind (code):' : 'Edges by Kind:'));
+      const edgesByKind = Object.entries(stats.edgesByKind)
+        .filter(([kind, count]) => count > 0 && !MARKDOWN_EDGE_KINDS.includes(kind as EdgeKind))
+        .sort((a, b) => b[1] - a[1]);
+      for (const [kind, count] of edgesByKind) {
         console.log(`  ${kind.padEnd(15)} ${formatNumber(count)}`);
       }
       console.log();
@@ -832,29 +927,65 @@ program
         return aGen - bGen;
       });
 
+      // Thin-result semantic fallback. When lexical search returns very little,
+      // supplement with a meaning-based Markdown search so natural-language
+      // queries (and pure-Markdown projects whose graph has no code symbols)
+      // aren't a dead end. searchDocs is internally gated — opt-in flag +
+      // sqlite-vec + embeddings — and a silent no-op otherwise, so code projects
+      // and docs-off projects are unaffected (lexical results stand alone). The
+      // embedding-model cold start is paid only on this thin path, never when
+      // lexical already answered. (try_001 §2.1 / plan Step 7.)
+      const THIN_THRESHOLD = 3;
+      let docHits: Awaited<ReturnType<typeof import('../docs/search')['searchDocs']>>['hits'] = [];
+      if (rawResults.length < THIN_THRESHOLD) {
+        try {
+          const { searchDocs } = await import('../docs/search');
+          const docResult = await searchDocs(cg.getDb(), search, { topk: limit });
+          docHits = docResult.hits;
+        } catch { /* best-effort: semantic fallback never breaks lexical search */ }
+      }
+
       if (options.json) {
-        console.log(JSON.stringify(results, null, 2));
+        // Backward-compatible: emit the plain results array unless the semantic
+        // fallback actually contributed hits, in which case widen to an object.
+        if (docHits.length > 0) {
+          console.log(JSON.stringify({ results, docs: docHits }, null, 2));
+        } else {
+          console.log(JSON.stringify(results, null, 2));
+        }
       } else {
-        if (results.length === 0) {
+        if (results.length === 0 && docHits.length === 0) {
           info(`No results found for "${search}"`);
         } else {
-          console.log(chalk.bold(`\nSearch Results for "${search}":\n`));
+          if (results.length > 0) {
+            console.log(chalk.bold(`\nSearch Results for "${search}":\n`));
 
-          for (const result of results) {
-            const node = result.node;
-            const location = `${node.filePath}:${node.startLine}`;
-            const score = chalk.dim(`(${(result.score * 100).toFixed(0)}%)`);
+            for (const result of results) {
+              const node = result.node;
+              const location = `${node.filePath}:${node.startLine}`;
+              const score = chalk.dim(`(${(result.score * 100).toFixed(0)}%)`);
 
-            console.log(
-              chalk.cyan(node.kind.padEnd(12)) +
-              chalk.white(node.name) +
-              ' ' + score
-            );
-            console.log(chalk.dim(`  ${location}`));
-            if (node.signature) {
-              console.log(chalk.dim(`  ${node.signature}`));
+              console.log(
+                chalk.cyan(node.kind.padEnd(12)) +
+                chalk.white(node.name) +
+                ' ' + score
+              );
+              console.log(chalk.dim(`  ${location}`));
+              if (node.signature) {
+                console.log(chalk.dim(`  ${node.signature}`));
+              }
+              console.log();
             }
-            console.log();
+          }
+
+          if (docHits.length > 0) {
+            console.log(chalk.bold(`\nRelated documentation (semantic) for "${search}":\n`));
+            for (const hit of docHits) {
+              const blk = hit.blk ? ' ' + chalk.dim(`[${hit.blk}]`) : '';
+              console.log(chalk.blue('doc'.padEnd(12)) + chalk.white(hit.file) + blk);
+              if (hit.summary) console.log(chalk.dim(`  ${hit.summary}`));
+              console.log();
+            }
           }
         }
       }
@@ -862,6 +993,114 @@ program
       cg.destroy();
     } catch (err) {
       error(`Search failed: ${err instanceof Error ? err.message : String(err)}`);
+      process.exit(1);
+    }
+  });
+
+/**
+ * codegraph backlinks <file>
+ *
+ * Surfaces the Markdown doc graph (backlinks + forward links) on the CLI —
+ * previously MCP-only. No-op message on projects without the docs graph.
+ */
+program
+  .command('backlinks <file>')
+  .description('Show Markdown backlinks and forward links for a doc (requires the docs feature)')
+  .option('-p, --path <path>', 'Project path')
+  .option('-d, --depth <number>', 'Forward-link traversal depth', '1')
+  .option('-j, --json', 'Output as JSON')
+  .action(async (file: string, options: { path?: string; depth?: string; json?: boolean }) => {
+    const projectPath = resolveProjectPath(options.path);
+
+    try {
+      if (!isInitialized(projectPath)) {
+        error(`CodeGraph not initialized in ${projectPath}`);
+        process.exit(1);
+      }
+
+      const { default: CodeGraph } = await loadCodeGraph();
+      const cg = await CodeGraph.open(projectPath);
+
+      const { findBacklinks } = await import('../docs/search');
+      const depth = parseInt(options.depth || '1', 10);
+      const result = findBacklinks(cg.getDb(), file, depth);
+
+      if (options.json) {
+        console.log(JSON.stringify(result ?? { file, forwardLinks: [], backLinks: [] }, null, 2));
+      } else if (!result) {
+        info('Docs graph is not enabled for this project (enable with --with-docs or CODEGRAPH_DOC_GRAPH).');
+      } else {
+        console.log(chalk.bold(`\nBacklinks for ${result.file}:\n`));
+        if (result.backLinks.length === 0) {
+          info('No backlinks found.');
+        } else {
+          for (const b of result.backLinks) console.log('  ' + chalk.cyan('<-') + ' ' + b);
+        }
+        if (result.forwardLinks.length > 0) {
+          console.log(chalk.bold('\nForward links:\n'));
+          for (const f of result.forwardLinks) console.log('  ' + chalk.blue('->') + ' ' + f);
+        }
+        console.log();
+      }
+
+      cg.destroy();
+    } catch (err) {
+      error(`Backlinks failed: ${err instanceof Error ? err.message : String(err)}`);
+      process.exit(1);
+    }
+  });
+
+/**
+ * codegraph docs <query>
+ *
+ * Semantic (vector) search over indexed Markdown — previously MCP-only.
+ * Graceful no-op message when the docs feature isn't enabled/available.
+ */
+program
+  .command('docs <query>')
+  .description('Semantic search over indexed Markdown docs (requires the docs feature)')
+  .option('-p, --path <path>', 'Project path')
+  .option('-l, --limit <number>', 'Maximum results', '10')
+  .option('-j, --json', 'Output as JSON')
+  .action(async (query: string, options: { path?: string; limit?: string; json?: boolean }) => {
+    const projectPath = resolveProjectPath(options.path);
+
+    try {
+      if (!isInitialized(projectPath)) {
+        error(`CodeGraph not initialized in ${projectPath}`);
+        process.exit(1);
+      }
+
+      const { default: CodeGraph } = await loadCodeGraph();
+      const cg = await CodeGraph.open(projectPath);
+
+      const limit = parseInt(options.limit || '10', 10);
+      const { searchDocs } = await import('../docs/search');
+      const result = await searchDocs(cg.getDb(), query, { topk: limit });
+
+      if (options.json) {
+        console.log(JSON.stringify(result, null, 2));
+      } else if (!result.enabled) {
+        info('Docs feature is not enabled for this project (index with --with-docs).');
+      } else if (result.hits.length === 0) {
+        info(`No documentation matches for "${query}".`);
+        for (const w of result.warnings) info(w);
+      } else {
+        console.log(chalk.bold(`\nDocumentation matches for "${query}":\n`));
+        for (const hit of result.hits) {
+          const blk = hit.blk ? ' ' + chalk.dim(`[${hit.blk}]`) : '';
+          console.log(
+            chalk.blue('doc'.padEnd(12)) + chalk.white(hit.file) + blk +
+            ' ' + chalk.dim(`(d=${hit.distance})`)
+          );
+          if (hit.summary) console.log(chalk.dim(`  ${hit.summary}`));
+          console.log();
+        }
+      }
+
+      cg.destroy();
+    } catch (err) {
+      error(`Docs search failed: ${err instanceof Error ? err.message : String(err)}`);
       process.exit(1);
     }
   });
@@ -1137,8 +1376,30 @@ program
       process.env.CODEGRAPH_NO_WATCH = '1';
     }
 
+    // Launch observability (PLAN-2 구멍 B): "MCP가 가끔 안 뜬다"는 스폰 실패가
+    // 사후 추적 불가능했다 — 기동 시도·실패를 .codegraph/mcp-launch.log에 1행씩
+    // append해 다음 발생 시 즉시 원인을 특정한다. Best-effort: 로그 실패가
+    // 서버 기동을 막지 않고, .codegraph/가 없으면 디렉터리를 만들지 않는다.
+    const launchLog = (event: string, detail?: string): void => {
+      try {
+        const root = projectPath ?? process.cwd();
+        const dir = path.join(root, '.codegraph');
+        if (!fs.existsSync(dir)) return;
+        const line = [
+          new Date().toISOString(),
+          `v${packageJson.version}`,
+          event,
+          `node=${process.execPath}`,
+          `argv=${process.argv.slice(2).join(' ')}`,
+          detail ?? '',
+        ].filter(Boolean).join(' | ');
+        fs.appendFileSync(path.join(dir, 'mcp-launch.log'), line + '\n');
+      } catch { /* observability must never break the launch */ }
+    };
+
     try {
       if (options.mcp) {
+        launchLog('serve-mcp:start');
         // Start MCP server - it handles initialization lazily based on rootUri from client
         const { MCPServer } = await import('../mcp/index');
         const server = new MCPServer(projectPath);
@@ -1171,6 +1432,7 @@ program
         console.error(chalk.cyan('  codegraph_status') + '    - Get index status');
       }
     } catch (err) {
+      launchLog('serve-mcp:fail', err instanceof Error ? err.message : String(err));
       error(`Failed to start server: ${err instanceof Error ? err.message : String(err)}`);
       process.exit(1);
     }

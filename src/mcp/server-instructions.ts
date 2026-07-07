@@ -69,3 +69,27 @@ of calls; a grep/read exploration is dozens.
 - Cross-file resolution is best-effort name matching; ambiguous calls may return multiple candidates.
 - No live correctness validation — that's still the TypeScript compiler / test suite / linter's job. Codegraph supplements those with structural context they don't have.
 `;
+
+/**
+ * Opt-in Markdown-docs guidance, appended to the base instructions ONLY when the
+ * docs feature is enabled. Kept separate so the default (docs off) instructions
+ * stay byte-identical to before this feature — the agent never sees guidance for
+ * a tool (\`codegraph_docs\`) that isn't in its tool list.
+ */
+const DOCS_INSTRUCTIONS = `
+## Markdown docs (opt-in — enabled for this project)
+
+- **"Where are the docs / specs / design notes about X?"** → \`codegraph_docs\`: semantic search over the project's Markdown, returning the most relevant docs plus the code symbols each one governs (via frontmatter \`code_refs\`).
+- When a doc governs a file, \`codegraph_context\`, \`codegraph_node\`, and \`codegraph_impact\` append a short **Related docs** pointer — follow it to jump from code to the doc that explains intent.
+`;
+
+/**
+ * The MCP `initialize` instructions. The opt-in Markdown-docs section is appended
+ * only when `docsEnabled` is true, so the default text is unchanged for every
+ * code-only project. Callers resolve `docsEnabled` from the same env override the
+ * tool surface uses (the project isn't open yet at initialize, so the persisted
+ * flag can't be read there).
+ */
+export function getServerInstructions(docsEnabled: boolean): string {
+  return docsEnabled ? SERVER_INSTRUCTIONS + DOCS_INSTRUCTIONS : SERVER_INSTRUCTIONS;
+}

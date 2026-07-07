@@ -16,7 +16,8 @@ import * as path from 'path';
 import { JsonRpcRequest, JsonRpcNotification, JsonRpcTransport, ErrorCodes } from './transport';
 import { MCPEngine } from './engine';
 import { tools } from './tools';
-import { SERVER_INSTRUCTIONS } from './server-instructions';
+import { getServerInstructions } from './server-instructions';
+import { docsEnvOverride } from '../docs/config';
 import { CodeGraphPackageVersion } from './version';
 
 /**
@@ -73,6 +74,13 @@ export interface MCPSessionOptions {
    * where the project lives.
    */
   explicitProjectPath?: string | null;
+  /**
+   * Invoked when a client sends the `codegraph/retire` notification — a newer
+   * CLI found this (older) daemon during hello and asks it to shut down
+   * gracefully so the NEXT session spawns the new version (PLAN-2 skew
+   * succession). Only the daemon wires this; in-process sessions ignore it.
+   */
+  onRetire?: () => void;
 }
 
 /**
@@ -85,12 +93,15 @@ export class MCPSession {
   private resolvePromise: Promise<void> | null = null;
   private explicitProjectPath: string | null;
 
+  private onRetire: (() => void) | null;
+
   constructor(
     private transport: JsonRpcTransport,
     private engine: MCPEngine,
     opts: MCPSessionOptions = {},
   ) {
     this.explicitProjectPath = opts.explicitProjectPath ?? null;
+    this.onRetire = opts.onRetire ?? null;
   }
 
   /**
@@ -132,6 +143,10 @@ export class MCPSession {
       case 'ping':
         if (isRequest) this.transport.sendResult((message as JsonRpcRequest).id, {});
         break;
+      case 'codegraph/retire':
+        // Notification-only skew-succession channel (see MCPSessionOptions.onRetire).
+        if (!isRequest) this.onRetire?.();
+        break;
       default:
         if (isRequest) {
           this.transport.sendError(
@@ -170,7 +185,7 @@ export class MCPSession {
       protocolVersion: PROTOCOL_VERSION,
       capabilities: { tools: {} },
       serverInfo: SERVER_INFO,
-      instructions: SERVER_INSTRUCTIONS,
+      instructions: getServerInstructions(docsEnvOverride() === true),
     });
 
     if (explicitPath) {

@@ -22,6 +22,7 @@ import { isSourceFile, buildDefaultIgnore } from '../extraction';
 import { logDebug, logWarn } from '../errors';
 import { normalizePath } from '../utils';
 import { watchDisabledReason } from './watch-policy';
+import { isMarkdownFile } from '../docs/scan-files';
 
 /**
  * Options for the file watcher
@@ -43,6 +44,23 @@ export interface WatchOptions {
    * Callback when a sync errors (for logging/diagnostics).
    */
   onSyncError?: (error: Error) => void;
+
+  /**
+   * When `false`, the project's root `.gitignore` is not consulted when building
+   * the watcher's ignore matcher (built-in defaults and `.codegraphignore` still
+   * apply). Keep this aligned with the value passed to the indexer so watch scope
+   * and index scope never diverge. Default `true`.
+   */
+  respectGitignore?: boolean;
+
+  /**
+   * When `true`, Markdown files (.md / .markdown / .mdx) also pass the watch
+   * gate, so editing a doc triggers a sync that re-indexes it into the docs
+   * vector store. Resolved from the docs opt-in at watch start; default `false`
+   * keeps the watcher source-files-only (a .md edit triggers nothing) — the
+   * pre-docs behavior. See `CodeGraph.watch`.
+   */
+  docsEnabled?: boolean;
 }
 
 /**
@@ -136,6 +154,8 @@ export class FileWatcher {
   private readonly syncFn: () => Promise<{ filesChanged: number; durationMs: number }>;
   private readonly onSyncComplete?: WatchOptions['onSyncComplete'];
   private readonly onSyncError?: WatchOptions['onSyncError'];
+  private readonly respectGitignore: boolean;
+  private readonly docsEnabled: boolean;
 
   constructor(
     projectRoot: string,
@@ -147,6 +167,8 @@ export class FileWatcher {
     this.debounceMs = options.debounceMs ?? 2000;
     this.onSyncComplete = options.onSyncComplete;
     this.onSyncError = options.onSyncError;
+    this.respectGitignore = options.respectGitignore ?? true;
+    this.docsEnabled = options.docsEnabled ?? false;
   }
 
   /**
@@ -170,7 +192,9 @@ export class FileWatcher {
     // Reuse the indexer's ignore set so the watcher and indexer agree on scope.
     // chokidar only registers an inotify watch on directories that pass this
     // filter — that's the #276 fix.
-    this.ignoreMatcher = buildDefaultIgnore(this.projectRoot);
+    this.ignoreMatcher = buildDefaultIgnore(this.projectRoot, {
+      respectGitignore: this.respectGitignore,
+    });
 
     try {
       this.watcher = chokidar.watch(this.projectRoot, {
@@ -209,7 +233,12 @@ export class FileWatcher {
         // Defense in depth: `ignored` should already keep these out, but events
         // can still arrive during setup or via symlink traversal.
         if (this.isAlwaysIgnored(normalized)) return;
-        if (!isSourceFile(normalized)) return;
+        // Markdown passes the gate only when the docs feature is on; otherwise a
+        // .md edit would schedule a full reconcile sync for nothing (indexMarkdown
+        // no-ops when docs is off). docs-off behavior is byte-identical to before:
+        // source files only.
+        const markdownFile = this.docsEnabled && isMarkdownFile(normalized);
+        if (!isSourceFile(normalized) && !markdownFile) return;
 
         logDebug('File change detected', { file: normalized });
         // Only track events from after chokidar's initial scan as pending

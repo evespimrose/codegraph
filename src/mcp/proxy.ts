@@ -24,7 +24,8 @@ import { HOST_PPID_ENV } from '../extraction/wasm-runtime-flags';
 import { DaemonHello, MAX_HELLO_LINE_BYTES } from './daemon';
 import { CodeGraphPackageVersion } from './version';
 import { SERVER_INFO, PROTOCOL_VERSION } from './session';
-import { SERVER_INSTRUCTIONS } from './server-instructions';
+import { getServerInstructions } from './server-instructions';
+import { docsEnvOverride } from '../docs/config';
 import { getStaticTools } from './tools';
 import type { MCPEngine } from './engine';
 
@@ -125,6 +126,19 @@ export async function connectWithHello(
       `[CodeGraph MCP] Found a daemon on ${socketPath} but version (${hello.codegraph}) ` +
       `differs from ours (${expectedVersion}); serving this session in-process.\n`
     );
+    // Skew succession (PLAN-2): when WE are newer, ask the old daemon to shut
+    // down gracefully so the next session spawns the new version. One shot,
+    // fire-and-forget — this session still serves in-process either way. Never
+    // sent when the daemon is newer (an old CLI must not kill a new daemon).
+    if (isNewerVersion(expectedVersion, hello.codegraph)) {
+      try {
+        socket.write(JSON.stringify({ jsonrpc: '2.0', method: 'codegraph/retire' }) + '\n');
+        await new Promise((r) => setTimeout(r, 50)); // brief flush window
+        process.stderr.write(
+          `[CodeGraph MCP] Sent retire to the v${hello.codegraph} daemon — next session runs v${expectedVersion}.\n`
+        );
+      } catch { /* old daemon may be wedged — nothing to do */ }
+    }
     socket.destroy();
     return 'version-mismatch';
   }
@@ -132,6 +146,22 @@ export async function connectWithHello(
     `[CodeGraph MCP] Attached to shared daemon on ${socketPath} (pid ${hello.pid}, v${hello.codegraph}).\n`
   );
   return socket;
+}
+
+/**
+ * Dotted-numeric version compare: is `a` strictly newer than `b`?
+ * Non-numeric segments compare as 0 — good enough for our x.y.z(.w) scheme;
+ * equal or unparseable versions return false (never retire on a tie).
+ */
+export function isNewerVersion(a: string, b: string): boolean {
+  const pa = a.split('.').map((s) => parseInt(s, 10) || 0);
+  const pb = b.split('.').map((s) => parseInt(s, 10) || 0);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const x = pa[i] ?? 0;
+    const y = pb[i] ?? 0;
+    if (x !== y) return x > y;
+  }
+  return false;
 }
 
 type JsonRpc = Record<string, unknown>;
@@ -226,7 +256,7 @@ export async function runLocalHandshakeProxy(deps: LocalHandshakeDeps): Promise<
       let msg: JsonRpc; try { msg = JSON.parse(line) as JsonRpc; } catch { routeToDaemon(line); continue; }
       if (msg.method === 'initialize') {
         clientInitId = msg.id;
-        writeClient({ jsonrpc: '2.0', id: msg.id, result: { protocolVersion: PROTOCOL_VERSION, capabilities: { tools: {} }, serverInfo: SERVER_INFO, instructions: SERVER_INSTRUCTIONS } });
+        writeClient({ jsonrpc: '2.0', id: msg.id, result: { protocolVersion: PROTOCOL_VERSION, capabilities: { tools: {} }, serverInfo: SERVER_INFO, instructions: getServerInstructions(docsEnvOverride() === true) } });
         routeToDaemon(line); // prime the daemon so it resolves the project (its reply is suppressed below)
       } else if (msg.method === 'tools/list') {
         writeClient({ jsonrpc: '2.0', id: msg.id, result: { tools: getStaticTools() } });

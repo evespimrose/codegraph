@@ -204,6 +204,13 @@ export class Daemon {
   }
 
   private handleConnection(socket: net.Socket): void {
+    // Dead-socket guard (PLAN-2): a client that vanishes mid-handshake used to
+    // surface as unhandled EPIPE noise in daemon.log. Swallow socket errors and
+    // drop the connection — the transport's close hook handles session cleanup.
+    socket.on('error', () => {
+      try { socket.destroy(); } catch { /* already gone */ }
+    });
+
     // Hello first so the proxy can verify versions before piping any
     // application bytes. The proxy reads exactly one line, then forwards.
     const hello: DaemonHello = {
@@ -212,11 +219,20 @@ export class Daemon {
       socketPath: this.socketPath,
       protocol: 1,
     };
-    socket.write(JSON.stringify(hello) + '\n');
+    try {
+      socket.write(JSON.stringify(hello) + '\n');
+    } catch {
+      try { socket.destroy(); } catch { /* already gone */ }
+      return;
+    }
 
     const transport = new SocketTransport(socket);
     const session = new MCPSession(transport, this.engine, {
       explicitProjectPath: this.projectRoot,
+      // Skew succession: a newer CLI that finds this daemon too old sends
+      // `codegraph/retire`; shut down gracefully so the NEXT session spawns
+      // the new version. The requester serves its own session in-process.
+      onRetire: () => { void this.stop('retired by newer client (version skew)'); },
     });
     transport.onClose(() => this.dropClient(session));
     this.clients.add(session);

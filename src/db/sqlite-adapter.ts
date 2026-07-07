@@ -23,6 +23,12 @@ export interface SqliteDatabase {
   transaction<T>(fn: (...args: any[]) => T): (...args: any[]) => T;
   close(): void;
   readonly open: boolean;
+  /**
+   * Load a SQLite loadable extension. Optional — present on the node:sqlite
+   * adapter (for the sqlite-vec Markdown vector store), absent on any future
+   * backend that can't load native extensions. Callers must feature-detect.
+   */
+  loadExtension?(path: string): void;
 }
 
 /**
@@ -46,7 +52,10 @@ class NodeSqliteAdapter implements SqliteDatabase {
   constructor(dbPath: string) {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { DatabaseSync } = require('node:sqlite');
-    this._db = new DatabaseSync(dbPath);
+    // allowExtension lets the optional sqlite-vec loadable extension attach
+    // (the Markdown vector store's vec0 table). It is inert until loadExtension()
+    // is actually called, so it has zero effect on the pure code-graph path.
+    this._db = new DatabaseSync(dbPath, { allowExtension: true });
   }
 
   get open(): boolean {
@@ -77,6 +86,12 @@ class NodeSqliteAdapter implements SqliteDatabase {
 
   exec(sql: string): void {
     this._db.exec(sql);
+  }
+
+  loadExtension(path: string): void {
+    // Requires allowExtension:true at construction (set above). Registers the
+    // sqlite-vec extension so the vec0 virtual table becomes available.
+    this._db.loadExtension(path);
   }
 
   pragma(str: string, options?: { simple?: boolean }): any {

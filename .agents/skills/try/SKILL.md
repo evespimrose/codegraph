@@ -1,18 +1,10 @@
 ---
 name: try
-description: Use when the user asks whether a proposed change is worth doing - architecture splits, refactoring, package additions, layer separation. Compares current state vs proposed state before any code is touched. Korean alias - "ganboги" / feasibility check.
+description: Use when the user asks whether a proposed change is worth doing - architecture splits, refactoring, package additions, layer separation. Korean alias - "ganboги" / feasibility check. NOT for executing already-decided work or simple questions — pre-implementation feasibility only.
 ---
 
 <!-- CAVE-MAN-OUTPUT-ARM -->
-## ⚙️ 실행 규칙 (Cave-Man Output Arm · 전 스킬 공통)
-
-- **메인 컨텍스트 타이핑 금지** — 과정 narration·중간 요약·"이제 ~하겠습니다" 출력 안 함
-- **도구 사용 허용** — codegraph→(보완)Read/Edit 등으로 메인이 직접 작업 (hook 통제下)
-- **서브에이전트 디스패치 금지** — Agent/Task 호출 안 함 (콜드스타트 토큰세금 ~100배). 예외: 초대형 규모·병렬 독립 작업을 **사용자가 발의**한 경우만
-- **완료 보고만 허용** — 끝에 `XX 완료` 1~2단어 간단 보고만 타이핑
-- **Auto-Clarity 예외** — 보안·비가역·모호 다단계·반복질문·하드블로커 → 정상 출력 (correctness > brevity)
-
-정책: [[main-context-zero-delegation]] · `/output-arm` · CLAUDE.md RULE-9
+> **출력 규약**(메인 직접·서술0·완료만·codegraph-first·서브에이전트 manual·Auto-Clarity 예외) — 전문: `output-arm` 스킬 · CLAUDE.md RULE-9.
 <!-- /CAVE-MAN-OUTPUT-ARM -->
 
 
@@ -23,20 +15,7 @@ description: Use when the user asks whether a proposed change is worth doing - a
 **코드를 건드리기 전, 변경의 실제 가치를 검증한다.**
 
 구현 착수 전 토큰 효율을 최대화하는 것이 핵심 목적이다.
-분석 결과는 `docs/try/Try_{주제}.md`에 저장한다. 구현 착수는 하지 않는다.
-
-## State Update (MANDATORY — on invocation)
-
-/try 호출 즉시 `.Codex/memory-bank/.riper-state` 업데이트:
-```
-MODE=PRE-ANALYSIS
-TASK=try: <주제>
-PLAN_FILE=
-BRANCH=<current git branch>
-STARTED=<current date YYYY-MM-DD>
-```
-
-Use: `git rev-parse --abbrev-ref HEAD` for branch name.
+분석 결과는 `docs/try/Try_{주제}.md`에 저장한다. 구현 착수는 하지 않는다. 메인 컨텍스트 윈도우에 분석 결과 타이핑이 침범하지 못하도록.
 
 ## 언제 사용하는가
 
@@ -48,13 +27,13 @@ Use: `git rev-parse --abbrev-ref HEAD` for branch name.
 ## 실행 프로토콜
 
 ```
-1. STATE   .riper-state에 MODE=PRE-ANALYSIS 기록
-2. READ    현재 코드베이스 구조 파악 (관련 파일·asmdef·namespace)
-3. MODEL   제안 구조를 다이어그램 또는 표로 시각화
-4. COMPARE 현상유지 vs 제안 — 아래 5개 축으로 비교
-5. RISK    단기 비용(마이그레이션 비용, 씬/prefab 영향 등) 명시
-6. RECOMMEND 조건부 추천 또는 반대 근거 제시
-7. WRITE   docs/try/Try_{주제}.md 저장
+0. USER    "이거 해줘" / "이거 하면 어때?" → try 프로토콜 착수(아래의 작업 모두 메인 컨텍스트 타이핑 금지)
+1. READ    현재 코드베이스 구조 파악 (관련 파일·asmdef·namespace)
+2. MODEL   제안 구조를 다이어그램 또는 표로 시각화
+3. COMPARE 현상유지 vs 제안 — 아래 5개 축으로 비교
+4. RISK    단기 비용(마이그레이션 비용, 씬/prefab 영향 등) 명시
+5. RECOMMEND 조건부 추천 또는 반대 근거 제시
+6. WRITE   docs/try/Try_{주제}.md 저장
 ```
 
 ## 5개 비교 축 (필수 — 하나라도 생략 금지)
@@ -128,3 +107,9 @@ try 완료 후:
   "알겠어" / 별도 지시 없음 → docs/try/Try_xxx.md 기록만, 대기
   "다른 옵션도 봐줘" → 추가 try 수행
 ```
+
+## 사용하지 말아야 할 때 (Negative Constraints)
+
+- 이미 결정·승인된 작업의 *실행* — 착수 전 타당성 전용(구현은 producer/riper).
+- 단순 사실 질문·1줄 답변 — 비교 분석은 과설계.
+- 코드 수정이 목적 — try는 .cs/.asmdef 무변경.

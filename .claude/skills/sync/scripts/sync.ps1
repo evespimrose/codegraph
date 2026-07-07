@@ -17,7 +17,9 @@
   Generated into each target root: .mcp.json (codegraph MCP), merge-preserving any
   sibling MCP servers already present. Subject to the same mode rules.
 
-  Output ends with a machine-readable block between ===SUMMARY-JSON=== markers.
+  Output: compact per-target summary on stdout (conflict paths listed only on -DryRun,
+  where they are needed for user approval). Full machine-readable JSON is written to
+  <source>/.claude/state/sync-last-report.json instead of stdout (context diet).
 #>
 [CmdletBinding()]
 param(
@@ -187,31 +189,22 @@ foreach($t in $targetRoots){
   $report.Add([pscustomobject]$r)
 }
 
-# --- human-readable ---
+# --- machine-readable: 전체 JSON은 파일로만 (stdout 중복 출력 금지 — 컨텍스트 다이어트) ---
+$reportPath = Join-Path $Source '.claude/state/sync-last-report.json'
+try {
+  $summary = [pscustomobject]@{ source=$Source; mode=$Mode; dryRun=[bool]$DryRun; when=$stamp; targets=$report.ToArray() }
+  Write-Text $reportPath ($summary | ConvertTo-Json -Depth 7)
+} catch { }
+
+# --- human-readable (compact): conflicts 상세는 승인이 필요한 dry-run에서만 나열 ---
 Write-Output ""
-Write-Output "Source : $Source"
 $md = $Mode; if($DryRun){ $md = "$Mode (dry-run)" }
-Write-Output "Mode   : $md"
-Write-Output "Targets: $($targetRoots.Count)"
+Write-Output "Source: $Source | Mode: $md | Targets: $($targetRoots.Count)"
 foreach($r in $report){
-  Write-Output ("-"*60)
-  Write-Output "Target: $($r.Target)"
-  if($r.Error){ Write-Output "  ! $($r.Error)"; continue }
-  Write-Output "  added=$($r.Added)  overwritten=$($r.Overwritten)  skipped-existing=$($r.SkippedExisting)  skipped-identical=$($r.SkippedIdentical)  skipped-protected=$($r.SkippedProtected)"
-  if($r.Conflicts.Count -gt 0){
-    Write-Output "  conflicts ($($r.Conflicts.Count)) — would back up + overwrite:"
+  if($r.Error){ Write-Output "  $($r.Target)  ! $($r.Error)"; continue }
+  Write-Output "  $($r.Target)  added=$($r.Added) overwritten=$($r.Overwritten) identical=$($r.SkippedIdentical) protected=$($r.SkippedProtected)$(if($r.BackupDir){ '  backup=' + $r.BackupDir })"
+  if($DryRun -and $r.Conflicts.Count -gt 0){
     $r.Conflicts | ForEach-Object { Write-Output "    ~ $_" }
   }
-  if($r.BackupDir){ Write-Output "  backup: $($r.BackupDir)" }
 }
-
-# --- machine-readable ---
-Write-Output ""
-Write-Output "===SUMMARY-JSON==="
-try {
-  $summary = [pscustomobject]@{ source=$Source; mode=$Mode; dryRun=[bool]$DryRun; targets=$report.ToArray() }
-  Write-Output ($summary | ConvertTo-Json -Depth 7)
-} catch {
-  Write-Output "{}"
-}
-Write-Output "===END-SUMMARY-JSON==="
+Write-Output "detail-json: $reportPath"

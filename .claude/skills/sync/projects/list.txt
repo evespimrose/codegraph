@@ -7,10 +7,21 @@
 # Examples (uncomment / edit):
 # D:\Fork\RX_1
 # C:\dev\some-other-project
-D:\Unity\codegraph
-D:\Unity\BLADE
-D:\Unity\RX_1
-D:\Unity\WIKI
-D:\Unity\Western-Salon
-D:\Unity\Hercules
-D:\Unity\.PRODUCT
+# D:\Unity\codegraph
+# D:\Unity\BLADE
+# D:\Unity\RX_1
+# D:\Unity\WIKI
+# D:\Unity\Western-Salon
+# D:\Unity\Hercules
+# D:\Unity\.PRODUCT
+
+#########################################
+D:\Fork\BLADE
+D:\Fork\codegraph
+D:\Fork\novel-vault-curator
+D:\Fork\raonx-ai-workflow
+D:\Fork\RX_1
+D:\Fork\Western-Salon
+D:\Fork\WIKI
+D:\Fork\.PRODUCT
+D:\Fork\.PRODUCT-GLM

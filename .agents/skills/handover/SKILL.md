@@ -1,18 +1,10 @@
 ---
 name: handover
-description: Use when the user invokes /handover to prepare Codex for seamless cross-session continuity on the RX_1 project. Reads project style, history, rules, and workflow docs in sequence, then responds "숙지 완료". No code modification, no document creation.
+description: Use when the user invokes /handover to prepare Claude for cross-session continuity on the RX_1 project; reads the required docs then responds "숙지 완료". NOT for actual coding/debugging or doc authoring — read-only internalization.
 ---
 
 <!-- CAVE-MAN-OUTPUT-ARM -->
-## ⚙️ 실행 규칙 (Cave-Man Output Arm · 전 스킬 공통)
-
-- **메인 컨텍스트 타이핑 금지** — 과정 narration·중간 요약·"이제 ~하겠습니다" 출력 안 함
-- **도구 사용 허용** — codegraph→(보완)Read/Edit 등으로 메인이 직접 작업 (hook 통제下)
-- **서브에이전트 디스패치 금지** — Agent/Task 호출 안 함 (콜드스타트 토큰세금 ~100배). 예외: 초대형 규모·병렬 독립 작업을 **사용자가 발의**한 경우만
-- **완료 보고만 허용** — 끝에 `XX 완료` 1~2단어 간단 보고만 타이핑
-- **Auto-Clarity 예외** — 보안·비가역·모호 다단계·반복질문·하드블로커 → 정상 출력 (correctness > brevity)
-
-정책: [[main-context-zero-delegation]] · `/output-arm` · CLAUDE.md RULE-9
+> **출력 규약**(메인 직접·서술0·완료만·codegraph-first·서브에이전트 manual·Auto-Clarity 예외) — 전문: `output-arm` 스킬 · CLAUDE.md RULE-9.
 <!-- /CAVE-MAN-OUTPUT-ARM -->
 
 
@@ -20,19 +12,19 @@ description: Use when the user invokes /handover to prepare Codex for seamless c
 
 ## Overview
 
-새 Codex 세션이 RX_1 프로젝트를 끊김 없이 이어받기 위해 필수 문서를 순서대로 읽고 내재화하는 루틴.
+새 Claude 세션이 RX_1 프로젝트를 끊김 없이 이어받기 위해 필수 문서를 순서대로 읽고 내재화하는 루틴.
 
-### Codex의 역할 (Role Clarity)
+### Claude의 역할 (Role Clarity)
 
 `ExternalHandOver.md`에 따라 외부 AI(Bridge AI)는 **오케스트레이터, 디버거, 코더 역할이 절대 금지**된다.  
-Codex는 정확히 그 반대 — **Implementer AI**: 코더, 디버거, 멀티에이전트 오케스트레이터.
+Claude는 정확히 그 반대 — **Implementer AI**: 코더, 디버거, 멀티에이전트 오케스트레이터.
 
 | 역할 | 담당 AI |
 |---|---|
 | Documentation / Bridge / Context 구조화 | External AI (Antigravity 등) |
-| 코딩 / 디버깅 / 에이전트 조율 / 구현 | **Codex (Implementer AI)** |
+| 코딩 / 디버깅 / 에이전트 조율 / 구현 | **Claude (Implementer AI)** |
 
-이 역할 구분은 세션이 바뀌어도 변하지 않는다. Codex는 Bridge 역할을 대신하거나 문서 작성 전담 AI로 동작하지 않는다.
+이 역할 구분은 세션이 바뀌어도 변하지 않는다. Claude는 Bridge 역할을 대신하거나 문서 작성 전담 AI로 동작하지 않는다.
 
 **스킬 수행 중 금지 사항 (절대 위반 금지)**:
 - 코드 수정
@@ -72,7 +64,7 @@ d:\Fork\RX_1\memory\MEMORY.md
 ### Step 3 — Explicit Rules
 ```
 d:\Fork\RX_1\SKILL.md
-d:\Fork\RX_1\AGENTS.md
+d:\Fork\RX_1\CLAUDE.md
 ```
 
 ### Step 4 — doc-context Workflow
@@ -89,3 +81,9 @@ d:\Fork\RX_1\docs\distribution\context-instruction.md
 - 추가 설명을 붙이지 않는다
 - 오직 `숙지 완료` 만 응답한다
 - 이후 사용자 지시를 기다린다
+
+## 사용하지 말아야 할 때 (Negative Constraints)
+
+- 실제 코드 구현·디버깅·리팩토링 — 본 스킬은 읽기 전용 내재화(완료=`숙지 완료`).
+- 새 문서·플랜 생성 — 작성 금지.
+- RX_1이 아닌 프로젝트 — 경로·역할 구조가 RX_1 전용.

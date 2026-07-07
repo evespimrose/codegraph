@@ -62,6 +62,7 @@ description: Use when the user invokes /output-arm on|off|status, or to apply th
   - 검증: `path:line: <emoji severity> <문제>. <수정>.` + `totals: N🔴 N🟡 N🔵`
   - 종결 토큰(첫 토큰이 실패 신호): `too-big.` `needs-confirm.` `ambiguous.`
 - 끝에 메인엔 그 문서로의 **링크 한 줄 + `XX 완료`**만.
+- **대량저작 임계(온디맨드 원칙)**: 예상 산출물 ≥ 8K자(≈2K tok)는 메인이 직접 Write하지 않고 writer 서브에이전트 디스패치를 제안(manual 게이트 '초대형' 예외) — Write 인자도 가시출력과 동일하게 메인 윈도우에 실리므로(2026-07-06 실측), 대량 저작 토큰은 서브 컨텍스트에서 소화시키고 메인엔 링크만 남긴다.
 
 ## 민감파일 안전장치 (Atom 6)
 

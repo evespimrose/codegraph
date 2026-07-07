@@ -69,6 +69,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## RULE-9: Output Arm (출력 압축 · 기본 ON · 토글)
 출력측 토큰 게이트. 기본 ON. 상태: `.claude/state/output-arm` (`on`/`off`), 토글: `/output-arm on|off`.
 - **ON**: 메인 컨텍스트 서술 억제 → 도구로 작업, 끝에 `XX 완료` 한 줄만. **서브에이전트 디스패치 = 3-모드 게이트**(`.claude/state/subagent-dispatch` · 토글 `/subagent-dispatch auto|manual|off` · 기본 `manual`). Agent/Task 콜드스타트 토큰세금 ~100배라 기본 `manual`=디스패치마다 사용자 승인(ask) — 초대형·병렬 독립 작업만 승인 권장. `auto`=상시 허용, `off`=차단(메인 직접). 강제: `subagent-dispatch-gate.sh`. must-see 산출물은 `docs/output/YYYY-MM-DD-<task>.md`에 적재(코드 위치=BLK 태그, 참조=마크다운 링크 → codegraph 추적).
+- **대량저작 임계(온디맨드 원칙)**: 예상 산출물 ≥ 8K자(≈2K tok)는 메인이 직접 Write하지 않고 writer 서브에이전트 디스패치를 제안(manual 게이트 '초대형' 예외에 해당) — 저작 토큰이 메인 컨텍스트 윈도우를 통과하지 않게 한다. 근거: Write 인자도 가시출력과 동일하게 윈도우에 실린다(2026-07-06 실측 — output-arm은 표시 규율이지 윈도우 절감이 아님).
 - **Auto-Clarity 예외(억제 해제)**: 보안·비가역 동작·모호 다단계·반복 질문·하드 블로커 → 정상 출력. correctness > brevity.
 - 사후 게이트: Stop 훅 `output-arm-gate.sh` (변경 있는데 docs/output 적재 없으면 경고).
 - 스킬: `.claude/skills/output-arm/`(규칙 전문 단일 출처). 설계: caveman 입국심사 Atom 1·2·4·5·6. **실적용**: 전 스킬/커맨드 frontmatter에 `<!-- CAVE-MAN-OUTPUT-ARM -->` **compact 포인터**(6핵심 1줄 요약 + RULE-9·output-arm 참조) 삽입 — 마커는 게이트 grep용 보존, 풀 규칙은 본 RULE-9 + output-arm에만 둔다(중복 제거). riper/memory 커맨드는 "디스패치"→"메인 직접" 대체.

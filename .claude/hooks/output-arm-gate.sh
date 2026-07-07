@@ -11,12 +11,26 @@ if [ "$STATE" != "on" ]; then
   exit 0
 fi
 
-# 변경 파일 (git 미초기화/오류는 무시). 상태파일 자체 변경은 제외.
-CHANGED=$(git status --porcelain 2>/dev/null | grep -vE '\.claude/state/output-arm' || true)
+# 변경 파일 감지: git 우선, 비git이면 최근 mtime 폴백(git 부재 시 기존 침묵 무력화 방지)
+if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  CHANGED=$(git status --porcelain 2>/dev/null | grep -vE '\.claude/state/output-arm' || true)
+else
+  CHANGED=$(find . -type f -mmin -10 2>/dev/null | grep -vE '/\.git/|\.claude/state/output-arm' || true)
+fi
 [ -z "$CHANGED" ] && exit 0
 
-# docs/output/ 적재가 이미 있으면 통과
+# docs/output/ 적재가 이미 있으면 최신 파일의 SCHEMA.md 필수 필드 존재를 검증(차단 안 함 — 경고만)
 if echo "$CHANGED" | grep -q 'docs/output/'; then
+  LATEST=$(ls -t docs/output/*.md 2>/dev/null | head -1)
+  if [ -n "$LATEST" ]; then
+    MISSING=""
+    for f in task date project blk links keywords compressed source_turns; do
+      grep -q "^${f}:" "$LATEST" 2>/dev/null || MISSING="$MISSING $f"
+    done
+    if [ -n "$MISSING" ]; then
+      echo "{\"systemMessage\": \"[output-arm] 최신 산출물 $LATEST 스키마 미준수 — 누락 필드:$MISSING (SCHEMA.md 참조)\"}"
+    fi
+  fi
   exit 0
 fi
 

@@ -47,12 +47,12 @@ description: Use when the user invokes /sync or asks to install/propagate THIS r
    ```
    powershell -NoProfile -ExecutionPolicy Bypass -File .claude/skills/sync/scripts/sync.ps1 -Mode mixed -DryRun
    ```
-2. 출력 `===SUMMARY-JSON===` 블록의 `conflicts`(타깃별 달라지는 파일)를 사용자에게 **그대로 제시**하고, 하드 백업 후 덮어쓸지 **승인 요청**한다. 충돌 0이면 바로 4로.
+2. dry-run stdout의 `conflicts` 목록(타깃별 `~ 경로` 행 — **dry-run에서만 나열됨**)을 사용자에게 **그대로 제시**하고, 하드 백업 후 덮어쓸지 **승인 요청**한다. 충돌 0이면 바로 4로. 전체 기계가독 JSON은 stdout이 아니라 `<repo>/.claude/state/sync-last-report.json`에 기록된다(컨텍스트 다이어트 — 필요 시만 열람).
 3. **승인 시 적용** (충돌 파일 백업 → 덮어쓰기, 없는 파일 복사):
    ```
    powershell -NoProfile -ExecutionPolicy Bypass -File .claude/skills/sync/scripts/sync.ps1 -Mode mixed
    ```
-4. `added / overwritten / skipped / backup` 요약을 1~2줄로 보고.
+4. `added / overwritten / skipped / backup` 요약을 1~2줄로 보고. 적용(non-dry-run) 시 stdout은 타깃별 카운트+백업경로만 출력한다(conflicts 재나열 안 함 — dry-run에서 이미 승인됨).
 
 ### --soft / --force: 직접 실행
 ```

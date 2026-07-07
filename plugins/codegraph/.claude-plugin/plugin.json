@@ -1,0 +1,20 @@
+{
+  "name": "codegraph",
+  "displayName": "CodeGraph",
+  "version": "1.0.0",
+  "description": "Semantic code intelligence for Claude Code — indexed symbol graph, call tracing, impact analysis, and Markdown docs search via MCP. 94% fewer tool calls, 100% local.",
+  "author": {
+    "name": "evespimrose",
+    "url": "https://github.com/evespimrose"
+  },
+  "homepage": "https://github.com/evespimrose/codegraph",
+  "repository": "https://github.com/evespimrose/codegraph",
+  "license": "MIT",
+  "keywords": [
+    "code-intelligence",
+    "knowledge-graph",
+    "static-analysis",
+    "mcp",
+    "codegraph"
+  ]
+}

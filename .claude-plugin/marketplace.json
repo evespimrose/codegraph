@@ -1,0 +1,27 @@
+{
+  "name": "codegraph",
+  "owner": {
+    "name": "evespimrose"
+  },
+  "description": "CodeGraph — semantic code intelligence MCP server for Claude Code.",
+  "plugins": [
+    {
+      "name": "codegraph",
+      "source": "./plugins/codegraph",
+      "description": "Semantic code intelligence — indexed symbol graph, call tracing, impact analysis, and Markdown docs search via MCP. 94% fewer tool calls, 100% local.",
+      "author": {
+        "name": "evespimrose"
+      },
+      "homepage": "https://github.com/evespimrose/codegraph",
+      "repository": "https://github.com/evespimrose/codegraph",
+      "license": "MIT",
+      "category": "development",
+      "keywords": [
+        "code-intelligence",
+        "knowledge-graph",
+        "static-analysis",
+        "mcp"
+      ]
+    }
+  ]
+}

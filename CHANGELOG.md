@@ -9,6 +9,9 @@ and adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+
+## [1.0.0] - 2026-07-13
+
 ### Fixes
 
 - Deleting a Markdown file now removes it from the docs index on the next sync — previously a deleted doc lived on in search results forever, polluting them with stale content, until you forced a full re-index.
@@ -31,7 +34,6 @@ and adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - In Markdown-only projects (notes, wikis, Obsidian-style vaults), the links between your notes are now first-class graph citizens: `codegraph_callers` shows a note's backlinks, `codegraph_callees` shows the notes it links to, and `codegraph_impact` follows note-to-note links — so you can navigate a documentation vault as a graph, not just search it. It turns on automatically for documentation-only projects and stays off for code projects (whose graph is untouched); force it either way with the `CODEGRAPH_DOC_GRAPH` environment variable.
 - You can now keep extra files out of the index with a `.codegraphignore` file at your project root. It uses the same syntax as `.gitignore` and layers on top of it, so you can drop generated code, vendored dependencies, or stale docs from the graph (code *and* Markdown docs) without touching `.gitignore` — and a leading `!` re-includes a match. `codegraph init` now drops a commented starter file you can fill in. If you'd rather the indexer ignore your `.gitignore` altogether, pass `--no-gitignore` to `codegraph index` or `codegraph sync` (the built-in defaults and `.codegraphignore` still apply).
 - CodeGraph is now installable as a Claude Code plugin: `/plugin marketplace add evespimrose/codegraph`, then `/plugin install codegraph` — the MCP server is wired up automatically, with no manual `.mcp.json` editing and no reliance on the `codegraph` command being on PATH. The plugin launches the pinned npm release via `npx`, so what it runs always matches a published version.
-
 
 ## [0.9.8] - 2026-06-01
 
@@ -275,3 +277,4 @@ Thanks @andreinknv for the substantive draft this release was based on.
 [0.7.7]: https://github.com/evespimrose/codegraph/releases/tag/v0.7.7
 [0.7.6]: https://github.com/evespimrose/codegraph/releases/tag/v0.7.6
 [0.9.8]: https://github.com/evespimrose/codegraph/releases/tag/v0.9.8
+[1.0.0]: https://github.com/evespimrose/codegraph/releases/tag/v1.0.0

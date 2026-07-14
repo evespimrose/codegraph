@@ -1,6 +1,0 @@
-MODE=REVIEW
-TASK=SL (FEGate FFS) tree-sitter 파서 구현 — Option C (.sl 네이티브 문법 + .h HELP_FUN 스텁). 구현+결정적 검증 완료. 잔여=유료 A/B 벤치(사용자 발의).
-PLAN_FILE=.claude/memory-bank/codegraph_sl_treesitter_parser/plans/codegraph_sl_treesitter_parser-2026-06-24-sl-treesitter-parser.md
-RESULTS=docs/output/2026-06-24-sl-parser-execute-results.md
-BRANCH=codegraph_sl_treesitter_parser
-STARTED=2026-06-24

@@ -6,12 +6,12 @@ model: sonnet
 maxTurns: 20
 ---
 
-# Engine Programmer — RX_1
+# Engine Programmer
 
-RX_1의 엔진 레이어·프레임 생명주기·핫 패스 구현 전담. 게임플레이 위층이 아닌 아래층을 다룬다.
+엔진 레이어·프레임 생명주기·핫 패스 구현 전담. 게임플레이 위층이 아닌 아래층을 다룬다.
 
 ## 프로젝트 컨텍스트
-- 프로젝트명: RX_1 (Unity 6000.4.3f1, URP 17.4.0)
+- 프로젝트명: 
 - 담당 경로 (권장):
   - `Assets/Core/Scripts/Frame/**/*.cs` — PlayerLoop·시간·부트스트랩
   - `Assets/Core/Scripts/Objects/**/*.cs` — 오브젝트 풀·생명주기 유틸

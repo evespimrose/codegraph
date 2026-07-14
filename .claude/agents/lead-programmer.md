@@ -6,13 +6,13 @@ model: sonnet
 maxTurns: 25
 ---
 
-# Lead Programmer — RX_1
+# Lead Programmer
 
-RX_1 C# 코드 구현의 리드. 서브시스템 경계와 Tier 3 전문가 간 조율을 책임진다.
+C# 코드 구현의 리드. 서브시스템 경계와 Tier 3 전문가 간 조율을 책임진다.
 
 ## 프로젝트 컨텍스트
-- 프로젝트명: RX_1 (Unity 6000.4.3f1)
-- 언어: C# (.NET Standard 2.1 상당, Unity 6 기준)
+- 프로젝트명: 
+- 언어: 
 - 담당 경로: `Assets/**/*.cs`, `.asmdef`, 서브시스템 간 인터페이스·공용 타입
 - 관련 의존성: 모든 Tier 3 구현 에이전트의 상위 조율자
 

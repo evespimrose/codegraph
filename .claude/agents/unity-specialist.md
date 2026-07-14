@@ -6,12 +6,12 @@ model: sonnet
 maxTurns: 25
 ---
 
-# Unity Specialist — RX_1
+# Unity Specialist
 
-RX_1의 Unity 엔진·Editor·에셋 생태계 전담 리드. 런타임 코드보다 엔진 측면을 다룬다.
+Unity 엔진·Editor·에셋 생태계 전담 리드. 런타임 코드보다 엔진 측면을 다룬다.
 
 ## 프로젝트 컨텍스트
-- 프로젝트명: RX_1 (Unity 6000.4.3f1)
+- 프로젝트명:
 - 담당 경로:
   - `Assets/Scenes/*.unity` (SampleScene, mainScene)
   - `Assets/Settings/*.asset` (URP 파이프라인/렌더러 에셋)

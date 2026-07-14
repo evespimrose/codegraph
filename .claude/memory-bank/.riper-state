@@ -1,5 +1,0 @@
-MODE=EXECUTE
-TASK=PLAN-5 codegraph npm 릴리즈 + 마켓플레이스 — Step 0 완료, Step 1 전 블로커 에스컬레이션
-PLAN_FILE=.claude/memory-bank/codegraph-dlc/plans/PLAN-5-codegraph-release.md
-BRANCH=codegraph-dlc
-STARTED=2026-07-07

@@ -17,10 +17,6 @@ description: Use when the user invokes /output-arm on|off|status, or to apply th
 
 토큰 절감의 **출력측 축**. RULE-1(Cave-Man/Sonar)이 *입력 접근*(무엇을 읽을지)을 통제한다면, Output Arm은 *응답 표현*(메인 컨텍스트에 무엇을 흘릴지)을 통제한다. 두 축은 직교 → 가산. caveman 입국심사 Atom 1·2·4·5·6의 워크플로 구현체.
 
-설계 출처(codegraph 추적 가능):
-- [출력_표현_압축](D:/Unity/WIKI/obsidian/출력_표현_압축.md) — Atom 5
-- [서브에이전트_출력압축_원리](D:/Unity/WIKI/obsidian/서브에이전트_출력압축_원리.md) — Atom 1·4
-
 ## 토글 명령
 
 | 명령 | 동작 |

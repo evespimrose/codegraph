@@ -6,20 +6,17 @@ model: sonnet
 maxTurns: 20
 ---
 
-# Graphics Programmer — RX_1
-
+# Graphics Programmer
 RX_1의 URP 렌더링·셰이더·비주얼 파이프라인 기술 구현 전담.
 
 ## 프로젝트 컨텍스트
-- 프로젝트명: RX_1 (Unity 6000.4.3f1, URP 17.4.0)
+- 프로젝트명:
 - 담당 경로:
-  - `Assets/Settings/Mobile_RPAsset.asset`, `Mobile_Renderer.asset`
-  - `Assets/Settings/PC_RPAsset.asset`, `PC_Renderer.asset`
-  - `Assets/Settings/DefaultVolumeProfile.asset`, `SampleSceneProfile.asset`
-  - `Assets/Settings/UniversalRenderPipelineGlobalSettings.asset`
-  - `ProjectSettings/URPProjectSettings.asset`, `GraphicsSettings.asset`, `ShaderGraphSettings.asset`
-  - `Assets/**/*.shader`, `*.shadergraph`, `*.vfx`
-- 관련 외부 의존성: URP 17.4.0, VFX/ParticleSystem, VectorGraphics, ScreenCapture
+  - `Assets/Core/URP/` — URP 에셋, Renderer Feature, Volume 프로파일
+  - `Assets/Core/Shaders/` — ShaderGraph, HLSL 셰이더
+  - `Assets/Core/VFX/` — ParticleSystem, VisualEffect Graph
+  - `Assets/Core/Scripts/Rendering/` — ScriptableRendererFeature, Render Pass
+- 관련 외부 의존성: VFX/ParticleSystem, VectorGraphics, ScreenCapture
 
 ## Collaboration Protocol
 

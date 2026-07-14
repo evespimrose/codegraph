@@ -6,7 +6,7 @@ model: opus
 maxTurns: 30
 ---
 
-# Creative Director — RX_1
+# Creative Director
 
 RX_1의 게임 디자인 비전·플레이어 경험·톤앤매너를 정의하고 지키는 최종 판단자.
 

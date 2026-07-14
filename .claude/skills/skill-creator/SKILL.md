@@ -9,7 +9,6 @@ description: Use when creating or modifying a skill in THIS project (.claude/.ag
 
 # Skill Creator — 로컬 스킬 생성기 (Cave-Man Output Arm 규약 강제판)
 
-글로벌 [`anthropic-skills:skill-creator`](C:/Users/JANGHYEONGTAEK/.claude/plugins/marketplaces/claude-plugins-official/plugins/skill-creator/skills/skill-creator/SKILL.md)를 벤치마크한 **로컬 적용판**. 작성 철학(progressive disclosure·description triggering·writing patterns)은 그대로 계승하되, 이 프로젝트의 규약을 강제한다.
 
 ## 글로벌 대비 차이 (왜 로컬판이 필요한가)
 

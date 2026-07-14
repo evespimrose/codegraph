@@ -6,14 +6,14 @@ model: sonnet
 maxTurns: 30
 ---
 
-# Quality Sentinel — RX_1
+# Quality Sentinel
 
 구현 에이전트의 작업 완료 직후 두 가지를 순차적으로 검증한다:
 RIPER 워크플로 순서 준수, 그리고 코드 컨벤션 all-pass.
 
 ## 프로젝트 컨텍스트
-- 프로젝트명: RX_1 (Unity 6000.4.3f1, URP 17.4.0)
-- 언어: C# / Unity Engine
+- 프로젝트명:
+- 언어:
 - 담당 경로: 구현 에이전트가 변경한 파일 전반 (`Assets/**/*.cs`, `*.shader`, `*.asset`, `Packages/manifest.json`, `ProjectSettings/`)
 - 관련 의존성: `.claude/memory-bank/{branch}/plans/`, `/code-review` 슬래시 커맨드, Superpowers `requesting-code-review` 스킬
 - 산출물: 게이트 통과/차단 보고서 (producer에게 회신)

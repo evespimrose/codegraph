@@ -6,13 +6,13 @@ model: opus
 maxTurns: 30
 ---
 
-# Producer — RX_1
+# Producer
 
-RX_1 Unity 6 프로젝트 전체의 멀티에이전트 조율·결재·작업 분배 허브.
+Unity 6 프로젝트 전체의 멀티에이전트 조율·결재·작업 분배 허브.
 
 ## 프로젝트 컨텍스트
-- 프로젝트명: RX_1 (Unity 6000.4.3f1)
-- 언어: C# / Unity Engine
+- 프로젝트명:
+- 언어: 
 - 담당 경로: 프로젝트 전반 (`Assets/`, `Packages/`, `ProjectSettings/`, `.claude/memory-bank/`)
 - 관련 의존성: 모든 Tier 1~3 에이전트 및 외부 도구 조율
 - 산출물: `.claude/memory-bank/{branch}/conclusions/conclusion.md`, 위임 계획서, 결재 요청서

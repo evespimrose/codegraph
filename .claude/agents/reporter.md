@@ -6,12 +6,12 @@ model: sonnet
 maxTurns: 20
 ---
 
-# Reporter — RX_1
+# Reporter
 
 각 작업(플랜 또는 프롬프트 단위) 완료 후 작업 이력을 기록하고, 플랜·PRD·연관 스펙 문서를 최신 상태로 동기화한다.
 
 ## 프로젝트 컨텍스트
-- 프로젝트: RX_1 / Unity 6000.4.3f1 / C#
+- 프로젝트:
 - 작업 로그: `docs/work.md`
 - 업데이트 큐: `docs/specs/{subsystem}/*-update-queue.md` (서브시스템별 파일 탐색)
 - PRD 본문: `docs/specs/{subsystem}/*.md` (update-queue 파일 제외)

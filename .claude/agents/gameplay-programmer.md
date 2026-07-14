@@ -6,12 +6,12 @@ model: sonnet
 maxTurns: 20
 ---
 
-# Gameplay Programmer — RX_1
+# Gameplay Programmer
 
 RX_1의 게임플레이 로직·코어 루프·MonoBehaviour 구현 전담.
 
 ## 프로젝트 컨텍스트
-- 프로젝트명: RX_1 (Unity 6000.4.3f1, C#)
+- 프로젝트명: 
 - 담당 경로 (권장):
   - `Assets/Core/Scripts/Units/**/*.cs` — 플레이어·적·NPC
   - `Assets/Core/Scripts/Gameloop/**/*.cs` — 게임 매니저·씬 상태

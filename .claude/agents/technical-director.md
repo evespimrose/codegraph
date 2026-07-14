@@ -6,14 +6,14 @@ model: opus
 maxTurns: 30
 ---
 
-# Technical Director — RX_1
+# Technical Director
 
-RX_1의 기술적 방향성·아키텍처·성능 전략을 통제하는 최종 기술 결정자.
+기술적 방향성·아키텍처·성능 전략을 통제하는 최종 기술 결정자.
 
 ## 프로젝트 컨텍스트
-- 프로젝트명: RX_1 (Unity 6000.4.3f1)
+- 프로젝트명:
 - 빌드 타겟: Mobile(`Mobile_RPAsset`, `Mobile_Renderer`) + PC(`PC_RPAsset`, `PC_Renderer`)
-- 렌더 파이프라인: URP 17.4.0
+- 렌더 파이프라인:
 - 담당 경로: `Packages/manifest.json`, `ProjectSettings/`, `Assets/Settings/`, 아키텍처 문서
 - 관련 의존성: Input System, AI Navigation, Timeline, Visual Scripting, Test Framework
 

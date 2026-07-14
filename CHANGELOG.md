@@ -9,6 +9,9 @@ and adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+
+## [0.9.8.3] - 2026-07-14
+
 ### Fixes
 
 - File names containing non-ASCII characters (Korean, Chinese, Japanese, etc.) are now indexed correctly in git-tracked projects.
@@ -27,7 +30,6 @@ and adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `codegraph init`, `codegraph index`, and `codegraph status` now report the Markdown graph — the concept nodes and governs edges derived from your docs — distinctly from the code graph. `status` gives it a dedicated section (and adds an edges-by-kind breakdown), and the index/init summary appends the concept-node and governs-edge counts to the Markdown line, so you can always tell at a glance how much of the graph comes from documentation versus code.
 - In Markdown-only projects (notes, wikis, Obsidian-style vaults), the links between your notes are now first-class graph citizens: `codegraph_callers` shows a note's backlinks, `codegraph_callees` shows the notes it links to, and `codegraph_impact` follows note-to-note links — so you can navigate a documentation vault as a graph, not just search it. It turns on automatically for documentation-only projects and stays off for code projects (whose graph is untouched); force it either way with the `CODEGRAPH_DOC_GRAPH` environment variable.
 - You can now keep extra files out of the index with a `.codegraphignore` file at your project root. It uses the same syntax as `.gitignore` and layers on top of it, so you can drop generated code, vendored dependencies, or stale docs from the graph (code *and* Markdown docs) without touching `.gitignore` — and a leading `!` re-includes a match. `codegraph init` now drops a commented starter file you can fill in. If you'd rather the indexer ignore your `.gitignore` altogether, pass `--no-gitignore` to `codegraph index` or `codegraph sync` (the built-in defaults and `.codegraphignore` still apply).
-
 
 ## [0.9.8] - 2026-06-01
 
@@ -271,3 +273,4 @@ Thanks @andreinknv for the substantive draft this release was based on.
 [0.7.7]: https://github.com/evespimrose/codegraph/releases/tag/v0.7.7
 [0.7.6]: https://github.com/evespimrose/codegraph/releases/tag/v0.7.6
 [0.9.8]: https://github.com/evespimrose/codegraph/releases/tag/v0.9.8
+[0.9.8.3]: https://github.com/evespimrose/codegraph/releases/tag/v0.9.8.3

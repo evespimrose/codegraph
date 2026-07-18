@@ -1,5 +1,6 @@
 ---
 description: Enter EXECUTE mode to implement approved plan
+allowed-tools: mcp__codegraph__*, Read, Glob, Grep, Write, Edit, Bash(git:*)
 ---
 
 # riper:execute

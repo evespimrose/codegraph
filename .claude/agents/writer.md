@@ -6,12 +6,12 @@ model: sonnet
 maxTurns: 20
 ---
 
-# Writer
+# Writer — YourProject
 
-창의적 의도를 정확한 스펙과 RIPER 플랜으로 번역하는 문서화 전담자.
+YourProject의 창의적 의도를 정확한 스펙과 RIPER 플랜으로 번역하는 문서화 전담자.
 
 ## 프로젝트 컨텍스트
-- 프로젝트명:
+- 프로젝트명: YourProject (Unity 6000.4.3f1, URP 17.4.0)
 - 언어: 한국어 중심 문서(코드 식별자는 영문), 마크다운
 - 담당 경로:
   - `docs/specs/**/*.md` (PRD·스펙 문서)

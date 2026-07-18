@@ -4,11 +4,27 @@
   Modes (-Mode):
     mixed (default) : copy files missing in the target; for files that DIFFER,
                       back up the target copy under <target>\.sync-backup\<stamp>\
-                      then overwrite. Identical files are skipped.
+                      then overwrite (unless -NoBackup). Identical files are skipped.
                       -DryRun reports the differing files WITHOUT writing anything.
     force           : overwrite every manifest file in every target. Overwritten
                       files are auto-backed-up first (unless -NoBackup). No prompts.
-    soft            : copy only files MISSING in the target; never overwrite.
+    soft            : copy only files MISSING in the target; never overwrite (no backup applies).
+
+  -NoBackup applies uniformly to mixed and force (skips the <target>\.sync-backup\<stamp>\
+  copy before every overwrite). Irreversible within this tool once applied — the only way
+  back is the target's own external history (git, etc.), so use deliberately.
+
+  Scope:
+    -AgentFolders (-a) : sync only the auxiliary agent/tool scaffolding folders
+                      (.agents .codex .cursor .trae .zcode) via manifest.agents.txt,
+                      and skip .mcp.json generation. Composable with -Mode/-Targets/-DryRun.
+                      Typical use: push local tool folders to the user home (global).
+
+  Applied to any RECURSIVE folder copy (so a whole-folder manifest entry such as .agents
+  or .zcode never leaks its runtime / machine-local state):
+    <dot-folder>/memory-bank/ , <dot-folder>/state/  -> excluded entirely
+    settings.json                                    -> excluded (install/project config)
+    settings.local.json                              -> synced MINUS the 'permissions' key
 
   Data files (relative to the skill dir, override with -ListFile / -ManifestFile):
     projects\list.txt : absolute target project-root paths (one per line, # = comment)
@@ -29,7 +45,8 @@ param(
   [string]$ManifestFile,
   [string[]]$Targets,
   [switch]$DryRun,
-  [switch]$NoBackup
+  [switch]$NoBackup,
+  [Alias('a')][switch]$AgentFolders
 )
 $ErrorActionPreference = 'Stop'
 
@@ -37,7 +54,10 @@ $SkillDir = Split-Path -Parent $PSScriptRoot
 if(-not $Source){ $Source = (Resolve-Path (Join-Path $SkillDir '..\..\..')).Path }
 $Source = $Source.TrimEnd('\','/')
 if(-not $ListFile){ $ListFile = Join-Path $SkillDir 'projects\list.txt' }
-if(-not $ManifestFile){ $ManifestFile = Join-Path $SkillDir 'manifest.txt' }
+if(-not $ManifestFile){
+  if($AgentFolders){ $ManifestFile = Join-Path $SkillDir 'manifest.agents.txt' }
+  else { $ManifestFile = Join-Path $SkillDir 'manifest.txt' }
+}
 
 function Read-Lines($path){
   if(-not (Test-Path -LiteralPath $path)){ return @() }
@@ -56,6 +76,29 @@ function Write-Text($file, $text){
 function Copy-One($srcFull, $dest){
   Ensure-Dir $dest
   Copy-Item -LiteralPath $srcFull -Destination $dest -Force
+}
+# settings.local.json carries a machine/project-local 'permissions' block (allow rules
+# bound to local paths/tools). Sync the file but STRIP that key, keeping portable prefs
+# (enabled/disabledMcpjsonServers, ...). Returns transformed JSON text, or $null if the
+# file can't be parsed (then it is skipped rather than leaking raw permissions).
+function Get-SettingsLocalSansPermissions($srcFull){
+  try {
+    $obj = (Get-Content -LiteralPath $srcFull -Raw) | ConvertFrom-Json
+    if($obj.PSObject.Properties['permissions']){ $obj.PSObject.Properties.Remove('permissions') }
+    return ($obj | ConvertTo-Json -Depth 20)
+  } catch { return $null }
+}
+# An op either copies a source file (SourceFull) or writes precomputed Content (a transform).
+function Op-Hash($op){
+  if($null -ne $op.Content){
+    $bytes = [System.Text.Encoding]::UTF8.GetBytes($op.Content)
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    try { return (([BitConverter]::ToString($sha.ComputeHash($bytes))) -replace '-','') } finally { $sha.Dispose() }
+  }
+  return (Get-FileHash -LiteralPath $op.SourceFull).Hash
+}
+function Op-Write($op, $dest){
+  if($null -ne $op.Content){ Write-Text $dest $op.Content } else { Copy-One $op.SourceFull $dest }
 }
 
 $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
@@ -106,11 +149,26 @@ foreach($it in $items){
   if($gi.PSIsContainer){
     Get-ChildItem -LiteralPath $full -Recurse -File -Force | ForEach-Object {
       $rel = $_.FullName.Substring($Source.Length).TrimStart('\','/')
-      $ops.Add([pscustomobject]@{ Rel=$rel; SourceFull=$_.FullName; ForceOnly=$it.ForceOnly })
+      # Never propagate a folder's runtime / machine-local state, even when the whole
+      # dot-folder is a single manifest entry (e.g. .agents/.zcode full mirrors):
+      #   <top .dot-folder>/memory-bank/ , <top .dot-folder>/state/   -> skipped entirely
+      #   settings.json                                               -> skipped (install/project config)
+      #   settings.local.json                                         -> synced MINUS 'permissions'
+      # (Explicit FILE entries like the force-only .riper-state go through the else branch
+      #  below, so this recursion filter never touches them.)
+      if($rel -match '^\.[^\\/]+[\\/](memory-bank|state)([\\/]|$)'){ return }
+      $leaf = Split-Path $rel -Leaf
+      if($leaf -ieq 'settings.json'){ return }
+      if($leaf -ieq 'settings.local.json'){
+        $c = Get-SettingsLocalSansPermissions $_.FullName
+        if($null -ne $c){ $ops.Add([pscustomobject]@{ Rel=$rel; SourceFull=$null; Content=$c; ForceOnly=$it.ForceOnly }) }
+        return
+      }
+      $ops.Add([pscustomobject]@{ Rel=$rel; SourceFull=$_.FullName; Content=$null; ForceOnly=$it.ForceOnly })
     }
   } else {
     $rel = $gi.FullName.Substring($Source.Length).TrimStart('\','/')
-    $ops.Add([pscustomobject]@{ Rel=$rel; SourceFull=$gi.FullName; ForceOnly=$it.ForceOnly })
+    $ops.Add([pscustomobject]@{ Rel=$rel; SourceFull=$gi.FullName; Content=$null; ForceOnly=$it.ForceOnly })
   }
 }
 
@@ -138,52 +196,55 @@ foreach($t in $targetRoots){
     $exists = Test-Path -LiteralPath $tgtFile
     if($Mode -eq 'soft'){
       if($exists){ $r.SkippedExisting++ }
-      else { if(-not $DryRun){ Copy-One $op.SourceFull $tgtFile }; $r.Added++ }
+      else { if(-not $DryRun){ Op-Write $op $tgtFile }; $r.Added++ }
     }
     elseif($Mode -eq 'force'){
       if($exists){ if(-not $DryRun -and -not $NoBackup){ Backup-File $t $op.Rel }; $r.Overwritten++ }
       else { $r.Added++ }
-      if(-not $DryRun){ Copy-One $op.SourceFull $tgtFile }
+      if(-not $DryRun){ Op-Write $op $tgtFile }
     }
     else { # mixed
-      if(-not $exists){ if(-not $DryRun){ Copy-One $op.SourceFull $tgtFile }; $r.Added++ }
+      if(-not $exists){ if(-not $DryRun){ Op-Write $op $tgtFile }; $r.Added++ }
       else {
-        $differ = (Get-FileHash -LiteralPath $op.SourceFull).Hash -ne (Get-FileHash -LiteralPath $tgtFile).Hash
+        $differ = (Op-Hash $op) -ne (Get-FileHash -LiteralPath $tgtFile).Hash
         if($differ){
           $conflicts.Add($op.Rel)
-          if(-not $DryRun){ Backup-File $t $op.Rel; Copy-One $op.SourceFull $tgtFile }
+          if(-not $DryRun){ if(-not $NoBackup){ Backup-File $t $op.Rel }; Op-Write $op $tgtFile }
           $r.Overwritten++
         } else { $r.SkippedIdentical++ }
       }
     }
   }
 
-  # .mcp.json (merge-preserving)
-  $mcpFile = Join-Path $t '.mcp.json'
-  $mcpExists = Test-Path -LiteralPath $mcpFile
-  $desiredMcp = Build-DesiredMcp $t
-  if($Mode -eq 'soft'){
-    if($mcpExists){ $r.SkippedExisting++ } else { if(-not $DryRun){ Write-Text $mcpFile $desiredMcp }; $r.Added++ }
-  }
-  elseif($Mode -eq 'force'){
-    if($mcpExists){ if(-not $DryRun -and -not $NoBackup){ Backup-File $t '.mcp.json' }; $r.Overwritten++ } else { $r.Added++ }
-    if(-not $DryRun){ Write-Text $mcpFile $desiredMcp }
-  }
-  else { # mixed
-    if(-not $mcpExists){ if(-not $DryRun){ Write-Text $mcpFile $desiredMcp }; $r.Added++ }
-    else {
-      $cur = ((Get-Content -LiteralPath $mcpFile -Raw) -replace "`r`n","`n").TrimEnd()
-      $want = ($desiredMcp -replace "`r`n","`n").TrimEnd()
-      if($cur -ne $want){
-        $conflicts.Add('.mcp.json')
-        if(-not $DryRun){ Backup-File $t '.mcp.json'; Write-Text $mcpFile $desiredMcp }
-        $r.Overwritten++
-      } else { $r.SkippedIdentical++ }
+  # .mcp.json (merge-preserving) — skipped under -AgentFolders (copying tool scaffolding,
+  # not provisioning a project root; avoids writing .mcp.json into e.g. the user home).
+  if(-not $AgentFolders){
+    $mcpFile = Join-Path $t '.mcp.json'
+    $mcpExists = Test-Path -LiteralPath $mcpFile
+    $desiredMcp = Build-DesiredMcp $t
+    if($Mode -eq 'soft'){
+      if($mcpExists){ $r.SkippedExisting++ } else { if(-not $DryRun){ Write-Text $mcpFile $desiredMcp }; $r.Added++ }
+    }
+    elseif($Mode -eq 'force'){
+      if($mcpExists){ if(-not $DryRun -and -not $NoBackup){ Backup-File $t '.mcp.json' }; $r.Overwritten++ } else { $r.Added++ }
+      if(-not $DryRun){ Write-Text $mcpFile $desiredMcp }
+    }
+    else { # mixed
+      if(-not $mcpExists){ if(-not $DryRun){ Write-Text $mcpFile $desiredMcp }; $r.Added++ }
+      else {
+        $cur = ((Get-Content -LiteralPath $mcpFile -Raw) -replace "`r`n","`n").TrimEnd()
+        $want = ($desiredMcp -replace "`r`n","`n").TrimEnd()
+        if($cur -ne $want){
+          $conflicts.Add('.mcp.json')
+          if(-not $DryRun){ if(-not $NoBackup){ Backup-File $t '.mcp.json' }; Write-Text $mcpFile $desiredMcp }
+          $r.Overwritten++
+        } else { $r.SkippedIdentical++ }
+      }
     }
   }
 
   $r.Conflicts = $conflicts.ToArray()
-  if(($Mode -ne 'soft') -and (-not $DryRun) -and ($r.Overwritten -gt 0) -and (-not ($Mode -eq 'force' -and $NoBackup))){
+  if(($Mode -ne 'soft') -and (-not $DryRun) -and ($r.Overwritten -gt 0) -and (-not $NoBackup)){
     $r.BackupDir = Join-Path $t ".sync-backup\$stamp"
   }
   $report.Add([pscustomobject]$r)

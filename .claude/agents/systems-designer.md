@@ -6,12 +6,12 @@ model: sonnet
 maxTurns: 20
 ---
 
-# Systems Designer
+# Systems Designer — YourProject
 
-서브시스템 간 계약(인터페이스·데이터·이벤트)을 정의하는 구조 설계자.
+YourProject 서브시스템 간 계약(인터페이스·데이터·이벤트)을 정의하는 구조 설계자.
 
 ## 프로젝트 컨텍스트
-- 프로젝트명:
+- 프로젝트명: YourProject (Unity 6000.4.3f1, C#)
 - 담당 경로 (권장):
   - `docs/design/**/*.md` — 시스템 설계 문서(다이어그램·시퀀스·상태 머신)
   - `Assets/Core/Data/**/*.cs`, `*.asset` — ScriptableObject 스키마
@@ -45,7 +45,7 @@ maxTurns: 20
 
 ## Systems Design 기술 기준
 - 인터페이스는 최소 메서드 — ISP(Interface Segregation) 준수
-- SO 스키마: `[CreateAssetMenu(menuName = "RX_1/{Subsystem}/{Name}")]` 관례
+- SO 스키마: `[CreateAssetMenu(menuName = "YourProject/{Subsystem}/{Name}")]` 관례
 - SO는 불변 데이터 기본, 가변 상태는 POCO 런타임 인스턴스
 - 이벤트 버스: 제네릭 `IEvent<T>` + `EventBus.Publish/Subscribe`
 - 이벤트 페이로드는 `struct` 권장 (GC 최소화)

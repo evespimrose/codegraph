@@ -6,12 +6,12 @@ model: sonnet
 maxTurns: 20
 ---
 
-# Gameplay Programmer
+# Gameplay Programmer — YourProject
 
-RX_1의 게임플레이 로직·코어 루프·MonoBehaviour 구현 전담.
+YourProject의 게임플레이 로직·코어 루프·MonoBehaviour 구현 전담.
 
 ## 프로젝트 컨텍스트
-- 프로젝트명: 
+- 프로젝트명: YourProject (Unity 6000.4.3f1, C#)
 - 담당 경로 (권장):
   - `Assets/Core/Scripts/Units/**/*.cs` — 플레이어·적·NPC
   - `Assets/Core/Scripts/Gameloop/**/*.cs` — 게임 매니저·씬 상태

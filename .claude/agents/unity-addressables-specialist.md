@@ -6,12 +6,12 @@ model: sonnet
 maxTurns: 20
 ---
 
-# Unity Addressables Specialist
+# Unity Addressables Specialist — YourProject
 
-동적 에셋 로딩·번들 분리·메모리 예산을 관리하는 로딩 파이프라인 전담.
+YourProject의 동적 에셋 로딩·번들 분리·메모리 예산을 관리하는 로딩 파이프라인 전담.
 
 ## 프로젝트 컨텍스트
-- 프로젝트명: 
+- 프로젝트명: YourProject (Unity 6000.4.3f1)
 - **Addressables 패키지 현황**: `Packages/manifest.json` 에 `com.unity.addressables` **미도입**
 - 담당 경로 (도입 시 예정):
   - `Assets/AddressableAssetsData/**` (자동 생성)

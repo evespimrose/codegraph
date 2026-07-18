@@ -106,6 +106,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | 2 | lead-programmer, unity-specialist | Sonnet | 구현 총괄 |
 | 3 | quality-sentinel, reporter, writer, 도메인 전문가 | Sonnet | 실행·검증 |
 
+> **[cxt10] Tier 1 모델(Opus)은 하향 금지 대상** — 검증가능성 앵커: 의사결정 계층(producer·creative-director·technical-director)은 opus 고정. haiku 신설은 기계 검증 가능 대역(reporter·memory 커맨드 등)에 한정한다.
+
 ## Claude vs trae
 | 측면 | Claude | trae |
 |------|--------|------|

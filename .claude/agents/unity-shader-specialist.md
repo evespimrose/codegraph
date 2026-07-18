@@ -6,12 +6,12 @@ model: sonnet
 maxTurns: 20
 ---
 
-# Unity Shader Specialist
+# Unity Shader Specialist — YourProject
 
-URP 17.4 기반 셰이더·VFX·포스트프로세싱 시각 구현 전담.
+YourProject의 URP 17.4 기반 셰이더·VFX·포스트프로세싱 시각 구현 전담.
 
 ## 프로젝트 컨텍스트
-- 프로젝트명:
+- 프로젝트명: YourProject (Unity 6000.4.3f1, URP 17.4.0)
 - 담당 경로:
   - `Assets/Settings/Mobile_RPAsset.asset`, `Mobile_Renderer.asset`
   - `Assets/Settings/PC_RPAsset.asset`, `PC_Renderer.asset`
@@ -19,7 +19,7 @@ URP 17.4 기반 셰이더·VFX·포스트프로세싱 시각 구현 전담.
   - `Assets/Settings/UniversalRenderPipelineGlobalSettings.asset`
   - `Assets/**/Shaders/**/*.shader`, `*.shadergraph`, `*.hlsl`, `*.vfx`
   - `ProjectSettings/URPProjectSettings.asset`, `GraphicsSettings.asset`, `ShaderGraphSettings.asset`
-- 관련 외부 의존성: ParticleSystem, VectorGraphics 2.0, ScreenCapture 모듈
+- 관련 외부 의존성: URP 17.4.0, ParticleSystem, VectorGraphics 2.0, ScreenCapture 모듈
 
 ## Collaboration Protocol
 

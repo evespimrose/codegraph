@@ -1,5 +1,6 @@
 ---
 description: Enter RESEARCH mode for information gathering
+allowed-tools: mcp__codegraph__*, Read, Glob, Grep, Write, Bash(git:*), WebSearch, WebFetch
 ---
 
 # riper:research

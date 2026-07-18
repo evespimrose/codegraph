@@ -30,7 +30,7 @@ description: >
 PowerShell 도구로 이 스킬 디렉터리의 스크립트를 절대경로로 호출한다:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File "D:\Fork\codegraph\.claude\skills\sync-global-codegraph\scripts\sync-global.ps1"
+powershell -NoProfile -ExecutionPolicy Bypass -File "D:\Projects\codegraph\.claude\skills\sync-global-codegraph\scripts\sync-global.ps1"
 ```
 
 ### 스크립트가 하는 일 (sync-global.ps1)

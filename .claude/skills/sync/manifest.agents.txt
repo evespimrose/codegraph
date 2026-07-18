@@ -1,0 +1,22 @@
+# manifest.agents.txt — scope list for the sync.ps1 -AgentFolders (-a) flag.
+# One path per line, RELATIVE to the source repo root. Directories copied recursively.
+#
+# These are the AUXILIARY agent / tool scaffolding folders. Primary .claude is NOT here —
+# that is handled by the default manifest.txt. Use -a to push just these to a target
+# (e.g. the user home for a global install):
+#   sync.ps1 -a -Targets "$HOME" -Mode mixed
+#
+# Runtime / machine-local handling during recursion (enforced in sync.ps1, applies to
+# every recursive folder entry — not configurable here):
+#   <folder>/memory-bank/    excluded  — RIPER .riper-state + branch memories
+#   <folder>/state/          excluded  — violation logs, toggles, budgets
+#   settings.json            excluded  — install / project config
+#   settings.local.json      synced MINUS 'permissions' — keeps portable prefs
+#                            (enabled/disabledMcpjsonServers); drops local allow-rules
+# .mcp.json is NOT generated when -a is set.
+
+.agents
+.codex
+.cursor
+.trae
+.zcode

@@ -1,0 +1,12 @@
+# sync targets — ABSOLUTE project-root paths, one per line.
+# '#' = comment, blank lines ignored. An empty list is a safe no-op.
+#
+# The sync skill installs this repo's workflow scaffolding (see ../manifest.txt)
+# into each root listed below, using one of: --mixed (default) / --soft / --force.
+#
+# SETUP: copy this file to `list.txt` (which is gitignored) and add your own targets.
+#
+# Examples (edit for your machine):
+# D:\Projects\YourProject
+# C:\dev\another-project
+# /home/you/projects/your-app

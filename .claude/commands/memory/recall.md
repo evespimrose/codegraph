@@ -1,5 +1,7 @@
 ---
 description: Recall memories from current branch's memory bank
+allowed-tools: Bash, Read, Glob
+model: haiku
 ---
 
 # memory:recall

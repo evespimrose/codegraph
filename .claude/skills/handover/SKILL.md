@@ -1,6 +1,6 @@
 ---
 name: handover
-description: Use when the user invokes /handover to prepare Claude for cross-session continuity on the RX_1 project; reads the required docs then responds "숙지 완료". NOT for actual coding/debugging or doc authoring — read-only internalization.
+description: Use when the user invokes /handover to prepare Claude for cross-session continuity on the YourProject project; reads the required docs then responds "숙지 완료". NOT for actual coding/debugging or doc authoring — read-only internalization.
 ---
 
 <!-- CAVE-MAN-OUTPUT-ARM -->
@@ -8,11 +8,11 @@ description: Use when the user invokes /handover to prepare Claude for cross-ses
 <!-- /CAVE-MAN-OUTPUT-ARM -->
 
 
-# Handover — RX_1 세션 인수인계 숙지 루틴
+# Handover — YourProject 세션 인수인계 숙지 루틴
 
 ## Overview
 
-새 Claude 세션이 RX_1 프로젝트를 끊김 없이 이어받기 위해 필수 문서를 순서대로 읽고 내재화하는 루틴.
+새 Claude 세션이 YourProject 프로젝트를 끊김 없이 이어받기 위해 필수 문서를 순서대로 읽고 내재화하는 루틴.
 
 ### Claude의 역할 (Role Clarity)
 
@@ -51,26 +51,26 @@ WHEN /handover 수신:
 
 ### Step 1 — 3-Tier 에이전트 구조
 ```
-d:\Fork\RX_1\docs\specs\pathfinding\generic-3tier-setup-prompt.md
+D:\Projects\YourProject\docs\specs\pathfinding\generic-3tier-setup-prompt.md
 ```
 
 ### Step 2 — Work History & Context
 ```
-d:\Fork\RX_1\docs\work.md
-d:\Fork\RX_1\memory\MEMORY.md
+D:\Projects\YourProject\docs\work.md
+D:\Projects\YourProject\memory\MEMORY.md
 ```
 > `docs\contextmd\` 폴더의 최신 cxt파일 1~2개 (가장 높은 번호 기준)도 추가로 확인
 
 ### Step 3 — Explicit Rules
 ```
-d:\Fork\RX_1\SKILL.md
-d:\Fork\RX_1\CLAUDE.md
+D:\Projects\YourProject\SKILL.md
+D:\Projects\YourProject\CLAUDE.md
 ```
 
 ### Step 4 — doc-context Workflow
 ```
-d:\Fork\RX_1\docs\distribution\README.md
-d:\Fork\RX_1\docs\distribution\context-instruction.md
+D:\Projects\YourProject\docs\distribution\README.md
+D:\Projects\YourProject\docs\distribution\context-instruction.md
 ```
 
 ---
@@ -86,4 +86,4 @@ d:\Fork\RX_1\docs\distribution\context-instruction.md
 
 - 실제 코드 구현·디버깅·리팩토링 — 본 스킬은 읽기 전용 내재화(완료=`숙지 완료`).
 - 새 문서·플랜 생성 — 작성 금지.
-- RX_1이 아닌 프로젝트 — 경로·역할 구조가 RX_1 전용.
+- YourProject이 아닌 프로젝트 — 경로·역할 구조가 YourProject 전용.

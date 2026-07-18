@@ -1,5 +1,6 @@
 ---
 description: Enter REVIEW mode to validate implementation
+allowed-tools: mcp__codegraph__*, Read, Glob, Grep, Write, Bash(git:*)
 ---
 
 # riper:review

@@ -63,7 +63,13 @@ if os.path.isfile(riper_state_path):
         plan_file = plan_match.group(1).strip()
         if plan_file and os.path.isfile(plan_file):
             with open(plan_file, encoding="utf-8") as f:
-                parts.append(f"\n=== 현재 플랜: {plan_file} ===\n{f.read()}")
+                _plan_lines = f.readlines()
+            _PLAN_HEAD = 80
+            _plan_head = "".join(_plan_lines[:_PLAN_HEAD])
+            _plan_tail = ""
+            if len(_plan_lines) > _PLAN_HEAD:
+                _plan_tail = f"\n... (플랜 전문 {len(_plan_lines)}줄 중 {_PLAN_HEAD}줄만 — 필요 시 Read {plan_file} 로 로드)\n"
+            parts.append(f"\n=== 현재 플랜: {plan_file} (HEAD {_PLAN_HEAD}) ===\n{_plan_head}{_plan_tail}")
 
 # cxt 주입 (토큰 절감): 최근순(mtime) + HEAD 캡 + MODE 조건
 #  - 활성(MODE != NONE): 최근 cxt 2개, 각 HEAD 60줄
@@ -119,6 +125,26 @@ except Exception:
     pass
 
 context = "\n".join(parts)
+
+# A4: 세션 시작 주입 총량 캡 — env SESSION_START_MAX_CHARS 설정 시에만 발동, 미설정이면 기존 무제한 유지
+#   CORE_RULES(선두 불변 블록)는 보존하고 초과분은 뒤쪽(state/plan/cxt/위반이력)부터 절삭함(tail 절삭)
+_max_chars = os.environ.get("SESSION_START_MAX_CHARS", "").strip()
+if _max_chars.isdigit() and int(_max_chars) > 0:
+    _cap = int(_max_chars)
+    if len(context) > _cap:
+        _orig_len = len(context)
+        # "=== 파생상태 건강도" 직전까지 = header + CORE_RULES → 항상 보존
+        _anchor = context.find("=== 파생상태 건강도")
+        if _anchor == -1:
+            _anchor = 0
+        _head = context[:_anchor]
+        _rest = context[_anchor:]
+        _marker = f"\n\n[SESSION-START-TRUNCATED] 주입 {_orig_len}자 → {_cap}자 캡(SESSION_START_MAX_CHARS). 절삭 구간 전문은 /doc-context 로 개별 로드."
+        _budget = _cap - len(_head) - len(_marker)
+        if _budget < 0:
+            _budget = 0
+        context = _head + _rest[:_budget] + _marker
+
 print(json.dumps({
     "hookSpecificOutput": {
         "hookEventName": "SessionStart",

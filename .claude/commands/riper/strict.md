@@ -1,5 +1,6 @@
 ---
 description: Enable strict RIPER protocol enforcement and display current state
+allowed-tools: mcp__codegraph__*, Read, Write, Bash(git:*)
 ---
 
 # riper:strict

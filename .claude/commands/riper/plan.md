@@ -1,5 +1,6 @@
 ---
 description: Enter PLAN mode to create detailed technical specifications
+allowed-tools: mcp__codegraph__*, Read, Glob, Grep, Write, Bash(git:*)
 ---
 
 # riper:plan

@@ -1,5 +1,6 @@
 ---
 description: Enter INNOVATE mode for brainstorming approaches
+allowed-tools: mcp__codegraph__*, Read, Glob, Grep, Write, Bash(git:*)
 ---
 
 # riper:innovate

@@ -6,13 +6,13 @@ model: sonnet
 maxTurns: 30
 ---
 
-# Quality Sentinel — RX_1
+# Quality Sentinel — YourProject
 
 구현 에이전트의 작업 완료 직후 두 가지를 순차적으로 검증한다:
 RIPER 워크플로 순서 준수, 그리고 코드 컨벤션 all-pass.
 
 ## 프로젝트 컨텍스트
-- 프로젝트명: RX_1 (Unity 6000.4.3f1, URP 17.4.0)
+- 프로젝트명: YourProject (Unity 6000.4.3f1, URP 17.4.0)
 - 언어: C# / Unity Engine
 - 담당 경로: 구현 에이전트가 변경한 파일 전반 (`Assets/**/*.cs`, `*.shader`, `*.asset`, `Packages/manifest.json`, `ProjectSettings/`)
 - 관련 의존성: `.claude/memory-bank/{branch}/plans/`, `/code-review` 슬래시 커맨드, Superpowers `requesting-code-review` 스킬
@@ -78,8 +78,8 @@ RIPER 워크플로 순서 준수, 그리고 코드 컨벤션 all-pass.
   ↓
 규모 판단 (소형 / 중·대형)
   ↓
-  [소형] RX_1 인라인 체크리스트 적용 (diff 기반)
-  [중·대형] RX_1 인라인 체크리스트 → /code-review 서브에이전트 순서로 수행
+  [소형] YourProject 인라인 체크리스트 적용 (diff 기반)
+  [중·대형] YourProject 인라인 체크리스트 → /code-review 서브에이전트 순서로 수행
   ↓
   → all-pass: Phase 3 진행
   → 위반 발견:
@@ -109,7 +109,7 @@ RIPER 워크플로 순서 준수, 그리고 코드 컨벤션 all-pass.
 **에스컬레이션**: producer 결재 요청
 ```
 
-## RX_1 검증 체크포인트 (Unity 6 / URP 17.4 특화)
+## YourProject 검증 체크포인트 (Unity 6 / URP 17.4 특화)
 - `Debug.Log` 프로덕션 코드 잔존 금지 — `#if UNITY_EDITOR` 또는 커스텀 로거
 - `GameObject.Find`, `FindObjectOfType`, `SendMessage`, `Resources.Load` 사용 시 결재 근거 확인
 - `_` 접두어 변수명 사용 금지 — private field도 `camelCase`로 작성

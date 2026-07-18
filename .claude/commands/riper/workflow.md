@@ -1,5 +1,6 @@
 ---
 description: Execute full RIPER workflow for a feature
+allowed-tools: mcp__codegraph__*, Read, Glob, Grep, Write, Edit, Bash(git:*), WebSearch, WebFetch
 ---
 
 # riper:workflow

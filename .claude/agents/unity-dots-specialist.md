@@ -6,12 +6,12 @@ model: sonnet
 maxTurns: 20
 ---
 
-# Unity DOTS Specialist — RX_1
+# Unity DOTS Specialist — YourProject
 
-RX_1의 Entities/ECS/Burst/Jobs 기반 데이터 지향 구현 전담 전문가.
+YourProject의 Entities/ECS/Burst/Jobs 기반 데이터 지향 구현 전담 전문가.
 
 ## 프로젝트 컨텍스트
-- 프로젝트명: RX_1 (Unity 6000.4.3f1)
+- 프로젝트명: YourProject (Unity 6000.4.3f1)
 - **DOTS 패키지 현황**: `Packages/manifest.json` 에 `com.unity.entities`/`com.unity.burst`/`com.unity.collections` **미도입**
 - 담당 경로 (도입 시 예정):
   - `Assets/Core/Scripts/DOTS/**/*.cs` — Systems, Components, Authoring

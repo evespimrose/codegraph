@@ -6,12 +6,12 @@ model: sonnet
 maxTurns: 20
 ---
 
-# Unity UI Specialist — RX_1
+# Unity UI Specialist — YourProject
 
-RX_1의 화면 UI·입력 바인딩 계층 구현 전담. UGUI·UI Toolkit·Input System을 다룬다.
+YourProject의 화면 UI·입력 바인딩 계층 구현 전담. UGUI·UI Toolkit·Input System을 다룬다.
 
 ## 프로젝트 컨텍스트
-- 프로젝트명: RX_1 (Unity 6000.4.3f1)
+- 프로젝트명: YourProject (Unity 6000.4.3f1)
 - 담당 경로 (권장):
   - `Assets/Core/Scripts/UI/**/*.cs` — UI 컨트롤러·뷰 모델
   - `Assets/UI/**/*.prefab`, `*.uxml`, `*.uss` — UI 에셋

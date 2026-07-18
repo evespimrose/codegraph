@@ -38,6 +38,25 @@ description: Use when the user invokes /sync or asks to install/propagate THIS r
 
 **force-only 경로** (`manifest.txt`의 `!` 접두 — `.claude/memory-bank`·`memory/MEMORY.md`): mixed/soft는 `skipped-protected`로 **건너뛰어 타깃 상태를 보존**하고, `--force`만 백업 후 덮어쓴다. ⚠️ `--force`는 이 repo의 `.riper-state`·플랜·세션 메모리를 타깃에 밀어넣으므로(타깃 RIPER 상태 덮어씀) 의도적 하드 리셋일 때만 사용.
 
+## 스코프 플래그 — `-AgentFolders` (별칭 `-a`, 보조 에이전트/도구 폴더만)
+
+기본 `manifest.txt` 대신 **`manifest.agents.txt`** 를 써서 보조 에이전트/도구 스캐폴딩 폴더 **`.agents .codex .cursor .trae .zcode`** 만 동기화한다(1차 `.claude`는 일반 sync가 담당). `.mcp.json` 생성도 생략. `-Mode`/`-Targets`/`-DryRun`/`-NoBackup`과 조합 가능.
+
+**재귀 복사 시 런타임·머신로컬 처리 (`sync.ps1`에서 강제 — 모든 재귀 폴더 항목에 상시 적용)**:
+
+| 대상 | 처리 |
+|---|---|
+| `<dot폴더>/memory-bank/` · `<dot폴더>/state/` | **완전 제외** (RIPER 상태·위반로그·토글 등) |
+| `settings.json` | **제외** (설치/프로젝트 설정) |
+| `settings.local.json` | **`permissions` 키만 빼고 동기화** — 이식 가능한 선호(enabled/disabledMcpjsonServers)는 유지, 로컬 경로 바인딩 allow 규칙은 드롭 |
+
+`.agents`·`.zcode`가 `.claude` 전체 미러라도 위 런타임 상태는 타깃에 전파되지 않는다. 이 규칙은 `-a` 뿐 아니라 일반 sync의 `.agents` 재귀에도 상시 적용된다.
+
+**예 (로컬 → 사용자 홈 글로벌, mixed, 미리보기)**:
+```
+powershell -NoProfile -ExecutionPolicy Bypass -File .claude/skills/sync/scripts/sync.ps1 -a -Targets "$HOME" -Mode mixed -DryRun
+```
+
 ## 실행 워크플로 (메인 직접 — 서브에이전트 금지)
 
 작업은 번들 스크립트 [`scripts/sync.ps1`](scripts/sync.ps1)가 수행하고, 메인 에이전트가 오케스트레이션한다.
@@ -62,7 +81,7 @@ description: Use when the user invokes /sync or asks to install/propagate THIS r
 `--force`는 광범위 덮어쓰기이므로 실행 전 사용자에게 한 번 확인한다(Auto-Clarity: 비가역).
 
 ### 특정 타깃만
-`list.txt` 대신 직접 지정: `... sync.ps1 -Mode mixed -Targets "D:\Fork\RX_1"`
+`list.txt` 대신 직접 지정: `... sync.ps1 -Mode mixed -Targets "D:\Projects\YourProject"`
 
 ## 주의
 

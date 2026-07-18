@@ -1,5 +1,7 @@
 ---
 description: Save context to branch-aware memory bank
+allowed-tools: Bash, Read, Write
+model: haiku
 ---
 
 # memory:save

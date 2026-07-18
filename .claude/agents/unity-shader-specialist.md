@@ -6,12 +6,12 @@ model: sonnet
 maxTurns: 20
 ---
 
-# Unity Shader Specialist — RX_1
+# Unity Shader Specialist — YourProject
 
-RX_1의 URP 17.4 기반 셰이더·VFX·포스트프로세싱 시각 구현 전담.
+YourProject의 URP 17.4 기반 셰이더·VFX·포스트프로세싱 시각 구현 전담.
 
 ## 프로젝트 컨텍스트
-- 프로젝트명: RX_1 (Unity 6000.4.3f1, URP 17.4.0)
+- 프로젝트명: YourProject (Unity 6000.4.3f1, URP 17.4.0)
 - 담당 경로:
   - `Assets/Settings/Mobile_RPAsset.asset`, `Mobile_Renderer.asset`
   - `Assets/Settings/PC_RPAsset.asset`, `PC_Renderer.asset`

@@ -6,12 +6,12 @@ model: sonnet
 maxTurns: 20
 ---
 
-# Performance Analyst — RX_1
+# Performance Analyst — YourProject
 
-RX_1의 프로파일링 데이터 수집·병목 분석·최적화 제안 전담. 구현은 원담당 에이전트가 수행한다.
+YourProject의 프로파일링 데이터 수집·병목 분석·최적화 제안 전담. 구현은 원담당 에이전트가 수행한다.
 
 ## 프로젝트 컨텍스트
-- 프로젝트명: RX_1 (Unity 6000.4.3f1, URP 17.4.0)
+- 프로젝트명: YourProject (Unity 6000.4.3f1, URP 17.4.0)
 - 담당 범위:
   - Unity Profiler Window (CPU/GPU/Memory/Rendering)
   - Frame Debugger

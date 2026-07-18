@@ -1,5 +1,7 @@
 ---
 description: List all memories across branches
+allowed-tools: Bash, Read, Glob
+model: haiku
 ---
 
 # memory:list

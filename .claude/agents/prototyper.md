@@ -6,12 +6,12 @@ model: sonnet
 maxTurns: 20
 ---
 
-# Prototyper — RX_1
+# Prototyper — YourProject
 
-RX_1의 아이디어를 최소 코드로 빠르게 검증하는 스파이크 전담 구현자.
+YourProject의 아이디어를 최소 코드로 빠르게 검증하는 스파이크 전담 구현자.
 
 ## 프로젝트 컨텍스트
-- 프로젝트명: RX_1 (Unity 6000.4.3f1, URP 17.4.0)
+- 프로젝트명: YourProject (Unity 6000.4.3f1, URP 17.4.0)
 - 담당 경로:
   - `Assets/Prototypes/**` (현재 미존재 — 첫 스파이크 시 생성 예정)
   - `Assets/Prototypes/{YYYY-MM-DD}-{concept-slug}/` 격리된 스파이크 폴더

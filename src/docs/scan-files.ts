@@ -53,10 +53,12 @@ function gitMarkdownFiles(root: string): string[] | null {
     // matching what the code scanner considers "visible".
     // -c core.quotepath=false: emit non-ASCII paths as-is instead of \octal escapes.
     // -z: NUL-terminated output so paths with any whitespace are safe.
+    // windowsHide: Windows 11 hands the allocated console to the default
+    // terminal, so without it every scan pops a window and steals focus.
     const out = execFileSync(
       'git',
       ['-C', root, '-c', 'core.quotepath=false', 'ls-files', '-z', '--cached', '--others', '--exclude-standard'],
-      { encoding: 'utf-8', maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'ignore'] }
+      { encoding: 'utf-8', maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'ignore'], windowsHide: true }
     );
     const files: string[] = [];
     for (const rel of out.split('\0')) {

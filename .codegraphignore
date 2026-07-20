@@ -1,0 +1,16 @@
+﻿# Auto-seeded by KIT. Index code only.
+# gitignore syntax, additive on top of codegraph built-ins (node_modules/, dist/, .git/).
+
+# Not source in any ecosystem: IDE/project metadata and build junk.
+*.csproj
+*.sln
+*.suo
+*.user
+*.min.js
+*.min.css
+*.map
+bin/
+obj/
+build/
+dist/
+out/

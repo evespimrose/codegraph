@@ -186,6 +186,19 @@ export interface Node {
 }
 
 /**
+ * How an edge came to exist, ordered from most to least trustworthy.
+ *
+ * `tree-sitter` covers every direct source parse, including the format-specific
+ * extractors (DFM, Liquid, MyBatis, Svelte, Vue) that don't literally use
+ * tree-sitter — the distinction that matters downstream is parsed-from-source
+ * versus derived. `resolver` is a confident cross-file match (import,
+ * exact-match, qualified-name, file-path, framework); `heuristic` is a fuzzy or
+ * synthesized guess (fuzzy/instance-method resolution, callback synthesis,
+ * basename fallback).
+ */
+export type EdgeProvenance = 'tree-sitter' | 'scip' | 'resolver' | 'heuristic';
+
+/**
  * An edge representing a relationship between two nodes
  */
 export interface Edge {
@@ -208,7 +221,7 @@ export interface Edge {
   column?: number;
 
   /** How this edge was created */
-  provenance?: 'tree-sitter' | 'scip' | 'heuristic';
+  provenance?: EdgeProvenance;
 }
 
 /**

@@ -101,7 +101,15 @@ export function linkDocEdges(db: SqliteDatabase, queries: QueryBuilder): DocLink
   // "인물_강은휘.md"), so resolve them against full paths the same way
   // findBacklinks does (exact, then basename fallback).
   const basenameIndex = new Map<string, string>();
-  for (const r of rows) basenameIndex.set(baseName(r.file_path), normPath(r.file_path));
+  // A basename claimed by two files makes the index lossy — the second set()
+  // wins and the link silently points at whichever file was scanned last. Those
+  // resolutions are guesses, so they get tagged `heuristic` below.
+  const collisions = new Set<string>();
+  for (const r of rows) {
+    const name = baseName(r.file_path);
+    if (basenameIndex.has(name)) collisions.add(name);
+    basenameIndex.set(name, normPath(r.file_path));
+  }
 
   // 1) One `doc` node per Markdown file. Raw INSERT OR REPLACE mirrors how
   //    indexMarkdown creates concept nodes: `language='markdown'` is outside
@@ -127,7 +135,8 @@ export function linkDocEdges(db: SqliteDatabase, queries: QueryBuilder): DocLink
   for (const r of rows) {
     const src = normPath(r.file_path);
     for (const link of parseRefs(r.doc_links)) {
-      const resolved = basenameIndex.get(link) ?? basenameIndex.get(baseName(link));
+      const matched = basenameIndex.has(link) ? link : baseName(link);
+      const resolved = basenameIndex.get(matched);
       if (!resolved) {
         skipped++;
         continue;
@@ -137,7 +146,7 @@ export function linkDocEdges(db: SqliteDatabase, queries: QueryBuilder): DocLink
         source: docId(src),
         target: docId(resolved),
         kind: 'doc_link',
-        provenance: 'heuristic',
+        provenance: collisions.has(matched) ? 'heuristic' : 'resolver',
         metadata: {
           synthesizedBy: 'doc-links-linker',
           registeredAt: 'src/index.ts:linkDocEdges',

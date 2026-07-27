@@ -6,7 +6,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { Node, UnresolvedReference, Edge } from '../types';
+import { Node, UnresolvedReference, Edge, EdgeProvenance } from '../types';
 import { QueryBuilder } from '../db/queries';
 import {
   UnresolvedRef,
@@ -173,6 +173,21 @@ const CPP_BUILT_INS = new Set([
   'make_unique', 'make_shared', 'make_pair',
   'move', 'forward', 'swap',
 ]);
+
+/**
+ * Trust rating per resolution strategy. `fuzzy` and `instance-method` guess;
+ * the rest pin the target through an import, a qualified name, or a file path.
+ * Exhaustive by type, so adding a strategy fails to compile until it is rated.
+ */
+const PROVENANCE_BY_STRATEGY: Record<ResolvedRef['resolvedBy'], EdgeProvenance> = {
+  'exact-match': 'resolver',
+  import: 'resolver',
+  'qualified-name': 'resolver',
+  framework: 'resolver',
+  'file-path': 'resolver',
+  fuzzy: 'heuristic',
+  'instance-method': 'heuristic',
+};
 
 /**
  * Reference Resolver
@@ -673,6 +688,7 @@ export class ReferenceResolver {
         kind,
         line: ref.original.line,
         column: ref.original.column,
+        provenance: PROVENANCE_BY_STRATEGY[ref.resolvedBy],
         metadata: {
           confidence: ref.confidence,
           resolvedBy: ref.resolvedBy,

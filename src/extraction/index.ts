@@ -14,6 +14,7 @@ import {
   FileRecord,
   ExtractionResult,
   ExtractionError,
+  Edge,
 } from '../types';
 import { QueryBuilder } from '../db/queries';
 import { extractFromSource } from './tree-sitter';
@@ -1356,9 +1357,14 @@ export class ExtractionOrchestrator {
     // Filter edges to only reference nodes that were actually inserted
     if (result.edges.length > 0) {
       const insertedIds = new Set(validNodes.map((n) => n.id));
-      const validEdges = result.edges.filter(
-        (e) => insertedIds.has(e.source) && insertedIds.has(e.target)
-      );
+      const validEdges: Edge[] = [];
+      for (const edge of result.edges) {
+        if (!insertedIds.has(edge.source) || !insertedIds.has(edge.target)) continue;
+        // Everything reaching this path was parsed straight out of the source
+        // file. An extractor that already set its own provenance keeps it.
+        edge.provenance ??= 'tree-sitter';
+        validEdges.push(edge);
+      }
       if (validEdges.length > 0) {
         this.queries.insertEdges(validEdges);
       }

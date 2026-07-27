@@ -97,13 +97,38 @@ describe('doc-links-linking', () => {
     const callees = cg.getCallees(bId!).map((r) => r.node.id);
     expect(callees).toContain(cId);
 
-    // edge direction citing → cited, with heuristic provenance + synthesizedBy
+    // edge direction citing → cited. Every basename here is unique, so the
+    // resolution is unambiguous and earns `resolver` rather than `heuristic`.
     const edge = db
       .prepare("SELECT * FROM edges WHERE kind = 'doc_link' AND source = ? AND target = ?")
       .get(aId, bId) as { provenance?: string; metadata?: string } | undefined;
     expect(edge).toBeTruthy();
-    expect(edge!.provenance).toBe('heuristic');
+    expect(edge!.provenance).toBe('resolver');
     expect(JSON.parse(edge!.metadata ?? '{}').synthesizedBy).toBe('doc-links-linker');
+
+    cg.close();
+  });
+
+  // (a2) two files share a basename → the index keeps only the last one, so the
+  //      link is a guess and must be downgraded to `heuristic`.
+  it('tags links through a colliding basename as heuristic', () => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cg-doclink-ambig-'));
+    const cg = CodeGraph.initSync(tmpDir);
+    const { db, queries } = getDbAndQueries(cg);
+    setDocsEnabled(db, true);
+
+    seedDoc(db, 'guide.md', ['shared.md']);
+    seedDoc(db, 'one/shared.md', null);
+    seedDoc(db, 'two/shared.md', null);
+
+    expect(linkDocEdges(db, queries).edges).toBe(1);
+
+    const srcId = docNodeId(db, 'guide.md');
+    const edge = db
+      .prepare("SELECT * FROM edges WHERE kind = 'doc_link' AND source = ?")
+      .get(srcId) as { provenance?: string } | undefined;
+    expect(edge).toBeTruthy();
+    expect(edge!.provenance).toBe('heuristic');
 
     cg.close();
   });

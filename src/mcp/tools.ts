@@ -1826,12 +1826,12 @@ export class ToolHandler {
 
     // Aggregate callers across all matching symbols
     const seen = new Set<string>();
-    const allCallers: Node[] = [];
+    const allCallers: Array<{ node: Node; provenance?: Edge['provenance'] }> = [];
     for (const node of allMatches.nodes) {
       for (const c of cg.getCallers(node.id)) {
         if (!seen.has(c.node.id)) {
           seen.add(c.node.id);
-          allCallers.push(c.node);
+          allCallers.push({ node: c.node, provenance: c.edge?.provenance });
         }
       }
     }
@@ -1861,12 +1861,12 @@ export class ToolHandler {
 
     // Aggregate callees across all matching symbols
     const seen = new Set<string>();
-    const allCallees: Node[] = [];
+    const allCallees: Array<{ node: Node; provenance?: Edge['provenance'] }> = [];
     for (const node of allMatches.nodes) {
       for (const c of cg.getCallees(node.id)) {
         if (!seen.has(c.node.id)) {
           seen.add(c.node.id);
-          allCallees.push(c.node);
+          allCallees.push({ node: c.node, provenance: c.edge?.provenance });
         }
       }
     }
@@ -3877,13 +3877,19 @@ export class ToolHandler {
     return lines.join('\n');
   }
 
-  private formatNodeList(nodes: Node[], title: string): string {
-    const lines: string[] = [`## ${title} (${nodes.length} found)`, ''];
+  private formatNodeList(
+    entries: Array<{ node: Node; provenance?: Edge['provenance'] }>,
+    title: string
+  ): string {
+    const lines: string[] = [`## ${title} (${entries.length} found)`, ''];
 
-    for (const node of nodes) {
+    for (const { node, provenance } of entries) {
       const location = node.startLine ? `:${node.startLine}` : '';
+      // Indexes built before provenance tagging carry none — stay silent rather
+      // than print "undefined".
+      const tag = provenance ? ` [${provenance}]` : '';
       // Compact: just name, kind, location
-      lines.push(`- ${node.name} (${node.kind}) - ${node.filePath}${location}`);
+      lines.push(`- ${node.name} (${node.kind}) - ${node.filePath}${location}${tag}`);
     }
 
     return lines.join('\n');

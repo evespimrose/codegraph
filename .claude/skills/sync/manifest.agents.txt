@@ -4,7 +4,7 @@
 # These are the AUXILIARY agent / tool scaffolding folders. Primary .claude is NOT here —
 # that is handled by the default manifest.txt. Use -a to push just these to a target
 # (e.g. the user home for a global install):
-#   sync.ps1 -a -Targets "$HOME" -Mode mixed
+#   sync.ps1 -a -Targets "C:\Users\Jang" -Mode mixed
 #
 # Runtime / machine-local handling during recursion (enforced in sync.ps1, applies to
 # every recursive folder entry — not configurable here):

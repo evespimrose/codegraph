@@ -15,6 +15,11 @@
             "type": "command",
             "command": "bash .claude/hooks/compress-output.sh --pending",
             "timeout": 15
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/violation-pattern-digest.sh",
+            "timeout": 10
           }
         ]
       }
@@ -76,6 +81,11 @@
             "type": "command",
             "command": "bash .claude/hooks/turn-budget-gate.sh",
             "timeout": 5
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/strict-arm-reminder.sh",
+            "timeout": 5
           }
         ]
       }
@@ -101,6 +111,11 @@
           {
             "type": "command",
             "command": "bash .claude/hooks/gate-check.sh",
+            "timeout": 5
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/strategic-compact-reminder.sh",
             "timeout": 5
           }
         ]

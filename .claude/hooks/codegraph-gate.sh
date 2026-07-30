@@ -37,21 +37,37 @@ fi
 # 소스 코드 파일 패턴 (.cs, .py, .ts 등)
 SOURCE_PATTERN='\.(cs|py|ts|tsx|js|jsx|java|cpp|c|h|hpp|go|rs|swift|kt)$'
 
+# 게이트를 여는 "탐색형" codegraph 도구 화이트리스트.
+#   codegraph_status 는 인덱스 헬스(파일·노드 수)만 돌려주고 심볼 위치를 주지 않음 → 의도적 제외.
+#   과거 'codegraph_' 부분일치 판정이라 status 한 방으로 Read 게이트가 열리는 탈주로가 있었음.
+LOCATING_TOOLS='codegraph_(context|search|node|explore|callers|callees|impact|trace|files|backlinks)'
+
 # codegraph 선행 여부 확인 헬퍼
+#   인정 조건: 최근 창에 탐색형 도구가 있고 그 호출이 실패(outcome=failed)가 아닐 것.
+#   실패 조회("No results found")도 위치를 못 얻은 것이라 게이트를 열면 안 됨 — 같은 탈주로임.
+#   로그 형식: <epoch> <TOOL> <CTX> <outcome> (필드 4개 미만인 구버전 줄은 outcome 미상 → 통과 허용)
 check_codegraph_recent() {
-  if [ -f "$HISTORY_FILE" ]; then
-    RECENT=$(tail -n "$WINDOW_SIZE" "$HISTORY_FILE" 2>/dev/null || echo "")
-    if echo "$RECENT" | grep -q 'codegraph_'; then
-      return 0  # codegraph 선행 있음
-    fi
+  [ -f "$HISTORY_FILE" ] || return 1
+  RECENT=$(tail -n "$WINDOW_SIZE" "$HISTORY_FILE" 2>/dev/null || echo "")
+  echo "$RECENT" | awk -v pat="$LOCATING_TOOLS" '$2 ~ pat && $4 != "failed" { found = 1 } END { exit !found }'
+}
+
+# 게이트 회피 시도 기록 — 최근 창에 codegraph_status 만 있고 탐색형이 없을 때 고정 마커를 남김.
+#   기존 Read:<경로> 로그는 경로마다 달라 패턴 집계(violation-pattern-digest)에 안 잡히므로 별도로 적음.
+note_evasion() {
+  local recent
+  recent=$(tail -n "$WINDOW_SIZE" "$HISTORY_FILE" 2>/dev/null || echo "")
+  if echo "$recent" | awk '$2 == "codegraph_status" { found = 1 } END { exit !found }'; then
+    echo "$(date +%s) ${CTX_LABEL} gate-evasion:codegraph_status-is-not-locating" >> "$VIOLATION_FILE"
   fi
-  return 1  # codegraph 선행 없음
 }
 
 # 공통 결정 로직: 서브에이전트/strict → 하드 deny, 우회토큰 → allow, 그 외 → deny+AskUserQuestion 4택
 # $1=violation-code(로그용) $2=reason(짧은 한글 사유) $3=ask_msg(4택 유도 전문)
 emit_decision() {
   local vcode="$1" reason="$2" ask_msg="$3"
+
+  note_evasion
 
   if [ -n "$AGENT_ID" ]; then
     python3 -c "
@@ -136,6 +152,11 @@ ${trail_block}
      먼저 조사한 뒤 Glob/Grep/Read로 원 목표를 재시도한다.
   3. 거부(manual stop) — 여기서 작업을 중단하고 사용자에게 보고한다.
   4. 커스텀 답변 — 자유 응답으로 사용자가 직접 방향을 재지정한다.
+
+게이트를 여는 것은 "위치를 실제로 얻은" 탐색형 호출뿐이다:
+  codegraph_context / search / node / explore / callers / callees / impact / trace / files / backlinks
+codegraph_status 는 인덱스 헬스만 돌려주므로 게이트를 열지 못한다. 결과가 비어 있는(실패) 조회도 마찬가지다.
+게이트 통과만을 목적으로 하는 형식적 호출을 하지 말 것 — 실제로 대상을 찾는 질의를 하라.
 
 사용자 응답 전까지 이 명령을 재시도하지 말 것.
 EOF

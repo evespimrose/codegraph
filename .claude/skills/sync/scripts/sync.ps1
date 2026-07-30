@@ -4,15 +4,11 @@
   Modes (-Mode):
     mixed (default) : copy files missing in the target; for files that DIFFER,
                       back up the target copy under <target>\.sync-backup\<stamp>\
-                      then overwrite (unless -NoBackup). Identical files are skipped.
+                      then overwrite. Identical files are skipped.
                       -DryRun reports the differing files WITHOUT writing anything.
     force           : overwrite every manifest file in every target. Overwritten
                       files are auto-backed-up first (unless -NoBackup). No prompts.
-    soft            : copy only files MISSING in the target; never overwrite (no backup applies).
-
-  -NoBackup applies uniformly to mixed and force (skips the <target>\.sync-backup\<stamp>\
-  copy before every overwrite). Irreversible within this tool once applied — the only way
-  back is the target's own external history (git, etc.), so use deliberately.
+    soft            : copy only files MISSING in the target; never overwrite.
 
   Scope:
     -AgentFolders (-a) : sync only the auxiliary agent/tool scaffolding folders
@@ -244,7 +240,7 @@ foreach($t in $targetRoots){
   }
 
   $r.Conflicts = $conflicts.ToArray()
-  if(($Mode -ne 'soft') -and (-not $DryRun) -and ($r.Overwritten -gt 0) -and (-not $NoBackup)){
+  if(($Mode -ne 'soft') -and (-not $DryRun) -and ($r.Overwritten -gt 0) -and (-not ($Mode -eq 'force' -and $NoBackup))){
     $r.BackupDir = Join-Path $t ".sync-backup\$stamp"
   }
   $report.Add([pscustomobject]$r)

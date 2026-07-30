@@ -1,3 +1,4 @@
-green
-checked_at=2026-07-07T07:23:32Z
-git_sha=94df395
+yellow
+yellow cxt-empty: 주입 대상 cxt가 docs/contextmd/·docs/cxtmd/·cxt/ 어디에도 없음
+checked_at=2026-07-30T08:50:47Z
+git_sha=2363e3c

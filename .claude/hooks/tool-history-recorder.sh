@@ -31,7 +31,8 @@ try:
     text = resp if isinstance(resp, str) else json.dumps(resp, ensure_ascii=False)
 except Exception:
     text = str(resp)
-if re.search(r'(?i)no (results?|matches?|files?|sessions?|context)\s*(found)?\b|not found\b|0 found\b', text):
+# '0 found' 앞에 숫자가 오면 실제로는 10·20건 성공임 — 선행 숫자 배제로 오판 차단
+if re.search(r'(?i)no (results?|matches?|files?|sessions?|context)\s*(found)?\b|not found\b|(?<![0-9])0 found\b', text):
     print('failed'); sys.exit(0)
 print('ok')
 " 2>/dev/null || echo "unknown")

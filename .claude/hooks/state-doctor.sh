@@ -48,15 +48,12 @@ ISSUES=()                 # 각 항목: "level|code|detail"
 add() { ISSUES+=("$1|$2|$3"); }
 
 # ── Check 1: cxt 주입 경로 정합 (session-start glob ↔ 실제 파일 위치) ──
+# 이 목록은 session-start.sh 의 cxt_candidates 글롭과 1:1 로 맞춘다. 어긋나면 센서가
+# 정상 주입을 드리프트로 오판해(과거 docs/cxtmd 사례) 조건부 신뢰 규칙만 마모시킴.
 shopt -s nullglob
-inj=( docs/contextmd/cxt*.md cxt/*.md )
+inj=( docs/contextmd/cxt*.md docs/cxtmd/cxt*.md cxt/*.md )
 if [ ${#inj[@]} -eq 0 ]; then
-  alt=( docs/cxtmd/cxt*.md )
-  if [ ${#alt[@]} -gt 0 ]; then
-    add yellow cxt-path-drift "session-start는 docs/contextmd/를 주입하나 실제 cxt는 docs/cxtmd/(${#alt[@]}개) — 경로 통일 필요"
-  else
-    add yellow cxt-empty "주입 대상 cxt가 docs/contextmd/·cxt/ 어디에도 없음"
-  fi
+  add yellow cxt-empty "주입 대상 cxt가 docs/contextmd/·docs/cxtmd/·cxt/ 어디에도 없음"
 fi
 shopt -u nullglob
 

@@ -1,0 +1,5 @@
+MODE=EXECUTE
+TASK=마스터플랜을 기준으로 01번부터 진행해.
+PLAN_FILE=.claude/memory-bank/main/plans/2026-07-24-graphify-features-01-provenance-tagging.md
+BRANCH=main
+STARTED=2026-07-27

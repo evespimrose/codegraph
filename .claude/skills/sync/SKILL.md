@@ -54,7 +54,7 @@ description: Use when the user invokes /sync or asks to install/propagate THIS r
 
 **예 (로컬 → 사용자 홈 글로벌, mixed, 미리보기)**:
 ```
-powershell -NoProfile -ExecutionPolicy Bypass -File .claude/skills/sync/scripts/sync.ps1 -a -Targets "C:\Users\Jang" -Mode mixed -DryRun
+powershell -NoProfile -ExecutionPolicy Bypass -File .claude/skills/sync/scripts/sync.ps1 -a -Targets "$HOME" -Mode mixed -DryRun
 ```
 
 ## 실행 워크플로 (메인 직접 — 서브에이전트 금지)
@@ -81,7 +81,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .claude/skills/sync/scripts/
 `--force`는 광범위 덮어쓰기이므로 실행 전 사용자에게 한 번 확인한다(Auto-Clarity: 비가역).
 
 ### 특정 타깃만
-`list.txt` 대신 직접 지정: `... sync.ps1 -Mode mixed -Targets "D:\Fork\RX_1"`
+`list.txt` 대신 직접 지정: `... sync.ps1 -Mode mixed -Targets "D:\Projects\YourProject"`
 
 ## 주의
 

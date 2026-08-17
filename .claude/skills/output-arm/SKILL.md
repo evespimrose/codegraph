@@ -64,6 +64,25 @@ description: Use when the user invokes /output-arm on|off|status, or to apply th
 - 끝에 메인엔 그 문서로의 **링크 한 줄 + `XX 완료`**만.
 - **대량저작 임계(온디맨드 원칙)**: 예상 산출물 ≥ 8K자(≈2K tok)는 메인이 직접 Write하지 않고 writer 서브에이전트 디스패치를 제안(manual 게이트 '초대형' 예외) — Write 인자도 가시출력과 동일하게 메인 윈도우에 실리므로(2026-07-06 실측), 대량 저작 토큰은 서브 컨텍스트에서 소화시키고 메인엔 링크만 남긴다.
 
+### 저작 간접화 — `emit-output.sh` (M3, 2026-08-15)
+
+내용을 3등급으로 나눠 **A등급은 서브에이전트도 없이 스크립트가 직접 조립**한다(콜드스타트 0):
+
+| 등급 | 성격 | 조립 주체 | 실측 비중(5건 샘플) |
+|---|---|---|---|
+| A | 기계 도출 가능 — diff·변경파일·날짜·BLK | `emit-output.sh`가 자동 조립 | ~73% |
+| B | 판단 필요하나 짧음(결론·근거 3줄 이내) | 메인이 `--note` 인자로 전달 | ~8% |
+| C | 긴 서사·설계 논증 | 사람/별도 세션이 직접 저작 | ~20% |
+
+```bash
+.claude/skills/output-arm/scripts/emit-output.sh \
+  --task "<1문장>" --blk BLK-XXX --source-turns <N> [--note "<B등급 3줄 이내>"] [--dry-run]
+```
+- `--blk`는 `BLK-\d+` 형식만 허용(비코드 산출물은 `BLK-000`) — 아니면 즉시 실패(M2: 다른 값은 codegraph `hits.blk`가 null로 유실).
+- A등급 필드(date/project/links/keywords/diff)는 `git diff --stat`에서 자동 조립, `docs/output/` 자체는 자기참조 방지로 diff 스캔에서 제외.
+- **8K자 임계 우선순위**: A등급 비중이 높은 산출물(실행 보고서 등)은 서브에이전트 디스패치보다 `emit-output.sh` 우선 — 콜드스타트 자체가 없다. C등급 서사가 많은 산출물만 서브에이전트/직접 저작 고려.
+- 기존 `Write` 경로는 폐지되지 않음(emit은 추가 경로, 폴백 유지).
+
 ## 민감파일 안전장치 (Atom 6)
 
 docs/output 적재·파일 이동/압축 시:

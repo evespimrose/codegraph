@@ -67,7 +67,7 @@ import json, sys
 violation, ctx = sys.argv[1], sys.argv[2]
 print(json.dumps({'hookSpecificOutput': {'hookEventName': 'PreToolUse', 'permissionDecision': 'deny',
   'permissionDecisionReason': f'Sonar Protocol L1: 서브에이전트 PowerShell 우회 차단 ({violation}) [{ctx}]',
-  'additionalContext': '⛔ SONAR GUARD L1: 서브에이전트는 탐색 우회 불가. codegraph_* 도구를 먼저 사용할 것.'}}))
+  'additionalContext': '⛔ SONAR GUARD L1: 서브에이전트는 탐색 우회 불가. `codegraph` CLI(Bash, MCP 아님)를 먼저 사용할 것.'}}))
 " "$VIOLATION" "$CTX_LABEL"
   exit 0
 fi
@@ -79,7 +79,7 @@ import json, sys
 violation = sys.argv[1]
 print(json.dumps({'hookSpecificOutput': {'hookEventName': 'PreToolUse', 'permissionDecision': 'deny',
   'permissionDecisionReason': f'Sonar Protocol L1 (strict): PowerShell 우회 차단 ({violation})',
-  'additionalContext': 'STRICT 모드 — codegraph_* 선행 후 Glob/Grep 도구 사용.'}}))
+  'additionalContext': 'STRICT 모드 — `codegraph` CLI(Bash, MCP 아님) 선행 후 Glob/Grep 도구 사용.'}}))
 " "$VIOLATION"
   exit 0
 fi
@@ -107,8 +107,9 @@ Bash와 동일한 규칙 적용 — PowerShell은 시스템 작업(설치, 빌�
   1. 허용 — 원래 명령을 그대로 승인하고 진행. 승인 시 먼저
      printf '%s' \"사용자 승인: <사유>\" > .claude/state/sonar-override
      로 1회성 우회 토큰을 기록한 뒤 원래 명령을 재시도한다.
-  2. codegraph 강제(회귀 및 재시도) — 이 시도를 취소하고 codegraph_context/codegraph_search로
-     먼저 조사한 뒤 Glob/Grep/Read로 원 목표를 재시도한다.
+  2. codegraph 강제(회귀 및 재시도) — 이 시도를 취소하고 `codegraph context "<intent>" -p <root>`
+     또는 `codegraph search "<symbol>" -p <root>`(Bash로 직접 호출, MCP 아님)로 먼저 조사한 뒤
+     Glob/Grep/Read로 원 목표를 재시도한다.
   3. 거부(manual stop) — 여기서 작업을 중단하고 사용자에게 보고한다.
   4. 커스텀 답변 — 자유 응답으로 사용자가 직접 방향을 재지정한다.
 

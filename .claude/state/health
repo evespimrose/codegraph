@@ -1,4 +1,6 @@
 yellow
 yellow cxt-empty: 주입 대상 cxt가 docs/contextmd/·docs/cxtmd/·cxt/ 어디에도 없음
-checked_at=2026-07-30T08:50:47Z
-git_sha=2363e3c
+yellow riper-stale: MODE=EXECUTE 가 19일째 미종결 (STARTED=2026-07-27)
+yellow cg-stale: 소스가 codegraph DB보다 최신 (reindex 필요)
+checked_at=2026-08-14T16:00:55Z
+git_sha=203222e

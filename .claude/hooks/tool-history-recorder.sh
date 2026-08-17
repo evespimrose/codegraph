@@ -16,6 +16,52 @@ TOOL_NAME=$(echo "$INPUT" | python3 -c "import json,sys; d=json.load(sys.stdin);
 AGENT_TYPE=$(echo "$INPUT" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('agent_type',''))" 2>/dev/null || echo "")
 CTX_LABEL="${AGENT_TYPE:-MAIN}"
 
+# codegraph 는 MCP 서버가 아니라 CLI 바이너리라, 셸에서는 tool_name 이 전부 "Bash" 로만 찍힌다.
+#   codegraph-gate.sh 의 LOCATING_TOOLS 판정은 tool_name 필드에 "codegraph_<subcommand>" 형태를
+#   기대하므로(과거 MCP 툴명 규약), Bash 호출을 그 형태로 번역해 기록해야 게이트가 CLI 사용을 인식한다.
+#   Windows Git Bash 는 PATH 에 codegraph 가 아니라 codegraph.cmd(.exe) 만 있는 경우가 있어
+#   첫 토큰의 basename(확장자 무시)으로 판정 — 경로 접두사/확장자 유무와 무관하게 인식.
+#   아래 서브커맨드 목록은 codegraph-gate.sh 의 LOCATING_TOOLS 와 한 쌍 — 함께 바꿀 것.
+if [ "$TOOL_NAME" = "Bash" ]; then
+  CODEGRAPH_SUBCOMMAND=$(HOOK_INPUT="$INPUT" python3 - <<'PYEOF' 2>/dev/null || echo ""
+import os, json, re
+
+SUBCOMMANDS = ('context', 'query', 'callers', 'callees', 'impact',
+               'files', 'backlinks', 'docs', 'status')
+
+try:
+    payload = json.loads(os.environ.get('HOOK_INPUT', '') or '{}')
+except Exception:
+    print('')
+    raise SystemExit(0)
+command = (payload.get('tool_input') or {}).get('command', '') or ''
+
+# 실전 명령은 맨몸 호출이 아니라 함수정의·`cd X && ...`·파이프·환경변수 접두를 달고 온다.
+# 명령 전체를 통째로 정규식 검색하면 `echo "codegraph query"` 같은 문자열까지 오인식하므로,
+# 셸 구분자로 세그먼트를 나눈 뒤 각 세그먼트의 "실제 실행 토큰"만 검사한다.
+found = ''
+for segment in re.split(r'[;\n|&]+', command):
+    segment = segment.strip()
+    # 선행 환경변수 할당(VAR=value)은 실행 토큰이 아니므로 벗겨낸다
+    while True:
+        assignment = re.match(r'[A-Za-z_][A-Za-z0-9_]*=\S*\s+', segment)
+        if not assignment:
+            break
+        segment = segment[assignment.end():]
+    tokens = segment.split()
+    if len(tokens) < 2:
+        continue
+    # Windows 절대경로(백슬래시)도 basename 추출되도록 구분자 정규화 후 확장자 제거
+    executable = os.path.splitext(os.path.basename(tokens[0].replace(chr(92), '/')))[0]
+    if executable == 'codegraph' and tokens[1] in SUBCOMMANDS:
+        found = tokens[1]
+        break
+print(found)
+PYEOF
+)
+  [ -n "$CODEGRAPH_SUBCOMMAND" ] && TOOL_NAME="codegraph_${CODEGRAPH_SUBCOMMAND}"
+fi
+
 OUTCOME=$(echo "$INPUT" | python3 -c "
 import json, sys, re
 try:

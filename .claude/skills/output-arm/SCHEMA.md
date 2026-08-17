@@ -11,7 +11,7 @@ task: "1문장으로 무엇을 했는지"
 date: 2026-07-06
 project: claude-personal-integrated-workflow   # 레포명 또는 remote 식별자 — 절대경로 금지
 blk:
-  - "[인프라]"                                  # 또는 실제 BLK-XXX 좌표 배열
+  - "BLK-000"                                  # 비코드/인프라 산출물 예약 ID. 코드 작업이면 실제 BLK-XXX
 links:
   - "[PLAN-3](../../.claude/memory-bank/main/plans/PLAN-3-output-conveyor.md)"
 keywords: [output-conveyor, schema, compress, conclusion]   # codegraph 질의 트리거 3~7개
@@ -25,7 +25,7 @@ source_turns: 1
 | `task` | string | 1문장 요약. 검색 스니펫으로 노출됨. |
 | `date` | date | 작업일(YYYY-MM-DD). |
 | `project` | string | 레포명 또는 원격 식별자. **절대경로 금지**(머신 이식성). |
-| `blk` | string[] | BLK 좌표 배열 또는 `["[인프라]"]`. |
+| `blk` | string[] | BLK 좌표 배열. 코드 무관 산출물은 예약 ID `["BLK-000"]`(비코드/인프라). **회수 파서는 `BLK-\d+` 숫자 패턴만 인식**(2026-08-15 M2 실측 — `[인프라]`·`인프라-001` 등은 `hits.blk` null로 유실됨). 본문 2번째 줄 HTML 주석 `<!-- BLK: BLK-XXX -->`도 함께 넣어야 codegraph docs 회수 시 `hits.blk`가 채워진다(git 추적 파일에 한함). |
 | `links` | string[] | 관련 문서로의 마크다운 링크 배열. |
 | `keywords` | string[] | codegraph 질의 트리거 3~7개. 후속 세션이 이 문서를 재검색하는 통로. |
 | `compressed` | bool | `compress-output.sh` 처리 여부(Step 3에서 갱신). |
@@ -55,7 +55,7 @@ frontmatter 필수 필드 중 하나라도 없거나 `## Result`/`## Changes`/`#
 task: "output conveyor 스키마 확정"
 date: 2026-07-06
 project: claude-personal-integrated-workflow
-blk: ["[인프라]"]
+blk: ["BLK-000"]
 links:
   - "[PLAN-3](../../.claude/memory-bank/main/plans/PLAN-3-output-conveyor.md)"
 keywords: [output-conveyor, schema, conclusion, frontmatter]

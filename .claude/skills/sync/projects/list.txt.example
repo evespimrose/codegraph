@@ -4,9 +4,24 @@
 # The sync skill installs this repo's workflow scaffolding (see ../manifest.txt)
 # into each root listed below, using one of: --mixed (default) / --soft / --force.
 #
-# SETUP: copy this file to `list.txt` (which is gitignored) and add your own targets.
-#
-# Examples (edit for your machine):
-# D:\Projects\YourProject
-# C:\dev\another-project
-# /home/you/projects/your-app
+# Examples (uncomment / edit):
+# D:\Fork\RX_1
+# C:\dev\some-other-project
+# D:\Unity\codegraph
+# D:\Unity\BLADE
+# D:\Unity\RX_1
+# D:\Unity\WIKI
+# D:\Unity\Western-Salon
+# D:\Unity\Hercules
+# D:\Unity\.PRODUCT
+
+#########################################
+D:\Fork\BLADE
+D:\Fork\codegraph
+D:\Fork\novel-vault-curator
+D:\Fork\raonx-ai-workflow
+D:\Fork\RX_1
+D:\Fork\Western-Salon
+D:\Fork\WIKI
+D:\Fork\.PRODUCT
+D:\Fork\.PRODUCT-GLM

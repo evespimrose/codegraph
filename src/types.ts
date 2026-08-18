@@ -61,7 +61,8 @@ export type EdgeKind =
   | 'overrides'       // Method overrides parent method
   | 'decorates'       // Decorator applied to symbol
   | 'governs'         // Markdown doc governs a symbol
-  | 'doc_link';       // Markdown doc links to another doc (Obsidian/wiki link)
+  | 'doc_link'        // Markdown doc links to another doc (Obsidian/wiki link)
+  | 'semantically_related'; // Two docs sit close in embedding space
 
 /**
  * Node kinds belonging to the markdown graph (derived from Markdown docs),
@@ -74,9 +75,14 @@ export const MARKDOWN_NODE_KINDS: readonly NodeKind[] = ['concept', 'doc'];
 /**
  * Edge kinds belonging to the markdown graph, as opposed to the code graph.
  * `governs` = concept → code symbol; `doc_link` = doc → doc (a citing
- * Markdown file links to a cited one — forward link; reverse = backlink).
+ * Markdown file links to a cited one — forward link; reverse = backlink);
+ * `semantically_related` = doc ↔ doc inferred from embedding proximity.
  */
-export const MARKDOWN_EDGE_KINDS: readonly EdgeKind[] = ['governs', 'doc_link'];
+export const MARKDOWN_EDGE_KINDS: readonly EdgeKind[] = [
+  'governs',
+  'doc_link',
+  'semantically_related',
+];
 
 /**
  * Supported programming languages. See NODE_KINDS for why this is a

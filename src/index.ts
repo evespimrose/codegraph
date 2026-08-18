@@ -29,6 +29,7 @@ import { setCodeGraphClass } from './cg-ref';
 import { resolveDocsEnabled } from './docs/config';
 import { linkGovernsEdges } from './docs/governs-linker';
 import { linkDocEdges } from './docs/doc-links-linker';
+import { buildSemanticEdges } from './docs/semantic-edges';
 import { QueryBuilder } from './db/queries';
 import {
   isInitialized,
@@ -451,6 +452,13 @@ export class CodeGraph {
                 if (dl.nodes > 0) result.docs.docLinkNodes = dl.nodes;
                 if (dl.edges > 0) result.docs.docLinkEdges = dl.edges;
               } catch { /* best-effort: doc-link promotion never breaks the code index */ }
+              // Similarity edges over the doc nodes linkDocEdges just wrote, so
+              // this MUST follow it: that pass re-inserts every doc node, which
+              // cascade-deletes the edges built here. Opt-in; no-op when off.
+              try {
+                const se = buildSemanticEdges(this.db.getDb(), this.queries);
+                if (se.created > 0) result.docs.semanticEdges = se.created;
+              } catch { /* best-effort: semantic edges never break the code index */ }
             }
           } catch { /* docs are best-effort; never fail the code index */ }
         }
@@ -557,6 +565,11 @@ export class CodeGraph {
           try {
             linkDocEdges(this.db.getDb(), this.queries);
           } catch { /* best-effort: doc-link relink never breaks sync */ }
+          // The relink above cascade-deleted these, so rebuild even though no
+          // doc changed — the fingerprint check alone would call it up to date.
+          try {
+            buildSemanticEdges(this.db.getDb(), this.queries);
+          } catch { /* best-effort: semantic edges never break sync */ }
         }
 
         // Refresh planner stats + checkpoint the WAL after bulk writes.
@@ -579,6 +592,7 @@ export class CodeGraph {
           if (docs.enabled && docs.indexed > 0) {
             try { linkGovernsEdges(this.db.getDb(), this.queries); } catch { /* best-effort */ }
             try { linkDocEdges(this.db.getDb(), this.queries); } catch { /* best-effort */ }
+            try { buildSemanticEdges(this.db.getDb(), this.queries); } catch { /* best-effort */ }
           }
         } catch { /* docs are best-effort; never fail a sync */ }
 

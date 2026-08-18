@@ -52,6 +52,55 @@ export function docGraphEnvOverride(): boolean | undefined {
   return parseBool(process.env[DOC_GRAPH_ENV_VAR]);
 }
 
+/**
+ * Env var that enables the `semantically_related` doc↔doc edge pass. Docs must
+ * also be on (the pass reads the embeddings indexMarkdown wrote). Unset → off:
+ * unlike doc-graph promotion there is no auto-detect, because the pass adds
+ * derived edges rather than promoting something the user already authored.
+ */
+export const SEMANTIC_EDGES_ENV_VAR = 'CODEGRAPH_SEMANTIC_EDGES';
+
+/** project_metadata key under which the persisted semantic-edges flag lives. */
+export const SEMANTIC_EDGES_META_KEY = 'semantic_edges_enabled';
+
+/** The CODEGRAPH_SEMANTIC_EDGES env override, or undefined when unset/unrecognized. */
+export function semanticEdgesEnvOverride(): boolean | undefined {
+  return parseBool(process.env[SEMANTIC_EDGES_ENV_VAR]);
+}
+
+/** Read a project_metadata value, or null when absent or the table predates v2. */
+export function getProjectMeta(db: SqliteDatabase, key: string): string | null {
+  try {
+    const row = db
+      .prepare('SELECT value FROM project_metadata WHERE key = ?')
+      .get(key) as { value?: string } | undefined;
+    return row?.value ?? null;
+  } catch {
+    return null; // pre-v2 DB has no project_metadata — same as unset
+  }
+}
+
+/** Write a project_metadata value (idempotent upsert). */
+export function setProjectMeta(db: SqliteDatabase, key: string, value: string): void {
+  db.prepare(
+    `INSERT INTO project_metadata (key, value, updated_at) VALUES (?, ?, ?)
+     ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`
+  ).run(key, value, Date.now());
+}
+
+/**
+ * Resolve whether the semantic-edges pass runs. Same order as
+ * {@link resolveDocsEnabled}: env override, then the persisted project flag,
+ * then off — so an MCP-server sync (which has no env var) keeps rebuilding the
+ * edges a `CODEGRAPH_SEMANTIC_EDGES=1` index turned on.
+ */
+export function resolveSemanticEdgesEnabled(db?: SqliteDatabase): boolean {
+  const env = semanticEdgesEnvOverride();
+  if (env !== undefined) return env;
+  if (!db) return false;
+  return parseBool(getProjectMeta(db, SEMANTIC_EDGES_META_KEY)) ?? false;
+}
+
 /** Persist the docs-enabled flag in project_metadata (idempotent upsert). */
 export function setDocsEnabled(db: SqliteDatabase, enabled: boolean): void {
   db.prepare(

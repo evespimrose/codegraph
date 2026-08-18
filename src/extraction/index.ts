@@ -99,6 +99,8 @@ export interface IndexResult {
     docLinkNodes?: number;
     /** `doc_link` edges (citing → cited) created by linkDocEdges. */
     docLinkEdges?: number;
+    /** `semantically_related` edges built from doc embeddings (opt-in pass). */
+    semanticEdges?: number;
   };
 }
 

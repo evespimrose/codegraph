@@ -117,8 +117,9 @@ Sonar Protocol 위반 — bash로 파일을 탐색하거나 소스 코드를 직
   1. 허용 — 원래 명령을 그대로 승인하고 진행. 승인 시 먼저
      printf '%s' \"사용자 승인: <사유>\" > .claude/state/sonar-override
      로 1회성 우회 토큰을 기록한 뒤 원래 명령을 재시도한다.
-  2. codegraph 강제(회귀 및 재시도) — 이 시도를 취소하고 codegraph_context/codegraph_search로
-     먼저 조사한 뒤 Glob/Grep/Read로 원 목표를 재시도한다.
+  2. codegraph 강제(회귀 및 재시도) — 이 시도를 취소하고 `codegraph context "<intent>" -p <root>`
+     또는 `codegraph search "<symbol>" -p <root>`(Bash로 직접 호출, MCP 아님)로 먼저 조사한 뒤
+     Glob/Grep/Read로 원 목표를 재시도한다.
   3. 거부(manual stop) — 여기서 작업을 중단하고 사용자에게 보고한다.
   4. 커스텀 답변 — 자유 응답으로 사용자가 직접 방향을 재지정한다.
 

@@ -12,15 +12,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `cat .cs` / `head .py` / `tail .ts` (bash 소스 출력)
 - **codegraph 미사용 후 소스 코드 Read** (자동 차단)
 
-### ✅ 올바른 순서
+### ✅ 올바른 순서 (codegraph는 MCP가 아니라 CLI — Bash로 직접 호출)
 ```
-1. codegraph_context / codegraph_search → 심볼 위치
-2. codegraph_callers / codegraph_impact → 영향 범위
-3. codegraph_node / codegraph_explore → 소스 코드
+1. codegraph context "<intent>" -p <root> / codegraph search "<symbol>" -p <root> → 심볼 위치
+2. codegraph callers "<symbol>" -p <root> / codegraph impact "<symbol>" -p <root> → 영향 범위
+3. codegraph node "<symbol>" -p <root> / codegraph explore "<symbol>" -p <root> → 소스 코드
 4. (보완 시만) Read / Glob / Grep
 ```
 
-차단 hook: `.claude/hooks/sonar-guard*.sh`, `codegraph-gate.sh`
+`mcp__codegraph__*` 툴은 더 이상 존재하지 않는다(CLI 바이너리 전환, 920cd03). codegraph MCP를 등록·기동하지 말 것.
+차단 hook: `.claude/hooks/sonar-guard*.sh`, `codegraph-gate.sh` — 게이트는 Bash로 호출된 `codegraph <subcommand>`를
+`tool-history-recorder.sh`가 `codegraph_<subcommand>`로 번역 기록해야 인식한다(둘 다 이미 반영됨).
 위반 로그: `.claude/state/violation-count.log`
 
 ### ⚖️ 조건부 신뢰 (Conditional Trust · state-doctor 게이트)
@@ -74,6 +76,19 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - 사후 게이트: Stop 훅 `output-arm-gate.sh` (변경 있는데 docs/output 적재 없으면 경고).
 - 스킬: `.claude/skills/output-arm/`(규칙 전문 단일 출처). 설계: caveman 입국심사 Atom 1·2·4·5·6. **실적용**: 전 스킬/커맨드 frontmatter에 `<!-- CAVE-MAN-OUTPUT-ARM -->` **compact 포인터**(6핵심 1줄 요약 + RULE-9·output-arm 참조) 삽입 — 마커는 게이트 grep용 보존, 풀 규칙은 본 RULE-9 + output-arm에만 둔다(중복 제거). riper/memory 커맨드는 "디스패치"→"메인 직접" 대체.
 - 금지: 헌법급 문서(CLAUDE.md·schema) LLM lossy 압축(Atom 7 반례).
+
+## RULE-10: Operational Directives (전 스킬·명령 강제 준수)
+
+- All work must deadly and strictly follow the rules defined in SKILL.md and CLAUDE.md.
+- All responses must be in Korean, but method names, class names, and code-related terms may be written in English.
+
+### Operational Directives
+- **Output**: Minimize main context window typing.
+- **Agents**: Sub-agent dispatch strictly prohibited.
+- **Tools**: Permitted (actively utilize codegraph).
+- **Completion**: Report solely as "[Task] 완료".
+
+> **RULE-9와의 관계**: Agents 항목("strictly prohibited")은 RULE-9의 3-모드 게이트 기본값(`manual`=승인 후 허용)보다 강하다. 텍스트 규칙만으로는 sonnet 계열에서 마모될 수 있음 — 강제 수준을 훅에도 반영하려면 `subagent-dispatch-gate.sh` 기본값을 `off`로 전환하거나 `strict-arm` 오버레이(`.claude/skills/strict-arm/`)로 주기 재주입할 것.
 
 ## Plan Scope Lock 필드 (PLAN 단계 모든 스텝에 포함)
 - **Symbol**: `ClassName.MethodName`

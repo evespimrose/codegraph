@@ -8,6 +8,19 @@ import { Node, Edge, Subgraph, TraversalOptions, EdgeKind } from '../types';
 import { QueryBuilder } from '../db/queries';
 
 /**
+ * Edge kinds getCallers/getCallees walk. `doc_link` and `semantically_related`
+ * are here so the same two calls answer "what links here" and "what covers the
+ * same ground" on a Markdown graph, where nothing literally calls anything.
+ */
+const CALL_TRAVERSAL_EDGE_KINDS: EdgeKind[] = [
+  'calls',
+  'references',
+  'imports',
+  'doc_link',
+  'semantically_related',
+];
+
+/**
  * Default traversal options
  */
 const DEFAULT_OPTIONS: Required<TraversalOptions> = {
@@ -248,7 +261,7 @@ export class GraphTraverser {
     }
     visited.add(nodeId);
 
-    const incomingEdges = this.queries.getIncomingEdges(nodeId, ['calls', 'references', 'imports', 'doc_link']);
+    const incomingEdges = this.queries.getIncomingEdges(nodeId, CALL_TRAVERSAL_EDGE_KINDS);
     if (incomingEdges.length === 0) return;
 
     // Batch-fetch all caller nodes in one round-trip instead of one
@@ -293,7 +306,7 @@ export class GraphTraverser {
     }
     visited.add(nodeId);
 
-    const outgoingEdges = this.queries.getOutgoingEdges(nodeId, ['calls', 'references', 'imports', 'doc_link']);
+    const outgoingEdges = this.queries.getOutgoingEdges(nodeId, CALL_TRAVERSAL_EDGE_KINDS);
     if (outgoingEdges.length === 0) return;
 
     // Batch-fetch callee nodes (was N+1 — see getCallersRecursive note).

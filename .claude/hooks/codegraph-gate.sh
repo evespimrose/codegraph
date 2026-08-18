@@ -40,7 +40,9 @@ SOURCE_PATTERN='\.(cs|py|ts|tsx|js|jsx|java|cpp|c|h|hpp|go|rs|swift|kt)$'
 # 게이트를 여는 "탐색형" codegraph 도구 화이트리스트.
 #   codegraph_status 는 인덱스 헬스(파일·노드 수)만 돌려주고 심볼 위치를 주지 않음 → 의도적 제외.
 #   과거 'codegraph_' 부분일치 판정이라 status 한 방으로 Read 게이트가 열리는 탈주로가 있었음.
-LOCATING_TOOLS='codegraph_(context|search|node|explore|callers|callees|impact|trace|files|backlinks)'
+#   이 서브커맨드 목록은 tool-history-recorder.sh 의 CODEGRAPH_SUBCOMMAND 정규식과 한 쌍 —
+#   함께 바꿀 것(그쪽엔 status 도 포함 — note_evasion() 탈주 감지용).
+LOCATING_TOOLS='codegraph_(context|query|callers|callees|impact|files|backlinks)'
 
 # codegraph 선행 여부 확인 헬퍼
 #   인정 조건: 최근 창에 탐색형 도구가 있고 그 호출이 실패(outcome=failed)가 아닐 것.
@@ -148,13 +150,13 @@ ${trail_block}
   1. 허용 — 원래 명령을 그대로 승인하고 진행. 승인 시 먼저
      printf '%s' "사용자 승인: <사유>" > .claude/state/sonar-override
      로 1회성 우회 토큰을 기록한 뒤 원래 명령을 재시도한다.
-  2. codegraph 강제(회귀 및 재시도) — 이 시도를 취소하고 codegraph_context/codegraph_search로
+  2. codegraph 강제(회귀 및 재시도) — 이 시도를 취소하고 codegraph_context/codegraph_query로
      먼저 조사한 뒤 Glob/Grep/Read로 원 목표를 재시도한다.
   3. 거부(manual stop) — 여기서 작업을 중단하고 사용자에게 보고한다.
   4. 커스텀 답변 — 자유 응답으로 사용자가 직접 방향을 재지정한다.
 
 게이트를 여는 것은 "위치를 실제로 얻은" 탐색형 호출뿐이다:
-  codegraph_context / search / node / explore / callers / callees / impact / trace / files / backlinks
+  codegraph_context / query / callers / callees / impact / files / backlinks
 codegraph_status 는 인덱스 헬스만 돌려주므로 게이트를 열지 못한다. 결과가 비어 있는(실패) 조회도 마찬가지다.
 게이트 통과만을 목적으로 하는 형식적 호출을 하지 말 것 — 실제로 대상을 찾는 질의를 하라.
 
@@ -200,7 +202,7 @@ print(json.dumps({
     'hookEventName': 'PreToolUse',
     'permissionDecision': 'deny',
     'permissionDecisionReason': f'Cave-Man Protocol L1: 서브에이전트 광역 Glob 차단 ({pat}) [{ctx}]',
-    'additionalContext': f'⛔ CAVE-MAN GUARD L1: 서브에이전트 광역 Glob 차단\n\n패턴: {pat} [{ctx}]\n\ncodegraph_files 또는 codegraph_search 사용:\n  codegraph_files(path=\"src/\") — 디렉토리 파일 구조\n  codegraph_search(query=\"...\") — 심볼 위치'
+    'additionalContext': f'⛔ CAVE-MAN GUARD L1: 서브에이전트 광역 Glob 차단\n\n패턴: {pat} [{ctx}]\n\ncodegraph_files 또는 codegraph_query 사용:\n  codegraph_files(path=\"src/\") — 디렉토리 파일 구조\n  codegraph_query(query=\"...\") — 심볼 위치'
   }
 }))
 " "$PATTERN" "$CTX_LABEL"

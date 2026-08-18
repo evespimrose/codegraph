@@ -16,6 +16,31 @@ TOOL_NAME=$(echo "$INPUT" | python3 -c "import json,sys; d=json.load(sys.stdin);
 AGENT_TYPE=$(echo "$INPUT" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('agent_type',''))" 2>/dev/null || echo "")
 CTX_LABEL="${AGENT_TYPE:-MAIN}"
 
+# codegraph 는 MCP 서버가 아니라 CLI 바이너리라, 셸에서는 tool_name 이 전부 "Bash" 로만 찍힌다.
+#   codegraph-gate.sh 의 LOCATING_TOOLS 판정은 tool_name 필드에 "codegraph_<subcommand>" 형태를
+#   기대하므로(과거 MCP 툴명 규약), Bash 호출을 그 형태로 번역해 기록해야 게이트가 CLI 사용을 인식한다.
+#   Windows Git Bash 는 PATH 에 codegraph 가 아니라 codegraph.cmd(.exe) 만 있는 경우가 있어
+#   첫 토큰의 basename(확장자 무시)으로 판정 — 경로 접두사/확장자 유무와 무관하게 인식.
+#   아래 서브커맨드 목록은 codegraph-gate.sh 의 LOCATING_TOOLS 와 한 쌍 — 함께 바꿀 것.
+if [ "$TOOL_NAME" = "Bash" ]; then
+  CODEGRAPH_SUBCOMMAND=$(echo "$INPUT" | python3 -c "
+import json, sys, re, os
+d = json.load(sys.stdin)
+command = d.get('tool_input', {}).get('command', '') or ''
+m = re.match(r'^\s*(\S+)\s+(\S+)', command)
+if m:
+    token, sub = m.group(1), m.group(2)
+    base = os.path.splitext(os.path.basename(token))[0]
+    if base == 'codegraph' and sub in ('context', 'query', 'callers', 'callees', 'impact', 'files', 'backlinks', 'status'):
+        print(sub)
+    else:
+        print('')
+else:
+    print('')
+" 2>/dev/null || echo "")
+  [ -n "$CODEGRAPH_SUBCOMMAND" ] && TOOL_NAME="codegraph_${CODEGRAPH_SUBCOMMAND}"
+fi
+
 OUTCOME=$(echo "$INPUT" | python3 -c "
 import json, sys, re
 try:

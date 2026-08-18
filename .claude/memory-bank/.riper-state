@@ -1,5 +1,6 @@
-MODE=EXECUTE
-TASK=마스터플랜을 기준으로 01번부터 진행해.
+MODE=REVIEW
+TASK=마스터플랜 01·02번 완료
 PLAN_FILE=.claude/memory-bank/main/plans/2026-07-24-graphify-features-01-provenance-tagging.md
 BRANCH=main
-STARTED=2026-07-27
+STARTED=2026-08-05
+NOTE=01번 8·9단계 완료(재인덱싱 실측: NULL 0, tree-sitter 4115/resolver 5937/heuristic 720). 전역 codegraph가 7/20 빌드로 고정돼 데몬이 구버전 코드로 재파싱 중이던 걸 발견 → /sync-global-codegraph + 전체 재구축으로 해결. 02번은 7단계 구현·code-review 0 Critical·테스트 19 통과, BLADE 규모 실측만 미수행

@@ -42,7 +42,7 @@ export interface DocLinkResult {
 const ZERO: DocLinkResult = { nodes: 0, edges: 0, skipped: 0 };
 
 /** Stable node id for a Markdown file's `doc` node. */
-function docId(rel: string): string {
+export function docId(rel: string): string {
   return createHash('sha1').update(`doc::${normPath(rel)}`).digest('hex');
 }
 

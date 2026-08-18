@@ -23,21 +23,42 @@ CTX_LABEL="${AGENT_TYPE:-MAIN}"
 #   첫 토큰의 basename(확장자 무시)으로 판정 — 경로 접두사/확장자 유무와 무관하게 인식.
 #   아래 서브커맨드 목록은 codegraph-gate.sh 의 LOCATING_TOOLS 와 한 쌍 — 함께 바꿀 것.
 if [ "$TOOL_NAME" = "Bash" ]; then
-  CODEGRAPH_SUBCOMMAND=$(echo "$INPUT" | python3 -c "
-import json, sys, re, os
-d = json.load(sys.stdin)
-command = d.get('tool_input', {}).get('command', '') or ''
-m = re.match(r'^\s*(\S+)\s+(\S+)', command)
-if m:
-    token, sub = m.group(1), m.group(2)
-    base = os.path.splitext(os.path.basename(token))[0]
-    if base == 'codegraph' and sub in ('context', 'query', 'callers', 'callees', 'impact', 'files', 'backlinks', 'status'):
-        print(sub)
-    else:
-        print('')
-else:
+  CODEGRAPH_SUBCOMMAND=$(HOOK_INPUT="$INPUT" python3 - <<'PYEOF' 2>/dev/null || echo ""
+import os, json, re
+
+SUBCOMMANDS = ('context', 'query', 'callers', 'callees', 'impact',
+               'files', 'backlinks', 'docs', 'status')
+
+try:
+    payload = json.loads(os.environ.get('HOOK_INPUT', '') or '{}')
+except Exception:
     print('')
-" 2>/dev/null || echo "")
+    raise SystemExit(0)
+command = (payload.get('tool_input') or {}).get('command', '') or ''
+
+# 실전 명령은 맨몸 호출이 아니라 함수정의·`cd X && ...`·파이프·환경변수 접두를 달고 온다.
+# 명령 전체를 통째로 정규식 검색하면 `echo "codegraph query"` 같은 문자열까지 오인식하므로,
+# 셸 구분자로 세그먼트를 나눈 뒤 각 세그먼트의 "실제 실행 토큰"만 검사한다.
+found = ''
+for segment in re.split(r'[;\n|&]+', command):
+    segment = segment.strip()
+    # 선행 환경변수 할당(VAR=value)은 실행 토큰이 아니므로 벗겨낸다
+    while True:
+        assignment = re.match(r'[A-Za-z_][A-Za-z0-9_]*=\S*\s+', segment)
+        if not assignment:
+            break
+        segment = segment[assignment.end():]
+    tokens = segment.split()
+    if len(tokens) < 2:
+        continue
+    # Windows 절대경로(백슬래시)도 basename 추출되도록 구분자 정규화 후 확장자 제거
+    executable = os.path.splitext(os.path.basename(tokens[0].replace(chr(92), '/')))[0]
+    if executable == 'codegraph' and tokens[1] in SUBCOMMANDS:
+        found = tokens[1]
+        break
+print(found)
+PYEOF
+)
   [ -n "$CODEGRAPH_SUBCOMMAND" ] && TOOL_NAME="codegraph_${CODEGRAPH_SUBCOMMAND}"
 fi
 

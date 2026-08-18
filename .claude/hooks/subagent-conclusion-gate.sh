@@ -23,20 +23,22 @@ if ! echo "$CHANGED" | grep -q 'docs/output/'; then
   exit 0
 fi
 
-LATEST=$(ls -t docs/output/*.md 2>/dev/null | head -1)
+# 검사 대상은 "이번에 실제로 바뀐" docs/output 파일이어야 한다.
+#   과거엔 ls -t 로 디렉터리 내 최신 파일을 골라, 이번 세션이 만들지도 않은 파일까지 심판했다.
+LATEST=$(echo "$CHANGED" | sed 's/^...//' | grep -E '^docs/output/[^/]+\.md$' | head -1)
 [ -z "$LATEST" ] && exit 0
+[ -f "$LATEST" ] || exit 0
 
 MISSING=""
 for f in task date project blk links keywords compressed source_turns; do
   grep -q "^${f}:" "$LATEST" 2>/dev/null || MISSING="$MISSING $f"
 done
 
+# 미준수라도 파일을 옮기지 않는다 — quarantine 이동은 사용자가 만든 산출물을 조용히 사라지게 해
+# "정리해도 결과물이 없다"는 체감을 만들었다(RX_1 실측: docs/output 정상 0건 / quarantine 20건,
+# 격리율 100%에 복구 0건). 스키마 강제는 경고로 충분하고, 파일 이동은 사용자 결정 영역이다.
 if [ -n "$MISSING" ]; then
-  mkdir -p docs/output/quarantine
-  base=$(basename "$LATEST")
-  dest="docs/output/quarantine/$base"
-  mv "$LATEST" "$dest"
-  echo "{\"systemMessage\": \"[subagent-conclusion-gate] 서브에이전트 산출물 스키마 미준수(누락:$MISSING) -> docs/output/quarantine/$base 로 이동. 원본 유지(삭제 아님) - 검토 후 SCHEMA.md 맞춰 재적재.\"}"
+  echo "{\"systemMessage\": \"[subagent-conclusion-gate] $LATEST 스키마 누락:$MISSING (SCHEMA.md) — 파일은 그대로 둠\"}"
 fi
 
 exit 0

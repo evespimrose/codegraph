@@ -54,6 +54,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - BLK 좌표 → `Read(offset+limit)` 또는 `grep -A -B` 최소 로드
 - 파일 전체 Read 금지 (1,000자 이상 = 실패)
 - 자가검증: "내가 건드리는 좌표가 PLAN의 BLK와 일치?"
+- **회수 전반(EXECUTE 밖 포함) 규율 전문**: [.claude/rules/retrieval-discipline.md](.claude/rules/retrieval-discipline.md) (M4, 2026-08-15)
 
 ## RULE-6: 게이트 (규모별 차등)
 | 규모 | quality-sentinel | reporter |

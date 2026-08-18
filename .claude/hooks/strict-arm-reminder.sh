@@ -31,7 +31,8 @@ if [ "$COUNT" -gt 0 ] && [ "$((COUNT % INTERVAL))" -eq 0 ]; then
   python3 -c "
 import json
 msg = ('[strict-arm] 메인 컨텍스트 타이핑 극최소화 · 서브에이전트 디스패치 금지 · '
-       'codegraph 도구 우선 · 완료 시 \'XX 완료\'만 · Auto-Clarity 예외(보안/비가역/모호/반복질문/블로커)만 정상출력.')
+       'codegraph 도구 우선 · 완료 시 \'XX 완료\'만 · Auto-Clarity 예외(보안/비가역/모호/반복질문/블로커)만 정상출력 · '
+       '회수 규율(전문Read금지·limit강제·BLK구간만 로드, .claude/rules/retrieval-discipline.md).')
 print(json.dumps({'hookSpecificOutput': {'hookEventName': 'PreToolUse', 'permissionDecision': 'allow',
   'additionalContext': msg}}))
 "

@@ -42,7 +42,7 @@ SOURCE_PATTERN='\.(cs|py|ts|tsx|js|jsx|java|cpp|c|h|hpp|go|rs|swift|kt)$'
 #   과거 'codegraph_' 부분일치 판정이라 status 한 방으로 Read 게이트가 열리는 탈주로가 있었음.
 #   이 서브커맨드 목록은 tool-history-recorder.sh 의 CODEGRAPH_SUBCOMMAND 정규식과 한 쌍 —
 #   함께 바꿀 것(그쪽엔 status 도 포함 — note_evasion() 탈주 감지용).
-LOCATING_TOOLS='codegraph_(context|query|callers|callees|impact|files|backlinks)'
+LOCATING_TOOLS='codegraph_(context|query|callers|callees|impact|files|backlinks|docs)'
 
 # codegraph 선행 여부 확인 헬퍼
 #   인정 조건: 최근 창에 탐색형 도구가 있고 그 호출이 실패(outcome=failed)가 아닐 것.

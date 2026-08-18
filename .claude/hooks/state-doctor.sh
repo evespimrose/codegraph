@@ -112,7 +112,23 @@ else
 fi
 [ "$NO_GIT" = 1 ] && add info nogit-degraded "비-git 환경: branch 비교·git ls-files 신선도 체크 생략"
 
-# ── Check 4 (옵션·--full): repo 전역 md 상대링크 dead-link 스캔 ──
+# ── Check 4: docs 회수 건강도 (semantic retrieval sensor — M1 Phase 2) ──
+# 실측(2026-08-15): 벡터 회수는 항상 --limit 만큼 최근접 이웃을 반환해 "히트 0"이 사실상
+# 발생하지 않는다(가비지 질의도 히트 반환, retrieval=["vector"]만·distance 高로만 구분).
+# 진짜 낙성 신호는 히트 수가 아니라 CLI 실행 자체(exit code)·구조적 파싱 가능 여부다.
+# codegraph는 .cmd 확장자라 bash PATH 탐색(`command -v codegraph`)에 안 걸림 — 확장자 명시 호출.
+if command -v codegraph.cmd >/dev/null 2>&1; then
+  out="$(timeout 5 codegraph.cmd docs "output-arm" -p . --json --limit 1 2>/dev/null)"
+  rc=$?
+  hits=$(printf '%s' "$out" | grep -c '"file"')
+  if [ "$rc" -ne 0 ] || [ "${hits:-0}" -eq 0 ] 2>/dev/null; then
+    add yellow docs-retrieval "codegraph docs 실행 실패 또는 회수 0건 (인덱스/임베딩 점검)"
+  fi
+else
+  add yellow docs-retrieval "codegraph CLI 미발견 — 회수 확인 불가"
+fi
+
+# ── Check 5 (옵션·--full): repo 전역 md 상대링크 dead-link 스캔 ──
 if [ "$FULL" -eq 1 ]; then
   while IFS= read -r md; do
     [ -f "$md" ] || continue

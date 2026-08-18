@@ -106,16 +106,17 @@ if os.path.isfile(violation_log):
         with open(violation_log, encoding="utf-8") as f:
             violations = f.readlines()
         if violations:
-            recent_violations = violations[-10:]  # 최근 10개
-            parts.append("\n=== ⚠️ SONAR PROTOCOL 누적 위반 이력 ===")
-            parts.append(f"총 위반: {len(violations)}회 (최근 10개 표시)")
-            for v in recent_violations:
-                parts.append(f"  - {v.strip()}")
-            parts.append("\n→ 새 세션에서는 codegraph_* 도구 우선 사용 강제됨")
+            # M4 (2026-08-15): 10줄 상세 나열 -> 1줄 요약. 주입 바닥 축소(Phase 3) 대상 —
+            # 상세 이력이 필요하면 .claude/state/violation-count.log를 직접 Read.
+            recent_codes = [v.strip().split()[-1] if len(v.strip().split()) >= 4 else "?" for v in violations[-10:]]
+            parts.append(f"\n=== ⚠️ SONAR PROTOCOL 위반 {len(violations)}회 (최근: {', '.join(recent_codes[-5:])}) — codegraph_* 우선 사용 강제 ===")
     except Exception:
         pass
 
 # 도구 사용 이력 초기화 (세션마다 새로 시작)
+# 역참조: .claude/skills/output-arm/scripts/emit-output.sh는 이 파일을 조립 소스로 쓰지 않는다.
+#   (M3 Phase 1, 2026-08-15) os.popen('date')가 Windows date.exe를 호출해 무인자 대화형
+#   프롬프트가 헤더 줄에 섞여 첫 줄이 손상됨 — 형식 미수정 상태이므로 자동 파싱 금지.
 history_file = ".claude/state/tool-history.log"
 try:
     os.makedirs(os.path.dirname(history_file), exist_ok=True)

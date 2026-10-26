@@ -1,0 +1,14 @@
+{
+  "upstream": "https://github.com/tree-sitter/tree-sitter-c-sharp",
+  "upstreamTag": "v0.23.5",
+  "upstreamCommit": "cac6d5fb595f5811a076336682d5d595ac1c9e85",
+  "npmPackage": "tree-sitter-c-sharp@0.23.5",
+  "npmTarballSha1": "ddea7dfa80407a905705a428dda55addec34f34e",
+  "npmTarballSha256": "dde5d56fe441a7d64616462c8d741ab4af7874484de6aa74548ac5770c50c414",
+  "npmIntegrity": "sha512-xJGOeXPMmld0nES5+080N/06yY6LQi+KWGWV4LfZaZe6srJPtUtfhIbRSN7EZN6IaauzW28v6W4QHFwmeUW6HQ==",
+  "tarballPath": "package/tree-sitter-c_sharp.wasm",
+  "abi": 15,
+  "runtimePath": "source/lib/extraction/wasm/tree-sitter-c_sharp-modern.wasm",
+  "sha256": "6f69e1cae44e1c32c1eccc170dc5a9778fb94ff716f71113fe1f8c4299aa2f40",
+  "sourceParserRevision": "team-source-v4"
+}

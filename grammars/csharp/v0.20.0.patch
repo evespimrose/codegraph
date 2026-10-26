@@ -1,0 +1,76 @@
+diff --git a/grammar.js b/grammar.js
+index 18b44db..b9a368f 100644
+--- a/grammar.js
++++ b/grammar.js
+@@ -47,6 +47,8 @@ module.exports = grammar({
+   ],
+ 
+   conflicts: $ => [
++    [$.modifier, $._contextual_keywords],
++    [$.lambda_expression, $._contextual_keywords],
+     [$.block, $.initializer_expression],
+ 
+     [$.event_declaration, $.variable_declarator],
+@@ -333,7 +335,8 @@ module.exports = grammar({
+ 
+     parameter: $ => seq(
+       repeat($.attribute_list),
+-      optional(alias(choice('ref', 'out', 'this', 'in'), $.parameter_modifier)),
++      optional(alias(choice('ref', 'out', 'this', 'in', 'scoped'), $.parameter_modifier)),
++      optional(alias(choice('ref', 'out', 'this', 'in', 'readonly'), $.parameter_modifier)),
+       optional(field('type', $._type)),
+       field('name', $.identifier),
+       optional($.equals_value_clause)
+@@ -687,7 +690,7 @@ module.exports = grammar({
+       $.tuple_type
+     ),
+ 
+-    pointer_type: $ => prec(PREC.POSTFIX, seq($._type, '*')),
++    pointer_type: $ => prec(PREC.POSTFIX, seq(choice($._type, $.void_keyword), '*')),
+ 
+     function_pointer_type: $ => seq(
+       'delegate',
+@@ -1101,8 +1104,16 @@ module.exports = grammar({
+ 
+     lambda_expression: $ => prec(-1, seq(
+       repeat($.attribute_list),
+-      optional(alias(choice('async', 'static', seq('async', 'static'), seq('static', 'async')), $.modifier)),
+-      choice(field('parameters', $.parameter_list), $.identifier),
++      choice(
++        seq(
++          optional(alias('static', $.modifier)),
++          choice(field('parameters', $.parameter_list), $.identifier)
++        ),
++        seq(
++          alias(choice('async', seq('async', 'static'), seq('static', 'async')), $.modifier),
++          choice(field('parameters', $.parameter_list), $.identifier, alias('_', $.identifier))
++        )
++      ),
+       '=>',
+       field('body', choice($.block, $._expression))
+     )),
+@@ -1696,7 +1707,7 @@ module.exports = grammar({
+       'set',
+ 
+       // Async - These need to be more contextual
+-      // 'async',
++      prec(-1, 'async'),
+       // 'await',
+ 
+       // Misc
+@@ -1704,6 +1715,7 @@ module.exports = grammar({
+       'alias',
+       'dynamic',
+       'nameof',
++      'required',
+       'notnull',
+       'unmanaged',
+       'when',
+@@ -1734,6 +1746,7 @@ module.exports = grammar({
+       $._preproc_directive_end
+     ),
+ 
++
+     _preproc_directive_start: $ => /#[ \t]*/,
+ 
+     nullable_directive: $ => seq(

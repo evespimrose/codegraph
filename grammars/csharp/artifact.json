@@ -1,0 +1,13 @@
+{
+  "upstream": "https://github.com/tree-sitter/tree-sitter-c-sharp",
+  "upstreamTag": "v0.20.0",
+  "upstreamCommit": "7a47daeaf0d410dd1a91c97b274bb7276dd96605",
+  "patch": "v0.20.0.patch",
+  "generatorVersion": "0.25.10",
+  "generatorWindowsArchiveSha256": "c940b471683b9cd89b9efbe8697e14b5244cc09d2e2b889d04c9c76eea1a8db3",
+  "abi": 14,
+  "compiler": "Emscripten 3.1.39-git",
+  "runtimePath": "source/lib/extraction/wasm/tree-sitter-c_sharp.wasm",
+  "sha256": "43fbe3d7c3863bee3291547b8dc151bb515ca7fd01e82a536b4122d74fd0d429",
+  "sourceParserRevision": "team-source-v4"
+}

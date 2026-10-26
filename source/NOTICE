@@ -1,0 +1,17 @@
+Team CodeGraph
+
+This repository and its bundled distributions are a substantially modified
+derivative of CodeGraph, originally developed by Colby Mchenry and other
+contributors at https://github.com/evespimrose/codegraph.
+
+The upstream CodeGraph source is licensed under the MIT License. The original
+copyright and permission notice are retained in LICENSE.
+
+Team CodeGraph has been redesigned as a private, CLI-only distribution with
+expanded source and document indexing, local semantic inference, provenance,
+community analysis, graph reports, and graph visualization. It is distributed
+through the team harness rather than the upstream npm, plugin, MCP, or GitHub
+release channels.
+
+Third-party dependencies and bundled model assets remain subject to their own
+licenses and notices.

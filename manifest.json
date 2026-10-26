@@ -1,0 +1,41 @@
+{
+  "version": 2,
+  "productName": "Team CodeGraph",
+  "packageName": "team-codegraph",
+  "private": true,
+  "license": "MIT",
+  "notice": "TEAM-CODEGRAPH-NOTICE.txt",
+  "codegraphVersion": "1.1.0",
+  "nodeVersion": "24.16.0",
+  "nodeArchiveSha256": "edaca9bd58ec8e92037dac4e877d52f6b8f430b81c18b57e264b4e2fb111cd56",
+  "embeddingModel": {
+    "id": "Xenova/multilingual-e5-small",
+    "revision": "761b726dd34fb83930e26aab4e9ac3899aa1fa78",
+    "license": "MIT",
+    "dimension": 384,
+    "manifestSha256": "154465b83f884f5ba79ccea2e49b82cd55e73e81c991d5248aa8ff1f00aa5a1f"
+  },
+  "sourceTreeSha256": "0f658c59096391a329a8c56adb5c786d44dc48da52f07ac59850ddfae8d61bed",
+  "sourceDigestContract": "sha256 of UTF-8 JSONL [relativePosixPath,sha256,size] records sorted by path; exact file bytes; excludes node_modules,.git,.cache,.codegraph,.serena directories",
+  "sourceSnapshot": "source",
+  "sourceManifest": "SOURCE-MANIFEST.json",
+  "runtimeAssets": {
+    "baseArtifactSha256": "a1139f9d6cbbc6797429b6c9020fc72c227df5749acf3cbb3506b5d0e8d1e784",
+    "baseCodegraphVersion": "1.0.4"
+  },
+  "grammarSources": {
+    "snapshot": "grammar-sources",
+    "manifest": "GRAMMAR-MANIFEST.json",
+    "treeSha256": "9147a021e81704515d77d4039c3a09cd819503277bd75eafeaef6d4468fdf9a3",
+    "digestContract": "sha256 of UTF-8 JSONL [relativePosixPath,sha256,size] records sorted by path; exact file bytes; excludes node_modules,.git,.cache,.codegraph,.serena directories"
+  },
+  "artifacts": {
+    "win32-x64": {
+      "archive": "artifacts/codegraph-win32-x64.zip",
+      "size": 260573495,
+      "sha256": "10a01b5190e720c74a6df63c15532eeca85c3e81617eea7bf420f4ce10c946e7",
+      "integrityManifest": "release-integrity.json",
+      "integritySha256": "416bdd8a6e1eef31300a3e43d6c1dda5250300c52d7e5e66e1946db903ffe481"
+    }
+  }
+}

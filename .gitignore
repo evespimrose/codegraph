@@ -58,3 +58,7 @@ release/
 .antigravitycli/
 *.pid
 .sync-backup
+
+# KIT 배포본 zip (대용량)
+/artifacts/*.zip
+/codegraph.zip

@@ -1,6 +1,6 @@
 ---
 description: Enable strict RIPER protocol enforcement and display current state
-allowed-tools: mcp__codegraph__*, Read, Write, Bash(git:*)
+allowed-tools: Bash(codegraph:*), Read, Write, Bash(git:*)
 ---
 
 # riper:strict
@@ -13,7 +13,7 @@ allowed-tools: mcp__codegraph__*, Read, Write, Bash(git:*)
 
 - **서브에이전트 디스패치 금지** — Agent/Task 호출 안 함. 예외: 초대형 규모·병렬 독립 작업을 사용자가 발의한 경우만
 - **메인이 도구로 직접 작업** — codegraph→(보완)Read/Edit, hook 통제下 codegraph-first 강제
-- **메인 컨텍스트 타이핑 금지** — 과정 narration 없이 도구로만, 끝에 `XX 완료`만
+- **출력** — 과정 narration 없이 도구로 작업. 끝에 결과 요약과 사람 확인 항목만 쓴다 (RULE-8)
 - **Auto-Clarity 예외** — 보안·비가역·모호 다단계·반복질문·하드블로커 → 정상 출력
 <!-- /CAVE-MAN-OUTPUT-ARM -->
 
@@ -23,26 +23,27 @@ allowed-tools: mcp__codegraph__*, Read, Write, Bash(git:*)
 
 From this point forward, RIPER protocol is strictly enforced.
 
-## Current State (from .riper-state)
+## Current State (riper/<slug>.state)
 
-Read `.claude/memory-bank/.riper-state` and display:
+세션 시작 때 주입된 "이 세션의 RIPER 작업"을 보인다. 없으면 `.claude/memory-bank/*/riper/*.state` 중 `STATUS`가 `active`나 `paused`인 작업을 한 줄씩(slug, MODE, STATUS, CURRENT) 보인다.
 
 ```
-MODE=<value>          ← current RIPER phase
-TASK=<value>          ← active task description
-PLAN_FILE=<value>     ← path to approved plan (empty if none)
-BRANCH=<value>        ← git branch
-STARTED=<value>       ← session start date
+MODE=<value>          <- current RIPER phase
+STATUS=<value>        <- active | paused | done
+TASK=<value>          <- active task description
+PLAN_FILE=<value>     <- path to approved plan (empty if none)
+BRANCH=<value>        <- git branch
+UPDATED=<value>       <- last update date
 ```
 
-If `.riper-state` does not exist or MODE=NONE:
-→ No active RIPER session. Use `/riper:research` to begin.
+active·paused 작업이 없으면:
+-> No active RIPER session. Use `/riper:research <과제>` to begin.
 
 ## Codebase Navigation (전 단계 공통 — SONAR PROTOCOL)
 
 모든 모드에서 코드베이스 탐색 순서:
 ```
-codegraph_context / search  →  callers / impact  →  node / explore  →  (보완) Read/Grep
+codegraph context / query  →  callers / impact  →  (보완) Read(offset+limit)
 ```
 ❌ bash find/grep -r/ls -r/rg/fd / codegraph 미사용 후 소스 Read → hook 자동 차단
 
@@ -58,8 +59,8 @@ codegraph_context / search  →  callers / impact  →  node / explore  →  (�
 
 - `/riper:research` — Enter RESEARCH sub-mode (read-only)
 - `/riper:innovate` — Enter INNOVATE sub-mode (brainstorming)
-- `/riper:plan` — Enter PLAN sub-mode (specifications + .riper-state write)
-- `/riper:execute` — Enter EXECUTE sub-mode (requires PLAN_FILE in .riper-state)
+- `/riper:plan` — Enter PLAN sub-mode (specifications + 상태 파일 write)
+- `/riper:execute` — Enter EXECUTE sub-mode (requires PLAN_FILE in 상태 파일)
 - `/riper:review` — Enter REVIEW mode (validation)
 - `/riper:strict` — Display this status + current state
 

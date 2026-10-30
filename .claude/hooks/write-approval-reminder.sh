@@ -26,7 +26,7 @@ Collaboration Protocol Step 5 확인:
 
 RIPER 모드 확인:
   → 현재 EXECUTE 모드인가? (PLAN/RESEARCH 모드에서 코드 쓰기 금지)
-  → .claude/memory-bank/.riper-state 확인 권장
+  → 이 세션의 작업 상태 파일(.claude/memory-bank/<branch>/riper/<slug>.state) 확인 권장
 
 승인이 이미 완료된 경우 이 메시지는 무시해도 됩니다.'''
 

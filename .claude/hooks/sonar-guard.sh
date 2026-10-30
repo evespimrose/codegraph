@@ -1,7 +1,10 @@
 #!/bin/bash
 # sonar-guard.sh: PreToolUse:Bash — Sonar Protocol 강제 이행
 # HANDOVER-MANAGED
-# bash 탐색·소스출력 명령(find, ls -r/la, grep -r, rg, fd, cat/head/tail .cs...) 감지 → 차단
+# bash 탐색·소스출력 명령 감지 → 차단. 판정 기준은 '명령어 이름'이 아니라 '분량'이다(6.3).
+#   재귀 탐색 차단: find(-maxdepth 없음) · 재귀 ls · 재귀 grep · rg · fd
+#   무범위 소스 출력 차단: cat/less/more/od/strings/nl/xxd · sed(범위 없음 또는 폭 > SED_SPAN_MAX)
+#   허용: 단일 디렉터리 나열 · head/tail · 범위를 준 sed · 대상 파일을 지정한 grep
 # D1: 서브에이전트(agent_id 존재) → 하드 deny(AskUserQuestion 유도 없음)
 #     메인 → deny + AskUserQuestion 4택 유도(허용/codegraph 강제/거부/커스텀)
 #     (CG_GATE_MAIN_STRICT=1 시 메인도 하드 deny — 유도 없음)
@@ -9,58 +12,98 @@
 #   1회 소모(삭제) 후 allow — 메인 + non-strict 경로에서만 적용.
 
 INPUT=$(cat)
-COMMAND=$(echo "$INPUT" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('tool_input',{}).get('command',''))" 2>/dev/null || echo "")
+# 히어독 본문은 데이터지 명령이 아니다. 스크립트를 파일로 쓰는 호출에서 본문에 든 예시 문자열이
+# 명령으로 오인돼 차단되는 사고가 실측됐다(2026-09-23, 문서 작성 중 2회). 판정 전에 본문을 걷어낸다.
+# eval 로 문자열을 실행하는 우회는 남지만, 그 경로는 이 훅의 대상이 아니다.
+COMMAND=$(echo "$INPUT" | python3 -c "
+import json, re, sys
+try:
+    d = json.load(sys.stdin)
+except Exception:
+    print(''); sys.exit(0)
+cmd = (d.get('tool_input') or {}).get('command', '') or ''
+for m in re.finditer(r'<<-?\s*[\"\\']?([A-Za-z_][A-Za-z0-9_]*)[\"\\']?', cmd):
+    tag = m.group(1)
+    end = re.search(r'^\s*' + re.escape(tag) + r'\s*$', cmd[m.end():], re.M)
+    if end:
+        cmd = cmd[:m.end()] + cmd[m.end() + end.end():]
+print(cmd)
+" 2>/dev/null || echo "")
 AGENT_ID=$(echo "$INPUT" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('agent_id',''))" 2>/dev/null || echo "")
 AGENT_TYPE=$(echo "$INPUT" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('agent_type',''))" 2>/dev/null || echo "")
 CTX_LABEL="${AGENT_TYPE:-MAIN}"
+SESSION_ID=$(echo "$INPUT" | python3 -c "import json,sys; d=json.load(sys.stdin); print((d.get('session_id') or '')[:8])" 2>/dev/null || echo "")
 OVERRIDE_FILE=".claude/state/sonar-override"
 HISTORY_FILE=".claude/state/tool-history.log"
+GATE_DECISION=".claude/hooks/lib/gate-decision.py"
 TRAIL_N=5
+# 소스 확장자 한 곳 정의 — 아래 분량 판정 규칙들이 공유한다
+SOURCE_EXT='cs|py|ts|tsx|js|jsx|java|cpp|c|h|hpp|go|rs|swift|kt|shader|cginc|hlsl'
+# sed 로 한 번에 뽑을 수 있는 최대 줄 수. retrieval-discipline 부분 로드 상한과 같은 취지
+SED_SPAN_MAX=${SONAR_SED_SPAN_MAX:-200}
 
-# 최근 도구 이력에서 "경위"(성공/실패) 트레일 구성 — 최선노력, tool-history.log outcome 필드 기반
-build_trail() {
-  local hf="$1" n="${2:-5}"
-  [ -f "$hf" ] || return
-  python3 -c "
-import sys
-n = int(sys.argv[2])
-try:
-    with open(sys.argv[1], encoding='utf-8') as f:
-        lines = f.readlines()[-n:]
-except Exception:
-    lines = []
-label = {'ok':'성공', 'failed':'실패', 'unknown':'불명'}
-out = []
-for ln in lines:
-    parts = ln.strip().split()
-    if len(parts) >= 4:
-        tool, outcome = parts[1], parts[3]
-        out.append(f'  {tool}: {label.get(outcome, outcome)}')
-    elif len(parts) == 3:
-        out.append(f'  {parts[1]}: 불명(구버전 로그)')
-print('\n'.join(out))
-" "$hf" "$n"
+b64() { printf '%s' "${1:-}" | base64 -w0 2>/dev/null || printf '%s' "${1:-}" | base64 | tr -d '\n'; }
+
+# 결정 JSON 은 전부 lib/gate-decision.py 가 만든다(H7). 한국어는 프로세스 경계를 안 넘는다(H6).
+emit_deny() { # $1=mode(ask|hard)
+  CG_SESSION_ID="$SESSION_ID" CG_HISTORY="$HISTORY_FILE" CG_TRAIL_N="$TRAIL_N" \
+  python3 "$GATE_DECISION" sonar "$1" "$(b64 "$VIOLATION")" "$(b64 "$DETAIL")" "$(b64 "$CTX_LABEL")"
 }
 
 # 탐색·소스출력 패턴 감지
 VIOLATION=""
+DETAIL=""
 
-if echo "$COMMAND" | grep -qE '^\s*(find\s|find$)'; then
-  VIOLATION="find"
-elif echo "$COMMAND" | grep -qE 'ls\s+(-[a-zA-Z]*[rRlLaA][a-zA-Z]*\s|--[a-z]|\s+-r|\s+-la|\s+-al|\s+--all)'; then
-  VIOLATION="ls -r/la"
-elif echo "$COMMAND" | grep -qE 'ls\s+-'; then
-  if echo "$COMMAND" | grep -qE 'ls\s+-[a-zA-Z]*[rR]'; then
-    VIOLATION="ls -r"
-  fi
-elif echo "$COMMAND" | grep -qE '(grep\s+.*-r|grep\s+.*--recursive|grep\s+-[a-zA-Z]*r[a-zA-Z]*\s)'; then
+# find: 재귀 폭발이 문제지 find 자체가 아니다(5.2). -maxdepth 로 깊이를 묶은 호출은 통과시킨다.
+if echo "$COMMAND" | grep -qE '(^|[|;&[:space:]])find([[:space:]]|$)' && ! echo "$COMMAND" | grep -qE '\-maxdepth[[:space:]]+[0-9]'; then
+  VIOLATION="find (무제한 깊이)"
+  DETAIL="find 재귀 탐색 차단. 깊이를 묶으려면 -maxdepth N 을 붙이거나 codegraph files 를 쓸 것."
+# 'ls' 도 grep 과 같은 종류의 버그가 있었다(2026-09-11 수정). 이전 패턴은 명령 위치를 보지 않아
+# 'ls' 두 글자가 단어 안에 들어 있기만 해도 매칭됐다. 실제 차단 사례: `gh api repos/o/r/pulls --jq ...`
+# ("pulls --jq" 의 ls + 공백 + 긴 플래그). GitHub 의 pulls 엔드포인트가 정확히 이 모양이라
+# RULE-11 GitHub 표준의 권장형이 상시 차단됐다. controls·tools·models 등도 같은 함정.
+# 명령 위치(행 시작 · 파이프 · 세미콜론 · 앰퍼샌드 · 공백 뒤)에 있는 ls 만 매칭한다.
+#   2026-09-23 재수정(5.1): 직전 패턴은 플래그에 r R l L a A 중 하나만 있어도 막았다. 그래서
+#   ls -l · ls -lt · ls -la · ls --color 처럼 재귀가 전혀 아닌 단일 디렉터리 나열이 전부 차단됐다
+#   (누적 오탐 29건). 이 규칙이 막으려는 것은 재귀뿐이므로 -R 과 --recursive 만 남긴다.
+#   대문자 R 만 본다. 소문자 r 은 ls 에서 역순 정렬이라 재귀와 무관하다.
+elif echo "$COMMAND" | grep -qE '(^|[|;&[:space:]])ls[[:space:]]+(-[a-zA-Z]*R[a-zA-Z]*([[:space:]]|$)|--recursive)'; then
+  VIOLATION="ls -R"
+  DETAIL="ls 재귀 나열 차단. 단일 디렉터리 나열(ls -l 등)은 허용되며, 트리 탐색은 codegraph files 를 쓸 것."
+# 재귀 grep 은 '플래그'로만 성립한다(-r/-R/-rn/--recursive). 이전 패턴은 grep 뒤 아무 데나 있는
+# '-r' 를 잡아, 검색어나 파일명에 그 두 글자가 들어가기만 해도 정상 grep 을 차단했다
+# (실제 차단 사례: "docs-retrieval" 검색, my-report.txt 대상). 우회 토큰 상시화의 원인.
+# 공백 뒤 단일 대시로 시작하는 토큰에 r/R 이 든 경우만 매칭하고, 파이프·세미콜론은 넘지 않는다.
+elif echo "$COMMAND" | grep -qE '(grep[^|;&]*[[:space:]]-[a-zA-Z]*[rR][a-zA-Z]*([[:space:]]|$)|grep[^|;&]*--recursive)'; then
   VIOLATION="grep -r"
+  DETAIL="재귀 grep 차단. 대상 파일을 먼저 codegraph 로 좁힌 뒤 해당 파일만 grep 할 것."
 elif echo "$COMMAND" | grep -qE '^\s*rg\s'; then
   VIOLATION="rg (ripgrep)"
+  DETAIL="ripgrep 전역 검색 차단. codegraph query 로 심볼 위치를 먼저 확보할 것."
 elif echo "$COMMAND" | grep -qE '^\s*fd\s'; then
   VIOLATION="fd"
-elif echo "$COMMAND" | grep -qE '(cat|head|tail|less|more|od|strings|nl|xxd)\s+.*\.(cs|py|ts|tsx|js|jsx|java|cpp|c|h|hpp|go|rs|swift|kt)(\s|$)'; then
-  VIOLATION="source output (cat/head/tail/...)"
+  DETAIL="fd 전역 파일 탐색 차단. codegraph files 를 쓸 것."
+# 소스 출력(6.3): 판정 기준을 "명령어 이름"에서 "분량"으로 옮긴다.
+#   - cat/less/more/od/strings/nl/xxd 는 범위를 줄 수 없어 항상 전문 출력이다 → 차단
+#   - head/tail 은 기본 10줄로 본질적으로 유계다 → 허용(이전에는 막혀 부분 로드를 방해했다)
+#   - sed -n 'A,Bp' 는 회수 규율이 바라는 형태다 → 폭이 상한 이내면 허용, 초과·무범위면 차단
+elif echo "$COMMAND" | grep -qE "(^|[|;&[:space:]])(cat|less|more|od|strings|nl|xxd)[[:space:]]+[^|;&]*\.($SOURCE_EXT)([[:space:]]|$|['\"])"; then
+  VIOLATION="source dump (cat/less/...)"
+  DETAIL="범위 없는 소스 전문 출력 차단. sed -n 'A,Bp' 또는 Read(offset+limit) 로 구간만 읽을 것."
+elif echo "$COMMAND" | grep -qE "(^|[|;&[:space:]])sed[[:space:]]+[^|;&]*\.($SOURCE_EXT)([[:space:]]|$|['\"])"; then
+  SED_SPAN=$(SED_CMD="$COMMAND" python3 -c "
+import os, re, sys
+cmd = os.environ.get('SED_CMD', '')
+spans = [abs(int(b) - int(a)) + 1 for a, b in re.findall(r\"(\d+)\s*,\s*(\d+)\s*p\", cmd)]
+print(max(spans) if spans else -1)
+" 2>/dev/null || echo "-1")
+  if [ "$SED_SPAN" = "-1" ]; then
+    VIOLATION="sed (범위 없음)"
+    DETAIL="범위 없는 sed 소스 출력 차단. sed -n 'A,Bp' 형태로 구간을 명시할 것."
+  elif [ "$SED_SPAN" -gt "$SED_SPAN_MAX" ] 2>/dev/null; then
+    VIOLATION="sed (범위 ${SED_SPAN}줄)"
+    DETAIL="sed 출력 폭 ${SED_SPAN}줄이 상한 ${SED_SPAN_MAX}줄을 넘음. 구간을 좁히거나 codegraph 로 좌표를 다시 잡을 것."
+  fi
 fi
 
 if [ -z "$VIOLATION" ]; then
@@ -72,25 +115,13 @@ echo "$(date +%s) ${CTX_LABEL} bash:${VIOLATION}" >> .claude/state/violation-cou
 
 # 서브에이전트: 하드 deny, 유도 없음
 if [ -n "$AGENT_ID" ]; then
-  python3 -c "
-import json, sys
-violation, ctx = sys.argv[1], sys.argv[2]
-print(json.dumps({'hookSpecificOutput': {'hookEventName': 'PreToolUse', 'permissionDecision': 'deny',
-  'permissionDecisionReason': f'Sonar Protocol: 서브에이전트 bash 탐색/소스출력 차단 ({violation}) [{ctx}]',
-  'additionalContext': '⛔ SONAR GUARD: 서브에이전트는 탐색 우회 불가. codegraph_* 도구를 먼저 사용할 것.'}}))
-" "$VIOLATION" "$CTX_LABEL"
+  emit_deny hard
   exit 0
 fi
 
 # 메인 + strict: 하드 deny, 유도 없음
 if [ "${CG_GATE_MAIN_STRICT:-0}" = "1" ]; then
-  python3 -c "
-import json, sys
-violation = sys.argv[1]
-print(json.dumps({'hookSpecificOutput': {'hookEventName': 'PreToolUse', 'permissionDecision': 'deny',
-  'permissionDecisionReason': f'Sonar Protocol (strict): bash 탐색/소스출력 차단 ({violation})',
-  'additionalContext': 'STRICT 모드 — codegraph_* 선행 후 Read/Grep/Glob 사용.'}}))
-" "$VIOLATION"
+  emit_deny hard
   exit 0
 fi
 
@@ -104,28 +135,5 @@ if [ -s "$OVERRIDE_FILE" ]; then
 fi
 
 # 메인 + 우회 토큰 없음: deny + AskUserQuestion 4택 유도
-TRAIL=$(build_trail "$HISTORY_FILE" "$TRAIL_N")
-python3 -c "
-import json, sys
-violation, ctx, trail, n = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
-trail_block = f'\n최근 시도 경위 (직전 {n}개 도구):\n{trail}\n' if trail else ''
-msg = f'''⛔ SONAR GUARD: bash 탐색/소스출력 감지 ({violation}) [{ctx}]
-{trail_block}
-Sonar Protocol 위반 — bash로 파일을 탐색하거나 소스 코드를 직접 출력하지 말 것.
-이 명령을 그대로 재시도하지 말고, 지금 AskUserQuestion 도구를 호출하여 사용자에게 정확히 다음 4개 선택지를 제시하라:
-
-  1. 허용 — 원래 명령을 그대로 승인하고 진행. 승인 시 먼저
-     printf '%s' \"사용자 승인: <사유>\" > .claude/state/sonar-override
-     로 1회성 우회 토큰을 기록한 뒤 원래 명령을 재시도한다.
-  2. codegraph 강제(회귀 및 재시도) — 이 시도를 취소하고 `codegraph context "<intent>" -p <root>`
-     또는 `codegraph search "<symbol>" -p <root>`(Bash로 직접 호출, MCP 아님)로 먼저 조사한 뒤
-     Glob/Grep/Read로 원 목표를 재시도한다.
-  3. 거부(manual stop) — 여기서 작업을 중단하고 사용자에게 보고한다.
-  4. 커스텀 답변 — 자유 응답으로 사용자가 직접 방향을 재지정한다.
-
-사용자 응답 전까지 이 명령을 재시도하지 말 것.'''
-print(json.dumps({'hookSpecificOutput': {'hookEventName': 'PreToolUse', 'permissionDecision': 'deny',
-  'permissionDecisionReason': f'Sonar Protocol: bash 탐색/소스출력 감지 ({violation}) [{ctx}] — AskUserQuestion 4택 필요',
-  'additionalContext': msg}}))
-" "$VIOLATION" "$CTX_LABEL" "$TRAIL" "$TRAIL_N"
+emit_deny ask
 exit 0

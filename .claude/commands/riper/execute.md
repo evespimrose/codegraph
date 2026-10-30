@@ -1,92 +1,95 @@
 ---
-description: Enter EXECUTE mode to implement approved plan
-allowed-tools: mcp__codegraph__*, Read, Glob, Grep, Write, Edit, Bash(git:*)
+description: EXECUTE 단계. Haiku 5.5 세션에서 승인된 plan.md의 단계를 적힌 순서대로 기계적으로 실행하고 exec-log.md에 단계별 상태를 기록한다. 루트 세션의 /riper:workflow가 세션 카드로 연다.
+allowed-tools: Read, Glob, Grep, Write, Edit, Bash(git:*), Bash(codegraph:*), Bash(python3:*)
 ---
 
 # riper:execute
 
 <!-- CAVE-MAN-OUTPUT-ARM -->
-## ⚙️ 실행 규칙 (메인 직접 실행 · Cave-Man Output Arm)
+## 실행 규칙 (이 세션 직접 실행, Cave-Man Output Arm)
 
-**이 명령의 작업은 메인 에이전트가 직접 수행한다. 서브에이전트로 디스패치하지 않는다.**
-(이전 "전부 서브에이전트에서 수행" 방식은 콜드스타트 토큰세금 ~100배로 폐기 — 정책: [[main-context-zero-delegation]])
+이 명령은 이 세션이 직접 수행한다. 서브에이전트로 디스패치하지 않는다.
 
-- **서브에이전트 디스패치 금지** — Agent/Task 호출 안 함. 예외: 초대형 규모·병렬 독립 작업을 사용자가 발의한 경우만
-- **메인이 도구로 직접 작업** — codegraph→(보완)Read/Edit, hook 통제下 codegraph-first 강제
-- **메인 컨텍스트 타이핑 금지** — 과정 narration 없이 도구로만, 끝에 `XX 완료`만
-- **Auto-Clarity 예외** — 보안·비가역·모호 다단계·반복질문·하드블로커 → 정상 출력
+- codegraph를 먼저 쓰고 Read로 보완한다. 훅이 이 순서를 강제한다.
+- 과정을 서술하지 않는다. 끝에 5절의 줄과 사람 확인 항목을 쓴다.
+- Auto-Clarity 예외: 보안, 비가역 동작, 모호한 다단계, 반복 질문, 하드 블로커는 정상 출력한다.
 <!-- /CAVE-MAN-OUTPUT-ARM -->
 
-## 작업 정의 (메인 직접 수행)
+## 작업 정의
 
-# RIPER EXECUTE MODE
+너는 승인된 플랜을 적힌 그대로 실행한다. 판단하거나 개선하지 않는다.
 
-⚠️ EXECUTE MODE REQUIRES AN APPROVED PLAN
+### 0. 시작 확인
 
-Activate the plan-execute agent in EXECUTE sub-mode to implement the approved plan.
+1. 시스템 프롬프트에 적힌 이 세션의 모델 이름을 확인한다. Haiku 5.5가 아니면 아무것도 바꾸지 않는다. 다음 한 줄만 출력하고 끝낸다.
 
-Task context: $ARGUMENTS
+       EXECUTE는 Haiku 5.5 세션에서 실행합니다. 루트 세션의 /riper:workflow가 올리는 Execute 카드로 시작하세요.
 
-## Pre-Flight Check (MANDATORY — do this FIRST)
+2. 작업을 정한다. 인자의 첫 단어가 slug면 그 작업이다. 없으면 세션 시작 때 주입된 "이 세션의 RIPER 작업"이다. 둘 다 없으면 아무것도 바꾸지 않고 "작업 slug 필요" 한 줄을 출력하고 끝낸다.
+3. 상태 파일 `.claude/memory-bank/<branch>/riper/<slug>.state`에서 `MODE`와 `PLAN_FILE`을 읽는다. `<DOCS>`는 `.claude/memory-bank/<branch>/plans`다.
+4. `MODE`가 `EXECUTE`가 아니면 아무것도 바꾸지 않는다. "MODE가 EXECUTE가 아님. 루트 세션에서 플랜 승인이 먼저 필요함" 한 줄을 출력하고 끝낸다.
+5. `PLAN_FILE`이 비어 있거나 파일이 없으면 아무것도 바꾸지 않는다. 상태 파일의 `MODE`를 `BLOCKED`로 쓰고 원인 한 줄을 출력하고 끝낸다.
+6. 상태 파일을 다시 읽는다. 시작 지시문의 카드 이름(예: `E2`)이 가리키는 `CURRENT` 칸만 `<카드 이름>:실행 중`으로 고치고 `UPDATED`를 오늘로 쓴다. 다른 칸과 다른 키는 건드리지 않는다. 지시문에 카드 이름이 없으면 단일 카드다. 이때는 `CURRENT`를 `실행 중`으로 쓴다. 이 쓰기가 이 세션에 작업을 묶는다.
 
-Before any implementation:
+### 1. 승인
 
-1. Read `.claude/memory-bank/.riper-state`
-2. Verify `PLAN_FILE=` is set and not empty
-3. If `PLAN_FILE` is empty or file does not exist → **STOP and request PLAN phase first**
-4. Load the plan file from the `PLAN_FILE` path
-5. Confirm plan is approved (user has explicitly said "approve" or "진행해" or similar)
+사용자는 루트 세션에서 이 플랜을 이미 승인했다(G1). 그 승인은 플랜의 `## 바뀔 파일`에 적힌 파일을 수정해도 된다는 승인이다. 승인 알림이 나와도 다시 묻지 않고 진행한다. `## 바뀔 파일`에 없는 파일은 수정하지 않는다.
 
-### If Plan Missing
-```
-⛔ EXECUTE BLOCKED: No approved plan found.
-.riper-state PLAN_FILE is empty or file missing.
-Required: Complete /riper:plan phase first.
-```
+### 2. 단계 실행 방법
 
-## State Update (MANDATORY — after pre-flight check passes)
+실행을 시작할 때 `<DOCS>/<slug>-exec-log.md` 끝에 `## 실행 <YYYY-MM-DD HH:MM> (<카드 이름>)` 제목을 한 번 덧붙인다. 쓰기 직전에 파일을 다시 읽는다. 다른 카드의 절은 고치지 않는다.
 
-Write to `.claude/memory-bank/.riper-state`:
-```
-MODE=EXECUTE
-TASK=$ARGUMENTS
-PLAN_FILE=<same plan file as before>
-BRANCH=<current git branch>
-STARTED=<current date YYYY-MM-DD>
-```
+단계를 1번부터 순서대로 하나씩 실행한다. 한 단계에서 다음을 순서대로 한다.
 
-## Codebase Navigation (MANDATORY — SONAR PROTOCOL)
+1. 대상 파일이 소스 파일이면 Bash로 `codegraph query "<파일 이름 또는 심볼>" -p .`를 먼저 실행한다.
+2. `Read`의 `offset`과 `limit`로 "위치" 주변만 읽는다. 파일 전체를 읽지 않는다.
+3. "동작"에 따라 바꾼다.
+   - create: `Write`로 "변경 후" 내용을 새 파일로 쓴다.
+   - replace: `Edit`로 "변경 전"을 "변경 후"로 바꾼다.
+   - insert-after: `Edit`로 "변경 전"을 "변경 전, 줄바꿈, 변경 후" 순서의 문자열로 바꾼다.
+   - delete: `Edit`로 "변경 전"을 빈 문자열로 바꾼다.
+   - append: 파일 끝을 `Read`로 확인하고, `Edit`로 마지막 줄 뒤에 "변경 후"를 붙인다.
+4. "검증" 명령을 Bash로 실행한다. 출력을 "기대 출력"과 비교한다.
+5. 결과를 `exec-log.md`에 아래 형식으로 덧붙인다.
 
-각 스텝 실행 전 대상 파일·심볼 위치 확인 시 반드시 codegraph를 먼저 사용한다:
+"변경 전" 원문이 파일에 없거나 두 번 이상 나오면 파일을 바꾸지 않는다. 그 단계의 상태는 `NEEDS_CONTEXT`다.
 
-1. **`codegraph_node`** / **`codegraph_search`** → 플랜 BLK 좌표의 실제 파일·라인 번호 확인
-2. **`codegraph_files`** → 디렉토리 구조 확인
-3. `Read(offset=N, limit=M)` → 목표 섹션만 로드 (전체 파일 Read 금지)
+    ### 단계 <번호>: <제목>
+    - 상태: <DONE | DONE_WITH_CONCERNS | NEEDS_CONTEXT | BLOCKED>
+    - 바뀐 파일: `<경로>` 또는 "없음"
+    - 검증 명령: `<명령>`
+    - 검증 출력: `<실제 출력의 핵심 줄>`
+    - 메모: <우려나 멈춘 원인. 없으면 "없음">
 
-❌ `find` / `grep -r` / `ls -r` / `rg` / `fd` / codegraph 미사용 후 소스 `Read` → hook 자동 차단
+### 3. 상태
 
-## EXECUTE Mode Rules
+| 상태 | 고르는 경우 | 다음 행동 |
+|---|---|---|
+| DONE | 바꿨고 검증 출력이 기대 출력과 같다 | 다음 단계로 간다 |
+| DONE_WITH_CONCERNS | 바꿨고 검증도 통과했지만 플랜과 다른 점을 봤다 | 그 점을 메모에 적고 다음 단계로 간다 |
+| NEEDS_CONTEXT | 플랜의 정보로는 실행할 수 없다 | 즉시 멈춘다 |
+| BLOCKED | 실행할 수 없다. 또는 같은 단계 검증이 2번 실패했다 | 즉시 멈춘다 |
 
-- ✅ codegraph_* (FIRST — 각 스텝의 BLK 좌표 확인)
-- ✅ Implement each numbered step from the approved plan exactly
-- ✅ Report progress after each step
-- ✅ Modify source code files (with user approval per Collaboration Protocol Step 5)
-- ❌ Deviate from the approved plan
-- ❌ Skip steps without reporting the skip
-- ❌ Full file Read (1,000자 이상 = 실패 처리)
-- ❌ bash find/grep -r/ls -r/rg/fd (Sonar Protocol)
+검증이 처음 실패하면 그 단계의 변경 내용이 플랜과 같은지 다시 확인하고 검증을 한 번 더 실행한다. 두 번째도 실패하면 `BLOCKED`다. 멈춘 뒤에는 남은 단계를 실행하지 않는다. 다른 방법을 찾거나 플랜을 고치지 않는다.
 
-## After Each Step
+### 4. 금지
 
-Report format:
-```
-[MODE: EXECUTE] Step N/Total — [step title]
-Status: ✅ Complete / ⚠️ Blocked
-Changed: [file paths]
-```
+- `find`, `grep -r`, `ls -R`, `rg`, `fd`, `cat <소스>`를 쓰지 않는다. 훅이 막는다.
+- `git commit`, `git push`, `git checkout`, `git reset`, `git stash`를 실행하지 않는다.
+- 서브에이전트를 부르지 않는다.
 
-## Every Response Must Begin With
+### 5. 마무리
 
-```
-[MODE: EXECUTE]
-```
+- 상태 파일을 쓰기 직전에 다시 읽는다.
+- 멈춘 단계가 없으면 자기 카드 칸을 `완료`로, 멈췄으면 `멈춤 S<번호>`로 쓴다. `UPDATED`는 오늘로 쓴다.
+- 모든 카드 칸이 `완료`인 쓰기일 때만 `MODE`를 `REVIEW`로 바꾼다. 그 밖에는 `MODE`를 `EXECUTE`로 둔다. 멈춘 카드가 있어도 `MODE`는 바꾸지 않는다. 루트 세션이 판단한다.
+- 단일 카드(카드 이름 없음)는 멈춘 단계가 없으면 `MODE`를 `REVIEW`, `CURRENT`를 `검수 대기`로 쓴다. 멈췄으면 `MODE`를 `BLOCKED`, `CURRENT`를 `단계 <번호>에서 멈춤`으로 쓴다.
+
+마지막 응답은 다음 여섯 줄을 쓴다. 루트 세션이 이 응답으로 결과를 받는다. 그 뒤에 사람이 확인할 항목을 한 줄로 덧붙인다. 없으면 "없음".
+
+    STATUS=<DONE | BLOCKED>
+    STEPS_DONE=<DONE과 DONE_WITH_CONCERNS 단계 수>/<전체 단계 수>
+    CONCERNS=<DONE_WITH_CONCERNS 단계 수>
+    STOPPED_AT=<멈춘 단계 번호. 끝까지 갔으면 "없음">
+    REASON=<멈춘 원인 한 줄. 끝까지 갔으면 "없음">
+    CHECKS=<이 카드가 실행한 검증 명령 = 종료 코드 목록. 플랜 acceptance 의 id 가 있으면 붙인다>

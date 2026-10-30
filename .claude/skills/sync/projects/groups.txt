@@ -1,0 +1,9 @@
+# sync 제외 그룹 — 그룹에 속한 타깃에는 exclude 경로 아래 파일을 배포하지 않는다.
+# 형식: [그룹이름] 다음 줄부터 'exclude=<원본 기준 상대경로>' 와 타깃 절대경로(한 줄 1개).
+# 경로는 접두어로 비교한다(하위 폴더 전체 제외). '#' = 주석. 그룹은 여러 개 둘 수 있다.
+# 이미 타깃에 있는 파일은 지우지도 덮어쓰지도 않는다(배포만 안 함).
+
+[no-agents]
+exclude=.claude/agents
+D:\Fork\novel-vault-curator
+D:\Fork\raonx-ai-workflow

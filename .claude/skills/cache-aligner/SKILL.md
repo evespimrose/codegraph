@@ -4,7 +4,7 @@ description: Use when editing SessionStart hooks (session-start.sh, post-compact
 ---
 
 <!-- CAVE-MAN-OUTPUT-ARM -->
-> **출력 규약**(메인 직접·서술0·완료만·codegraph-first·서브에이전트 manual·Auto-Clarity 예외) — 전문: `output-arm` 스킬 · CLAUDE.md RULE-9.
+> **출력 규약**(답 먼저 · 증거는 Review Pack 링크 · 사람 확인 항목 · codegraph-first · 서브에이전트·Workflow 게이트 승인 · Auto-Clarity 예외) — 전문: `output-arm` 스킬 · CLAUDE.md RULE-8.
 <!-- /CAVE-MAN-OUTPUT-ARM -->
 
 
@@ -33,9 +33,8 @@ SessionStart 훅이 매 세션 주입하는 컨텍스트의 **선두(불변 구�
 2. **VARIABLE BLOCK은 항상 뒤.** `.riper-state` → 현재 플랜 → cxt → 위반이력 → tool-history 초기화는
    전부 INVARIANT BLOCK *뒤*에 온다. 순서를 INVARIANT 앞으로 옮기면 prefix가 churn한다.
 
-3. **두 진입점의 CORE_RULES RULE-1~5는 byte-equal.** session-start.sh 와 post-compact.sh 의
-   `CORE_RULES` 중 RULE-1~RULE-5는 **글자 단위로 동일**해야 한다(공백·이모지 포함).
-   RULE-6만 진입점별로 다름: 최초=`/memory:save`, 컴팩션후=`/memory:recall`.
+3. **두 진입점의 CORE_RULES 는 byte-equal.** session-start.sh 와 post-compact.sh 의
+   `CORE_RULES` 블록 전체(RULE-1~RULE-6)는 **글자 단위로 동일**해야 한다(공백·이모지 포함).
    → 한쪽 RULE을 고치면 **반드시 다른 쪽도 동일하게** 고친다.
 
 4. **cxt 정렬은 안정 정렬.** cxt 주입은 `mtime 1차(정수 초 양자화) + 파일명 2차`로 정렬한다.
@@ -58,15 +57,15 @@ A=$(run); B=$(run)
 [ "$A" = "$B" ] && echo "PREFIX_STABLE (cache 재사용 가능)" || echo "PREFIX_CHURN — INVARIANT 구역이 흔들림"
 ```
 
-두 진입점의 RULE-1~5 byte-equal 검증:
+두 진입점의 CORE_RULES byte-equal 검증:
 
 ```bash
 python3 - <<'PY'
 import io
 ss=io.open('.claude/hooks/session-start.sh',encoding='utf-8').read()
 pc=io.open('.claude/hooks/post-compact.sh',encoding='utf-8').read()
-seg=lambda s: s[s.index('RULE-1 [SONAR'):s.index('RULE-6 ')].strip()
-print('BYTE_EQUAL' if seg(ss)==seg(pc) else 'DIFFER — RULE-1~5 두 훅이 불일치(캐시 깨짐)')
+seg=lambda s: s[s.index('=== CORE_RULES'):s.index('"""', s.index('=== CORE_RULES'))].strip()
+print('BYTE_EQUAL' if seg(ss)==seg(pc) else 'DIFFER — CORE_RULES 두 훅이 불일치(캐시 깨짐)')
 PY
 ```
 
@@ -76,7 +75,7 @@ cxt 안정 정렬 회귀 검증: 임의 cxt를 내용 변경 없이 `touch`한 �
 ## 절대 금지
 
 - INVARIANT BLOCK(헤더·CORE_RULES·CLAUDE.md) 안에 가변 내용 삽입 → prefix churn.
-- 한 훅의 RULE만 고치고 다른 훅을 방치 → RULE-1~5 byte-equal 깨짐.
+- 한 훅의 RULE만 고치고 다른 훅을 방치 → CORE_RULES byte-equal 깨짐.
 - cxt 정렬을 mtime-only로 되돌리기 → sub-second touch churn 재발.
 - 헌법급 텍스트(CORE_RULES·CLAUDE.md)를 "캐시 위해" lossy 압축 (Atom 7 반례: 의미 변질).
 

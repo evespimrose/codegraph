@@ -27,6 +27,7 @@
 .claude/hooks
 .claude/rules
 .claude/agents
+.claude/references
 .claude/settings.json
 
 # --- Other agents ---

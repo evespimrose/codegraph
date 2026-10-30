@@ -57,36 +57,47 @@ if [ ${#inj[@]} -eq 0 ]; then
 fi
 shopt -u nullglob
 
-# ── Check 2: .riper-state 적법성 (MODE·PLAN_FILE·BRANCH·나이) ──
-RS=".claude/memory-bank/.riper-state"
-if [ -f "$RS" ]; then
+# ── Check 2: 작업별 RIPER 상태 적법성 (riper/<slug>.state · .claude/rules/riper-state.md) ──
+# 옛 단일 파일이 남아 있으면 이전이 끝나지 않은 것이므로 yellow
+[ -f ".claude/memory-bank/.riper-state" ] && add yellow riper-legacy "옛 .riper-state 가 남아 있음 (riper/_legacy-2026-10-20.md 로 이전 대상)"
+shopt -s nullglob
+for RS in .claude/memory-bank/*/riper/*.state; do
+  slug=$(basename "$RS" .state)
   MODE=$(sed -n 's/^MODE=//p'      "$RS" | head -1 | tr -d '\r')
-  PF=$(  sed -n 's/^PLAN_FILE=//p' "$RS" | head -1 | tr -d '\r')
-  RB=$(  sed -n 's/^BRANCH=//p'    "$RS" | head -1 | tr -d '\r')
-  ST=$(  sed -n 's/^STARTED=//p'   "$RS" | head -1 | tr -d '\r')
+  STATUS=$(sed -n 's/^STATUS=//p'  "$RS" | head -1 | tr -d '\r')
+  PF=$(    sed -n 's/^PLAN_FILE=//p' "$RS" | head -1 | tr -d '\r')
+  RB=$(    sed -n 's/^BRANCH=//p'  "$RS" | head -1 | tr -d '\r')
+  UPD=$(   sed -n 's/^UPDATED=//p' "$RS" | head -1 | tr -d '\r')
   case "${MODE:-NONE}" in
-    NONE|RESEARCH|INNOVATE|PLAN|EXECUTE|REVIEW) ;;
-    *) add red riper-mode "비적법 MODE='${MODE:-}'";;
+    NONE|RESEARCH|INNOVATE|PLAN|APPROVAL|EXECUTE|REVIEW|BLOCKED) ;;
+    *) add red riper-mode "[$slug] 비적법 MODE='${MODE:-}'";;
   esac
-  if [ "${MODE:-NONE}" != "NONE" ]; then
-    if [ -z "$PF" ] || [ ! -f "$PF" ]; then
-      add red riper-plan "MODE=$MODE 인데 PLAN_FILE 부재/없음: '${PF:-<empty>}'"
+  case "${STATUS:-active}" in
+    active|paused|done) ;;
+    *) add red riper-status "[$slug] 비적법 STATUS='${STATUS:-}'";;
+  esac
+  # RESEARCH·INNOVATE 는 플랜 문서가 아직 없을 수 있으므로 PLAN_FILE 을 요구하지 않음
+  case "${MODE:-NONE}" in
+    APPROVAL|EXECUTE|REVIEW)
+      if [ -z "$PF" ] || [ ! -f "$PF" ]; then
+        add red riper-plan "[$slug] MODE=$MODE 인데 PLAN_FILE 부재/없음: '${PF:-<empty>}'"
+      fi;;
+  esac
+  if [ "${STATUS:-active}" = active ] && [ "$NO_GIT" != 1 ]; then
+    cb=$(git rev-parse --abbrev-ref HEAD 2>/dev/null)
+    if [ -n "$RB" ] && [ -n "$cb" ] && [ "$RB" != "$cb" ]; then
+      add yellow riper-branch "[$slug] state BRANCH=$RB ≠ git HEAD=$cb"
     fi
-    if [ "$NO_GIT" != 1 ]; then
-      cb=$(git rev-parse --abbrev-ref HEAD 2>/dev/null)
-      if [ -n "$RB" ] && [ -n "$cb" ] && [ "$RB" != "$cb" ]; then
-        add yellow riper-branch "state BRANCH=$RB ≠ git HEAD=$cb"
-      fi
-    fi
-    if [ -n "$ST" ]; then
-      se=$(date -d "$ST" +%s 2>/dev/null || echo "")
+    if [ -n "$UPD" ]; then
+      se=$(date -d "$UPD" +%s 2>/dev/null || echo "")
       if [ -n "$se" ]; then
         days=$(( ( $(date +%s) - se ) / 86400 ))
-        [ "$days" -gt 3 ] && add yellow riper-stale "MODE=$MODE 가 ${days}일째 미종결 (STARTED=$ST)"
+        [ "$days" -gt 3 ] && add yellow riper-stale "[$slug] MODE=$MODE 가 ${days}일째 미종결 (UPDATED=$UPD)"
       fi
     fi
   fi
-fi
+done
+shopt -u nullglob
 
 # ── Check 3: codegraph 무결성/신선도 ──
 DB=""
@@ -118,10 +129,15 @@ fi
 # 진짜 낙성 신호는 히트 수가 아니라 CLI 실행 자체(exit code)·구조적 파싱 가능 여부다.
 # codegraph는 .cmd 확장자라 bash PATH 탐색(`command -v codegraph`)에 안 걸림 — 확장자 명시 호출.
 if command -v codegraph.cmd >/dev/null 2>&1; then
-  out="$(timeout 5 codegraph.cmd docs "output-arm" -p . --json --limit 1 2>/dev/null)"
+  # 콜드스타트 시 임베딩 모델 로드로 3초 내외가 걸린다(실측 2994ms). 5초는 여유가 없어 부하가
+  # 겹치면 timeout(124)으로 떨어져 거짓 yellow를 만들고, RULE-1 조건부 신뢰가 매 세션 강등된다.
+  # 15초로 올리고 시간초과는 실행실패와 구분해 보고한다(원인 진단 가능성 유지).
+  out="$(timeout 15 codegraph.cmd docs "output-arm" -p . --json --limit 1 2>/dev/null)"
   rc=$?
   hits=$(printf '%s' "$out" | grep -c '"file"')
-  if [ "$rc" -ne 0 ] || [ "${hits:-0}" -eq 0 ] 2>/dev/null; then
+  if [ "$rc" -eq 124 ]; then
+    add yellow docs-retrieval "codegraph docs 15초 초과 (인덱스 크기·디스크 부하 점검)"
+  elif [ "$rc" -ne 0 ] || [ "${hits:-0}" -eq 0 ] 2>/dev/null; then
     add yellow docs-retrieval "codegraph docs 실행 실패 또는 회수 0건 (인덱스/임베딩 점검)"
   fi
 else

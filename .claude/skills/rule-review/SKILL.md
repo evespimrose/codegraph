@@ -4,7 +4,7 @@ description: Use when the user invokes /rule-review, or when SessionStart report
 ---
 
 <!-- CAVE-MAN-OUTPUT-ARM -->
-> **출력 규약**(메인 직접·서술0·완료만·codegraph-first·서브에이전트 manual·Auto-Clarity 예외) — 전문: `output-arm` 스킬 · CLAUDE.md RULE-9.
+> **출력 규약**(답 먼저 · 증거는 Review Pack 링크 · 사람 확인 항목 · codegraph-first · 서브에이전트·Workflow 게이트 승인 · Auto-Clarity 예외) — 전문: `output-arm` 스킬 · CLAUDE.md RULE-8.
 <!-- /CAVE-MAN-OUTPUT-ARM -->
 
 # Rule Review — 룰 후보 승인 게이트

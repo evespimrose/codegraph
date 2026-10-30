@@ -4,7 +4,7 @@ description: Use when the user invokes /turn-budget <N>|off|status|<N>:block, or
 ---
 
 <!-- CAVE-MAN-OUTPUT-ARM -->
-> **출력 규약**(메인 직접·서술0·완료만·codegraph-first·서브에이전트 manual·Auto-Clarity 예외) — 전문: `output-arm` 스킬 · CLAUDE.md RULE-9.
+> **출력 규약**(답 먼저 · 증거는 Review Pack 링크 · 사람 확인 항목 · codegraph-first · 서브에이전트·Workflow 게이트 승인 · Auto-Clarity 예외) — 전문: `output-arm` 스킬 · CLAUDE.md RULE-8.
 <!-- /CAVE-MAN-OUTPUT-ARM -->
 
 
@@ -12,7 +12,7 @@ description: Use when the user invokes /turn-budget <N>|off|status|<N>:block, or
 
 ## 정체성
 
-토큰 비용의 **턴 축**. RULE-9(Output Arm)가 *출력 표현*을, RULE-1(Sonar)이 *입력 접근*을 통제한다면,
+토큰 비용의 **턴 축**. RULE-8(Output Arm)가 *출력 표현*을, RULE-1(Sonar)이 *입력 접근*을 통제한다면,
 turn-budget은 한 세션의 **도구 호출 수(턴)** 를 통제한다. 같은 작업을 더 적은 턴으로 끝낼수록
 누적 컨텍스트가 작아져 비용·지연이 함께 준다(CodeGraph 벤치마크가 입증한 "더 적은 턴 = 더 적은 비용"의 강제판).
 

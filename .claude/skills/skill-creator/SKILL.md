@@ -4,7 +4,7 @@ description: Use when creating or modifying a skill in THIS project (.claude/.ag
 ---
 
 <!-- CAVE-MAN-OUTPUT-ARM -->
-> **출력 규약**(메인 직접·서술0·완료만·codegraph-first·서브에이전트 manual·Auto-Clarity 예외) — 전문: `output-arm` 스킬 · CLAUDE.md RULE-9.
+> **출력 규약**(답 먼저 · 증거는 Review Pack 링크 · 사람 확인 항목 · codegraph-first · 서브에이전트·Workflow 게이트 승인 · Auto-Clarity 예외) — 전문: `output-arm` 스킬 · CLAUDE.md RULE-8.
 <!-- /CAVE-MAN-OUTPUT-ARM -->
 
 # Skill Creator — 로컬 스킬 생성기 (Cave-Man Output Arm 규약 강제판)
@@ -18,7 +18,7 @@ description: Use when creating or modifying a skill in THIS project (.claude/.ag
 | **표준 헤더** | 없음 | **모든 생성 스킬에 `<!-- CAVE-MAN-OUTPUT-ARM -->` 블록 필수 삽입** |
 | **테스트/eval** | 서브에이전트 with/baseline 병렬 + eval-viewer | **메인 직접** 실행(서브 금지 정책). 깊은 정량 eval이 필요하면 글로벌 스킬로 위임 |
 | **탐색** | 자유 Read | **codegraph-first** (RULE-1 Sonar) |
-| **출력** | 일반 서술 | **Output Arm**(끝에 `XX 완료`만, must-see는 `docs/output/`) |
+| **출력** | 일반 서술 | **Output Arm**(답 먼저, 증거는 Review Pack 링크, 사람 확인 항목만) |
 | **생성 위치** | 임의/패키징 | `.claude/skills/<name>/` (또는 `.agents`/`.trae` 지정 시) |
 
 ## 🔒 불변 규칙 — 표준 헤더(compact 포인터) 삽입 (이 스킬의 존재 이유)
@@ -27,11 +27,11 @@ description: Use when creating or modifying a skill in THIS project (.claude/.ag
 
 ````markdown
 <!-- CAVE-MAN-OUTPUT-ARM -->
-> **출력 규약**(메인 직접·서술0·완료만·codegraph-first·서브에이전트 manual·Auto-Clarity 예외) — 전문: `output-arm` 스킬 · CLAUDE.md RULE-9.
+> **출력 규약**(답 먼저 · 증거는 Review Pack 링크 · 사람 확인 항목 · codegraph-first · 서브에이전트·Workflow 게이트 승인 · Auto-Clarity 예외) — 전문: `output-arm` 스킬 · CLAUDE.md RULE-8.
 <!-- /CAVE-MAN-OUTPUT-ARM -->
 ````
 
-- **근거**: 규칙 전문은 `output-arm`(정의 문서) + CLAUDE.md RULE-9(하네스 always-injected)에 항상 존재 → 스킬마다 풀 블록 반복은 on-trigger 중복. 마커(게이트 grep용) + 1줄 포인터로 충분.
+- **근거**: 규칙 전문은 `output-arm`(정의 문서) + CLAUDE.md RULE-8(하네스 always-injected)에 항상 존재 → 스킬마다 풀 블록 반복은 on-trigger 중복. 마커(게이트 grep용) + 1줄 포인터로 충분.
 - **디스패치형 커맨드**(`riper/*`·`memory/*`)도 동일 compact 포인터 사용(메인 직접 실행 규정은 RULE-9·output-arm).
 - 마커 `<!-- CAVE-MAN-OUTPUT-ARM -->`는 검증이 grep하므로 **반드시 보존**.
 
@@ -86,7 +86,7 @@ skill-name/
 - ❌ 생성 스킬에 표준 헤더 누락 (이 스킬의 핵심 위반)
 - ❌ 서브에이전트 디스패치로 eval/작업 수행 (메인 직접 — 예외 사용자 발의)
 - ❌ codegraph 없이 소스 탐색 (Sonar Protocol)
-- ❌ 헌법급 문서(CLAUDE.md·schema) lossy 압축 (RULE-9 Atom7)
+- ❌ 헌법급 문서(CLAUDE.md·schema) lossy 압축 (RULE-8 Atom7)
 
 ## 더 깊은 기능이 필요하면
 

@@ -2,22 +2,36 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## 우선순위
+
+충돌하면 위쪽이 이긴다.
+
+1. 플랫폼·앱 지시 (시스템 프롬프트, 도구 게이트)
+2. 사용자 채팅 지시
+3. 프로젝트 규칙 (이 파일과 `.claude/rules/`)
+4. KIT 공용 규칙 (배포 하네스. 이 프로젝트에서는 수정하지 않음)
+
+## 규칙 번호
+
+아래 RULE 번호 한 체계를 쓴다. `.claude/hooks/session-start.sh` 와 `post-compact.sh` 의 `CORE_RULES` 가 RULE-1~6 을 같은 번호로 인용한다. 번호나 문구를 바꾸면 두 훅의 `CORE_RULES` 도 같이 바꾸고 byte-equal 을 확인한다(cache-aligner 스킬).
+
 ## RULE-1: Sonar Protocol (DEADLY · L1 Hook 강제)
 
 **모든 소스 코드 접근 전 codegraph 우선 사용.**
 
 ### ❌ 자동 차단 (PreToolUse hook)
-- `find` / `ls -r` / `grep -r` / `rg` / `fd` (bash)
+- `find`(깊이 제한 없음) / `ls -R` / `grep -r` / `rg` / `fd` (bash)
 - `Get-ChildItem -Recurse` / `Select-String -Path *` (PowerShell)
-- `cat .cs` / `head .py` / `tail .ts` (bash 소스 출력)
+- `cat` 등 범위 없는 소스 출력. `head`·`tail`·범위를 준 `sed -n 'A,Bp'` 는 허용
 - **codegraph 미사용 후 소스 코드 Read** (자동 차단)
+- 문서·설정 문자열 검색은 Grep 도구(type/glob 소스 필터 없이)로 한다. codegraph 인덱스에 없는 문자열이라 막지 않는다.
 
 ### ✅ 올바른 순서 (codegraph는 MCP가 아니라 CLI — Bash로 직접 호출)
 ```
-1. codegraph context "<intent>" -p <root> / codegraph search "<symbol>" -p <root> → 심볼 위치
+1. codegraph context "<intent>" -p <root> / codegraph query "<symbol>" -p <root> → 심볼 위치
 2. codegraph callers "<symbol>" -p <root> / codegraph impact "<symbol>" -p <root> → 영향 범위
-3. codegraph node "<symbol>" -p <root> / codegraph explore "<symbol>" -p <root> → 소스 코드
-4. (보완 시만) Read / Glob / Grep
+3. Read(offset+limit) 로 좌표 구간만 읽음 → 소스 코드
+4. (보완 시만) Glob / Grep
 ```
 
 `mcp__codegraph__*` 툴은 더 이상 존재하지 않는다(CLI 바이너리 전환, 920cd03). codegraph MCP를 등록·기동하지 말 것.
@@ -33,73 +47,55 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `health` 토큰이 **green 이 아니면**(yellow/red/unknown): 해당 파생 표현을 **권위 → 참고(reference)로 강등**하고 RULE-1 일시 해제. → 영향 부분을 Read 로 ground-truth 확인 후 가능하면 재생성(reindex·dictionary 재산출·경로 정정).
 - **최악의 실패 모드**: yellow/red 를 무시하고 stale 표현에 "충실히" 따르는 것 — 저신뢰 환각을 고신뢰 상태부패로 세탁한다. green 점검이 신뢰 명령의 전제다.
 
-## RULE-2: /doc-context 즉시 실행
-- cxt 파일 = 사용자의 직접 지시
-- 재확인·요약 금지, 즉시 작업 착수
-- cxt 2행 `<!-- BLK: BLK-XXX -->` 의무
-- cxt 3행 `<!-- SONAR-REMINDER: ... -->` 의무 (L5 외부 이전)
-
-## RULE-3: RIPER 상태 추적
-`.claude/memory-bank/.riper-state` 파일에 기록.
+## RULE-2: RIPER 상태 추적
+`.claude/memory-bank/<branch>/riper/<slug>.state` 에 작업마다 파일 1개로 기록 (규칙 전문: [.claude/rules/riper-state.md](.claude/rules/riper-state.md)). 세션 묶음은 `riper-bind.sh` 가 자동 처리.
 - /riper:research|innovate|plan|execute|review
-- PLAN_FILE 부재 시 EXECUTE 진입 차단
+- PLAN_FILE 부재 시 EXECUTE 진입 차단 (state-doctor 가 red 표시)
+- 여러 세션이 한 상태 파일을 돌려 쓸 수 있다. 쓰기 직전에 다시 읽고 자기 칸만 고친다.
 
-## RULE-4: PRD Spatial Mapping (PLAN 단계 BLK 좌표 강제)
-모든 Action Item에 BLK 좌표 + 파일 경로 필수.
-- 기존: `[BLK-XXX] Assets/.../File.cs 내 대상`
-- 신규: `[NEW-BLK] + 절대경로`
-- 금지: 위치 없는 추상 지시 ("ExplosionSystem 수정")
+## RULE-3: 게이트 (규모별 차등)
+| 규모 | 기준 | 플랜 | 확인 |
+|------|------|------|------|
+| 소형 | 단일 파일, 버그픽스 1곳, 플랜 없음 | 없음 | 메인이 직접 처리 |
+| 중·대형 | 멀티파일, 신규 시스템, 플랜 파일 존재 | 필수 (수락 기준 포함) | G1: 플랜·수락 기준 승인, G2: Review Pack 확인 |
 
-## RULE-5: EXECUTE Scope Lock
-- BLK 좌표 → `Read(offset+limit)` 또는 `grep -A -B` 최소 로드
-- 파일 전체 Read 금지 (1,000자 이상 = 실패)
-- 자가검증: "내가 건드리는 좌표가 PLAN의 BLK와 일치?"
-- **회수 전반(EXECUTE 밖 포함) 규율 전문**: [.claude/rules/retrieval-discipline.md](.claude/rules/retrieval-discipline.md) (M4, 2026-08-15)
+G1·G2 는 사람이 한다. 모델이 대신 통과시키지 않는다.
 
-## RULE-6: 게이트 (규모별 차등)
-| 규모 | quality-sentinel | reporter |
-|------|-----------------|---------|
-| 소형 (단일 파일, 플랜 없음) | 선택 | 기본 |
-| 중·대형 (멀티파일, 플랜 존재) | 필수 | 필수 |
+## RULE-4: 소스 코드 쓰기 전 승인
+.cs/.py/.ts/.js 등 소스 수정 전 사용자 승인. 승인된 플랜(G1)이 플랜 범위 파일의 쓰기 승인을 겸한다. 플랜에 없는 파일은 고치지 않는다.
 
-## RULE-7: 소스 코드 쓰기 전 승인
-.cs/.py/.ts/.js 등 수정 전 사용자 승인.
-`write-approval-reminder.sh` 자동 알림.
+## RULE-5: /doc-context 즉시 실행
+- 세션 시작 때 cxt 본문은 주입하지 않는다. 최근 cxt 경로 한 줄만 보인다.
+- /doc-context 로 부르면 cxt 파일 = 사용자의 직접 지시로 보고 즉시 작업한다. 재확인·요약 금지.
+- cxt 파일의 BLK 태그와 SONAR 리마인더 줄은 있으면 쓴다.
 
-## RULE-8: 컴팩션 전 메모리 저장
-/compact 실행 전 `/memory:save` 필수. 복원: `/memory:recall`
+## RULE-6: 컴팩션 전 메모리 저장
+/compact 실행 전 `/memory:save` 필수. 컴팩션 후 `/memory:recall`.
 
-## RULE-9: Output Arm (출력 압축 · 기본 ON · 토글)
-출력측 토큰 게이트. 기본 ON. 상태: `.claude/state/output-arm` (`on`/`off`), 토글: `/output-arm on|off`.
-- **ON**: 메인 컨텍스트 서술 억제 → 도구로 작업, 끝에 `XX 완료` 한 줄만. **서브에이전트 디스패치 = 3-모드 게이트**(`.claude/state/subagent-dispatch` · 토글 `/subagent-dispatch auto|manual|off` · 기본 `manual`). Agent/Task 콜드스타트 토큰세금 ~100배라 기본 `manual`=디스패치마다 사용자 승인(ask) — 초대형·병렬 독립 작업만 승인 권장. `auto`=상시 허용, `off`=차단(메인 직접). 강제: `subagent-dispatch-gate.sh`. must-see 산출물은 `docs/output/YYYY-MM-DD-<task>.md`에 적재(코드 위치=BLK 태그, 참조=마크다운 링크 → codegraph 추적).
-- **대량저작 임계(온디맨드 원칙)**: 예상 산출물 ≥ 8K자(≈2K tok)는 메인이 직접 Write하지 않고 writer 서브에이전트 디스패치를 제안(manual 게이트 '초대형' 예외에 해당) — 저작 토큰이 메인 컨텍스트 윈도우를 통과하지 않게 한다. 근거: Write 인자도 가시출력과 동일하게 윈도우에 실린다(2026-07-06 실측 — output-arm은 표시 규율이지 윈도우 절감이 아님).
-- **Auto-Clarity 예외(억제 해제)**: 보안·비가역 동작·모호 다단계·반복 질문·하드 블로커 → 정상 출력. correctness > brevity.
-- 사후 게이트: Stop 훅 `output-arm-gate.sh` (변경 있는데 docs/output 적재 없으면 경고).
-- 스킬: `.claude/skills/output-arm/`(규칙 전문 단일 출처). 설계: caveman 입국심사 Atom 1·2·4·5·6. **실적용**: 전 스킬/커맨드 frontmatter에 `<!-- CAVE-MAN-OUTPUT-ARM -->` **compact 포인터**(6핵심 1줄 요약 + RULE-9·output-arm 참조) 삽입 — 마커는 게이트 grep용 보존, 풀 규칙은 본 RULE-9 + output-arm에만 둔다(중복 제거). riper/memory 커맨드는 "디스패치"→"메인 직접" 대체.
-- 금지: 헌법급 문서(CLAUDE.md·schema) LLM lossy 압축(Atom 7 반례).
+## RULE-7: 범위와 수락 기준
+- 플랜의 각 단계에는 파일(절대 경로), 범위(줄 또는 심볼), 동작(insert/replace/delete/append), 성공 기준(관찰 가능한 결과)을 적는다. 최대 10단계.
+- 플랜에는 ` ```acceptance ` 블록이 있어야 한다. 한 줄에 JSON 객체 하나. `kind: auto` 는 `cmd` 와 `expect`(`exit0`), `kind: human` 은 `how` 와 `expect`. 블록이 없으면 APPROVAL 로 넘기지 않는다. 형식은 `.claude/commands/riper/plan.md` 를 따른다.
+- BLK 좌표는 있으면 쓴다. 없으면 파일 경로만 적는다.
+- 플랜 범위 밖 파일은 고치지 않는다. 범위 밖 문제는 보고만 한다.
+- 대형 파일은 전문을 읽지 않는다. 좌표 주변만 읽는다. 규율 전문: [.claude/rules/retrieval-discipline.md](.claude/rules/retrieval-discipline.md)
 
-## RULE-10: Operational Directives (전 스킬·명령 강제 준수)
+## RULE-8: 출력 규약 (D4)
+1. 답을 먼저 쓴다. 과정 서술은 줄인다.
+2. 증거는 Review Pack(`plans/<slug>-review.md`) 링크로 건넨다. 긴 로그를 채팅에 붙이지 않는다.
+3. 끝에 사람이 확인할 항목만 남긴다. 없으면 "없음".
+4. **Auto-Clarity 예외**: 보안, 비가역 동작, 모호한 다단계, 반복 질문, 하드 블로커는 숨기지 않고 정상 출력한다.
+- 토글: `/output-arm on|off` (상태 파일 `.claude/state/output-arm`, 기본 `on`). 규칙 전문: `.claude/skills/output-arm/`.
+- 사후 게이트: Stop 훅 `output-arm-gate.sh`. REVIEW 상태인데 Review Pack 이 없으면 알린다.
+- 금지: 헌법급 문서(CLAUDE.md·schema) LLM lossy 압축.
 
-- All work must deadly and strictly follow the rules defined in SKILL.md and CLAUDE.md.
-- All responses must be in Korean, but method names, class names, and code-related terms may be written in English.
+## RULE-9: 위임 (서브에이전트와 Workflow)
+- 서브에이전트(`Agent`/`Task`)와 `Workflow` 는 게이트 `subagent-dispatch-gate.sh` 가 매번 승인을 묻는다. 기본 모드 `manual`. 토글: `/subagent-dispatch auto|manual|off`.
+- 위임 단위는 사용자가 승인한 **세션 카드**다. 작업 하나에 카드 1장이 기본이다. 파일 집합이 겹치지 않을 때만 카드를 나눠 동시에 돌린다. 카드는 같은 폴더에서 돈다(`use_worktree: false`).
+- 소형 작업은 메인이 직접 한다.
 
-### Operational Directives
-- **Output**: Minimize main context window typing.
-- **Agents**: Sub-agent dispatch strictly prohibited.
-- **Tools**: Permitted (actively utilize codegraph).
-- **Completion**: Report solely as "[Task] 완료".
-
-> **RULE-9와의 관계**: Agents 항목("strictly prohibited")은 RULE-9의 3-모드 게이트 기본값(`manual`=승인 후 허용)보다 강하다. 텍스트 규칙만으로는 sonnet 계열에서 마모될 수 있음 — 강제 수준을 훅에도 반영하려면 `subagent-dispatch-gate.sh` 기본값을 `off`로 전환하거나 `strict-arm` 오버레이(`.claude/skills/strict-arm/`)로 주기 재주입할 것.
-
-## Plan Scope Lock 필드 (PLAN 단계 모든 스텝에 포함)
-- **Symbol**: `ClassName.MethodName`
-- **CodeGraph**: codegraph_search/context 결과
-- **File**: 절대 경로 (dictionary 크로스 검증)
-- **Scope**: `Lines [N-M]`
-- **BLK target**: `[BLK-XXX]` 또는 `[인프라]`
-- **Action**: insert/replace/delete/append
-- **Success criterion**: 관찰 가능 결과
-- Max 10 steps
+## RULE-10: 언어와 완료 보고
+- 응답은 한국어. 메서드·클래스·코드 용어는 영어로 쓸 수 있다.
+- 완료 보고에는 실행한 명령과 종료 코드, 바꾼 파일 목록, 사람 확인 항목을 적는다(RULE-8 과 같은 형식).
 
 ## Wiki Second Brain
 원격 정본: `https://github.com/evespimrose/WIKI.git` (머신마다 클론 경로 상이 → 절대경로 하드코딩 금지, remote 추적으로 로컬 해석; `obsidian/`=노트·`raw/`=입력)
@@ -107,35 +103,21 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - 충돌 시 `[WIKI-CONFLICT]` 경고 + 중단
 - 참조 시 파일명 인용
 
-## 메모리 아키텍처
-- L1: CLAUDE.md + session-start.sh (세션 주입)
-- L2: `.claude/memory-bank/.riper-state` (RIPER)
-- L3: `/memory:save|recall` (장기)
-- L4: `manage/dictionary.md` (구조 인덱스)
-- L5: WIKI — remote `https://github.com/evespimrose/WIKI.git` (로컬 경로 머신별, remote 추적 해석) (Single Source of Truth)
-- 코드 인텔리전스: codegraph MCP (실시간 심볼 그래프)
+### 온디맨드 티어드 순회 (조회 규약)
+위키는 `hot → index → domain → page` 순서로만 내려간다. **각 계층에서 답이 나오면 즉시 중단**(조기 종료)하고 다음 계층을 열지 않는다.
+- `hot`: `.claude/state/hot.md` (세션 핫캐시 — 직전 세션 요약, 세션 시작 시 자동 주입됨)
+- `index`: 볼트 인덱스/목차 노트
+- `domain`: 해당 도메인 허브 노트
+- `page`: 개별 Atomic Note 전문
+- 위키와 무관한 작업이면 **어느 계층도 열지 않는다.**
 
-## 에이전트 라우팅 (3-Tier Studio)
-| Tier | 에이전트 | 모델 | 담당 |
-|------|---------|------|------|
-| 1 | producer, creative-director, technical-director | Opus | 의사결정 |
-| 2 | lead-programmer, unity-specialist | Sonnet | 구현 총괄 |
-| 3 | quality-sentinel, reporter, writer, 도메인 전문가 | Sonnet | 실행·검증 |
+근거: [[Sonar_Protocol]]·[[위키_기반_에이전트_맥락공유]]의 "탐색은 최소 조회로" 원리를 조회 대상이 아니라 소비 측(위키 읽기)에 적용한 규약이다. RULE-1이 코드 회수에 부과하는 제약과 같은 것을 지식 회수에 부과한다.
 
-> **[cxt10] Tier 1 모델(Opus)은 하향 금지 대상** — 검증가능성 앵커: 의사결정 계층(producer·creative-director·technical-director)은 opus 고정. haiku 신설은 기계 검증 가능 대역(reporter·memory 커맨드 등)에 한정한다.
-
-## Claude vs trae
-| 측면 | Claude | trae |
-|------|--------|------|
-| Memory | `.claude/memory-bank/` | `.trae/memory-bank/` |
-| Instruction | CLAUDE.md | AGENTS.md |
-| Role | Dev, debug | Infrastructure, CI/CD |
-| Validation | 사용자 승인 | validate-cxt hook |
-| Context | Direct tools | context-sharer skill |
-| RIPER | 참여 | 금지 |
+## 참고 문서 (세션 시작 때 싣지 않음)
+메모리 아키텍처, 에이전트 라우팅(3-Tier Studio), Claude vs trae 비교는 `.claude/references/harness-notes.md` 에 있다. 필요할 때 Read 한다.
 
 ## 워크플로
 ```
-[소형] codegraph → Edit/Write → 완료
-[중·대형] /riper:research → innovate → plan → execute → review → quality-sentinel → reporter
+[소형] codegraph → Edit/Write → 완료 보고
+[중·대형] research → innovate → plan (수락 기준 포함) → G1 사람 승인 → execute 카드 → review (pack.py build) → G2 사람 확인
 ```

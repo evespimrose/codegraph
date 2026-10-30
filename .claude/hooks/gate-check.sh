@@ -35,7 +35,7 @@ msg = '''📋 GATE CHECK REMINDER
 
 체크리스트:
   [ ] 플랜 파일이 .claude/memory-bank/{branch}/plans/ 에 저장됨
-  [ ] .claude/memory-bank/.riper-state 업데이트됨
+  [ ] 작업 상태 파일(.claude/memory-bank/<branch>/riper/<slug>.state) 업데이트됨
   [ ] quality-sentinel 호출 여부 결정됨
   [ ] reporter 호출 여부 결정됨'''
 

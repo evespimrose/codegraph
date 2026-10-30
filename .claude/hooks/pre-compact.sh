@@ -9,14 +9,15 @@ echo "--- CCGS Pre-Compaction Hook Started ---"
 
 MEMORY_BANK=".claude/memory-bank"
 BACKUP_FILE="$MEMORY_BANK/pre_compact_backup.md"
-RIPER_STATE="$MEMORY_BANK/.riper-state"
+# 작업별 상태 파일 중 가장 최근에 갱신된 것 (.claude/rules/riper-state.md)
+RIPER_STATE=$(ls -t "$MEMORY_BANK"/*/riper/*.state 2>/dev/null | head -1)
 
 # 백업 파일 초기화
 echo "# Pre-Compact Backup — $(date '+%Y-%m-%d %H:%M')" > "$BACKUP_FILE"
 echo "" >> "$BACKUP_FILE"
 
-# 1. .riper-state 백업
-if [ -f "$RIPER_STATE" ]; then
+# 1. 최근 RIPER 상태 파일 백업
+if [ -n "$RIPER_STATE" ] && [ -f "$RIPER_STATE" ]; then
     echo "## RIPER State" >> "$BACKUP_FILE"
     echo '```' >> "$BACKUP_FILE"
     cat "$RIPER_STATE" >> "$BACKUP_FILE"
@@ -50,7 +51,7 @@ msg = '''⚠️ PRE-COMPACT: /compact 실행 전 필수 단계
 
 다음을 즉시 수행하세요:
   1. /memory:save 실행 — 현재 세션 핵심 내용을 로컬 memory-bank에 저장
-  2. .riper-state 확인 — 현재 RIPER 모드 기억
+  2. riper/<slug>.state 확인 — 현재 RIPER 모드 기억
   3. 이후 /compact 실행
 
 백업 저장됨: .claude/memory-bank/pre_compact_backup.md

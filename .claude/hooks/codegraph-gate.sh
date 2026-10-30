@@ -11,9 +11,15 @@
 
 INPUT=$(cat)
 HISTORY_FILE=".claude/state/tool-history.log"
+LOCATED_FILE=".claude/state/located-paths.log"
+GATE_DECISION=".claude/hooks/lib/gate-decision.py"
 WINDOW_SIZE=5  # 직전 N개 도구 호출 검사
 VIOLATION_FILE=".claude/state/violation-count.log"
 OVERRIDE_FILE=".claude/state/sonar-override"
+# 6.1: 한 번에 읽을 수 있는 최대 줄 수. RULE-7/retrieval-discipline 의 "부분 로드"를 실제로 강제한다.
+READ_LIMIT_MAX=${CG_READ_LIMIT_MAX:-300}
+# 6.2: 좌표 일치를 인정하는 시간 창(초). 이보다 오래된 codegraph 결과는 통행증으로 치지 않는다.
+LOCATED_TTL=${CG_LOCATED_TTL:-1800}
 
 # tool_input 파싱
 TOOL_NAME=$(echo "$INPUT" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('tool_name',''))" 2>/dev/null || echo "")
@@ -24,12 +30,17 @@ GREP_GLOB=$(echo "$INPUT" | python3 -c "import json,sys; d=json.load(sys.stdin);
 AGENT_ID=$(echo "$INPUT" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('agent_id',''))" 2>/dev/null || echo "")
 AGENT_TYPE=$(echo "$INPUT" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('agent_type',''))" 2>/dev/null || echo "")
 CTX_LABEL="${AGENT_TYPE:-MAIN}"
+SESSION_ID=$(echo "$INPUT" | python3 -c "import json,sys; d=json.load(sys.stdin); print((d.get('session_id') or '')[:8])" 2>/dev/null || echo "")
+READ_LIMIT=$(echo "$INPUT" | python3 -c "import json,sys; d=json.load(sys.stdin); v=(d.get('tool_input') or {}).get('limit'); print(v if isinstance(v,int) else '')" 2>/dev/null || echo "")
+
+b64() { printf '%s' "${1:-}" | base64 -w0 2>/dev/null || printf '%s' "${1:-}" | base64 | tr -d '\n'; }
 
 # 예외 케이스: 명시적 허용 (whitelist)
 # - settings.json, CLAUDE.md 등 메타 파일은 codegraph 없이 허용
 WHITELIST_PATTERN='\.(json|md|txt|sh|ps1|yml|yaml)$|CLAUDE\.md|AGENTS\.md|dictionary\.md|\.claude/|\.trae/|docs/|manage/|raw/'
 
-if echo "$FILE_PATH" | grep -qE "$WHITELIST_PATTERN"; then
+# Read 도구는 Windows 역슬래시 경로를 넘겨서 슬래시 패턴(.claude/ 등)에 안 맞음
+if printf '%s' "$FILE_PATH" | tr '\\' '/' | grep -qE "$WHITELIST_PATTERN"; then
   python3 -c "import json; print(json.dumps({'hookSpecificOutput':{'hookEventName':'PreToolUse','permissionDecision':'allow'}}))"
   exit 0
 fi
@@ -48,10 +59,51 @@ LOCATING_TOOLS='codegraph_(context|query|callers|callees|impact|files|backlinks|
 #   인정 조건: 최근 창에 탐색형 도구가 있고 그 호출이 실패(outcome=failed)가 아닐 것.
 #   실패 조회("No results found")도 위치를 못 얻은 것이라 게이트를 열면 안 됨 — 같은 탈주로임.
 #   로그 형식: <epoch> <TOOL> <CTX> <outcome> (필드 4개 미만인 구버전 줄은 outcome 미상 → 통과 허용)
+#   H4 보강: 5번째 필드(세션 id)가 있으면 현재 세션 행만 본다. 동시 세션이 한 로그에 append 하므로
+#   이것이 없으면 다른 세션의 codegraph 호출이 내 게이트를 열어 준다(실측됨).
+#   H2 보강: '#' 로 시작하는 세션 헤더는 도구 호출이 아니므로 창에서 제외한다.
 check_codegraph_recent() {
   [ -f "$HISTORY_FILE" ] || return 1
-  RECENT=$(tail -n "$WINDOW_SIZE" "$HISTORY_FILE" 2>/dev/null || echo "")
+  RECENT=$(grep -v '^#' "$HISTORY_FILE" 2>/dev/null | awk -v sid="$SESSION_ID" 'sid == "" || NF < 5 || $5 == sid' | tail -n "$WINDOW_SIZE")
   echo "$RECENT" | awk -v pat="$LOCATING_TOOLS" '$2 ~ pat && $4 != "failed" { found = 1 } END { exit !found }'
+}
+
+# 6.2: 좌표 일치 판정. "codegraph 를 몇 번 불렀나"가 아니라 "그 호출이 이 파일을 가리켰나"를 본다.
+#   located-paths.log 는 tool-history-recorder 가 codegraph 응답에서 뽑아 적는다.
+#   횟수 기반 통행증의 탈주로("아무 질의나 하나 던지고 5개 읽기")를 여기서 막는다.
+check_located_path() {
+  [ -f "$LOCATED_FILE" ] || return 1
+  [ -n "$FILE_PATH" ] || return 1
+  FP="$FILE_PATH" SID="$SESSION_ID" TTL="$LOCATED_TTL" LF="$LOCATED_FILE" python3 - <<'PYEOF'
+import os, sys, time
+target = os.environ.get('FP', '').replace('\\', '/').lstrip('./').lower()
+sid = os.environ.get('SID', '')
+try:
+    ttl = int(os.environ.get('TTL') or 1800)
+except ValueError:
+    ttl = 1800
+now = int(time.time())
+try:
+    rows = open(os.environ['LF'], encoding='utf-8', errors='replace').read().splitlines()
+except Exception:
+    sys.exit(1)
+for line in reversed(rows):
+    parts = line.split(None, 2)
+    if len(parts) < 3:
+        continue
+    try:
+        ts = int(parts[0])
+    except ValueError:
+        continue
+    if now - ts > ttl:
+        continue
+    if sid and parts[1] != sid:
+        continue
+    known = parts[2].replace('\\', '/').lstrip('./').lower()
+    if known and (target.endswith(known) or known.endswith(target)):
+        sys.exit(0)
+sys.exit(1)
+PYEOF
 }
 
 # 게이트 회피 시도 기록 — 최근 창에 codegraph_status 만 있고 탐색형이 없을 때 고정 마커를 남김.
@@ -64,32 +116,17 @@ note_evasion() {
   fi
 }
 
-# 공통 결정 로직: 서브에이전트/strict → 하드 deny, 우회토큰 → allow, 그 외 → deny+AskUserQuestion 4택
-# $1=violation-code(로그용) $2=reason(짧은 한글 사유) $3=ask_msg(4택 유도 전문)
+# 공통 결정 로직: 서브에이전트/strict -> 하드 deny, 우회토큰 -> allow, 그 외 -> deny + AskUserQuestion 4택
+#   H7: 결정 JSON 과 4택 문구는 lib/gate-decision.py 한 곳에서만 만든다. 이전에는 sonar-guard 와
+#   이 파일이 같은 템플릿을 각자 들고 있어 한쪽(sonar-guard)의 백틱 명령치환 버그가 오래 살아남았다.
+#   $1=violation-code(로그용) $2=reason(짧은 한글 사유)
 emit_decision() {
-  local vcode="$1" reason="$2" ask_msg="$3"
+  local vcode="$1" reason="$2"
 
   note_evasion
 
-  if [ -n "$AGENT_ID" ]; then
-    python3 -c "
-import json, sys
-reason, ctx = sys.argv[1], sys.argv[2]
-print(json.dumps({'hookSpecificOutput': {'hookEventName': 'PreToolUse', 'permissionDecision': 'deny',
-  'permissionDecisionReason': f'{reason} [{ctx}]',
-  'additionalContext': '⛔ 서브에이전트는 codegraph_* 선행 없이 탐색 불가.'}}))
-" "$reason" "$CTX_LABEL"
-    return
-  fi
-
-  if [ "${CG_GATE_MAIN_STRICT:-0}" = "1" ]; then
-    python3 -c "
-import json, sys
-reason = sys.argv[1]
-print(json.dumps({'hookSpecificOutput': {'hookEventName': 'PreToolUse', 'permissionDecision': 'deny',
-  'permissionDecisionReason': f'{reason} (strict)',
-  'additionalContext': 'STRICT 모드 — codegraph_* 선행 필요.'}}))
-" "$reason"
+  if [ -n "$AGENT_ID" ] || [ "${CG_GATE_MAIN_STRICT:-0}" = "1" ]; then
+    CG_SESSION_ID="$SESSION_ID" CG_HISTORY="$HISTORY_FILE" CG_TRAIL_N="$WINDOW_SIZE"       python3 "$GATE_DECISION" caveman hard "$(b64 "$vcode")" "$(b64 "$reason")" "$(b64 "$CTX_LABEL")"
     return
   fi
 
@@ -101,79 +138,38 @@ print(json.dumps({'hookSpecificOutput': {'hookEventName': 'PreToolUse', 'permiss
     return
   fi
 
-  python3 -c "
-import json, sys
-reason, ctx, msg = sys.argv[1], sys.argv[2], sys.argv[3]
-print(json.dumps({'hookSpecificOutput': {'hookEventName': 'PreToolUse', 'permissionDecision': 'deny',
-  'permissionDecisionReason': f'{reason} [{ctx}] — AskUserQuestion 4택 필요',
-  'additionalContext': msg}}))
-" "$reason" "$CTX_LABEL" "$ask_msg"
-}
-
-# 최근 도구 이력에서 "경위"(성공/실패) 트레일 구성 — 최선노력, tool-history.log outcome 필드 기반
-build_trail() {
-  local hf="$1" n="${2:-5}"
-  [ -f "$hf" ] || return
-  python3 -c "
-import sys
-n = int(sys.argv[2])
-try:
-    with open(sys.argv[1], encoding='utf-8') as f:
-        lines = f.readlines()[-n:]
-except Exception:
-    lines = []
-label = {'ok':'성공', 'failed':'실패', 'unknown':'불명'}
-out = []
-for ln in lines:
-    parts = ln.strip().split()
-    if len(parts) >= 4:
-        tool, outcome = parts[1], parts[3]
-        out.append(f'  {tool}: {label.get(outcome, outcome)}')
-    elif len(parts) == 3:
-        out.append(f'  {parts[1]}: 불명(구버전 로그)')
-print('\n'.join(out))
-" "$hf" "$n"
-}
-
-ASK4_TEMPLATE() {
-  # $1 = 위반 상세 설명 1줄
-  local trail; trail=$(build_trail "$HISTORY_FILE" "$WINDOW_SIZE")
-  local trail_block=""
-  if [ -n "$trail" ]; then
-    trail_block=$'\n'"최근 시도 경위 (직전 ${WINDOW_SIZE}개 도구):"$'\n'"$trail"$'\n'
-  fi
-  cat <<EOF
-⛔ CAVE-MAN GUARD L1: $1
-${trail_block}
-이 명령을 그대로 재시도하지 말고, 지금 AskUserQuestion 도구를 호출하여 사용자에게 정확히 다음 4개 선택지를 제시하라:
-
-  1. 허용 — 원래 명령을 그대로 승인하고 진행. 승인 시 먼저
-     printf '%s' "사용자 승인: <사유>" > .claude/state/sonar-override
-     로 1회성 우회 토큰을 기록한 뒤 원래 명령을 재시도한다.
-  2. codegraph 강제(회귀 및 재시도) — 이 시도를 취소하고 codegraph_context/codegraph_query로
-     먼저 조사한 뒤 Glob/Grep/Read로 원 목표를 재시도한다.
-  3. 거부(manual stop) — 여기서 작업을 중단하고 사용자에게 보고한다.
-  4. 커스텀 답변 — 자유 응답으로 사용자가 직접 방향을 재지정한다.
-
-게이트를 여는 것은 "위치를 실제로 얻은" 탐색형 호출뿐이다:
-  codegraph_context / query / callers / callees / impact / files / backlinks
-codegraph_status 는 인덱스 헬스만 돌려주므로 게이트를 열지 못한다. 결과가 비어 있는(실패) 조회도 마찬가지다.
-게이트 통과만을 목적으로 하는 형식적 호출을 하지 말 것 — 실제로 대상을 찾는 질의를 하라.
-
-사용자 응답 전까지 이 명령을 재시도하지 말 것.
-EOF
+  CG_SESSION_ID="$SESSION_ID" CG_HISTORY="$HISTORY_FILE" CG_TRAIL_N="$WINDOW_SIZE"     python3 "$GATE_DECISION" caveman ask "$(b64 "$vcode")" "$(b64 "$reason")" "$(b64 "$CTX_LABEL")"
 }
 
 # Read 호출이고 소스 코드 파일이면 검증
 if [ "$TOOL_NAME" = "Read" ] && echo "$FILE_PATH" | grep -qE "$SOURCE_PATTERN"; then
-  if check_codegraph_recent; then
-    python3 -c "import json; print(json.dumps({'hookSpecificOutput':{'hookEventName':'PreToolUse','permissionDecision':'allow'}}))"
+  # 1단계 — 통행증(6.2). 좌표 일치가 1순위, 창 안 codegraph 호출이 2순위.
+  if check_located_path || check_codegraph_recent; then
+    # 2단계 — 분량(6.1). 여기가 토큰을 실제로 태우는 변수인데 지금까지 아무도 안 봤다.
+    #   limit 이 있으면 상한 이내인지 보고, 없으면 파일이 상한 이내인지 본다.
+    DENY_VOL=""
+    if [ -n "$READ_LIMIT" ]; then
+      [ "$READ_LIMIT" -gt "$READ_LIMIT_MAX" ] 2>/dev/null && \
+        DENY_VOL="Read limit=${READ_LIMIT} 이 상한 ${READ_LIMIT_MAX}줄을 넘음. 구간을 좁힐 것."
+    else
+      FILE_LINES=$(wc -l < "$FILE_PATH" 2>/dev/null | tr -d ' ' || echo 0)
+      if [ "${FILE_LINES:-0}" -gt "$READ_LIMIT_MAX" ] 2>/dev/null; then
+        DENY_VOL="전문 Read 차단 — ${FILE_PATH} 는 ${FILE_LINES}줄인데 limit 이 없음. codegraph 가 준 startLine 기준으로 Read(offset, limit<=${READ_LIMIT_MAX}) 로 구간만 읽을 것."
+      fi
+    fi
+    if [ -z "$DENY_VOL" ]; then
+      python3 -c "import json; print(json.dumps({'hookSpecificOutput':{'hookEventName':'PreToolUse','permissionDecision':'allow'}}))"
+      exit 0
+    fi
+    echo "$(date +%s) ${CTX_LABEL} Read-unbounded:${FILE_PATH}" >> "$VIOLATION_FILE"
+    CG_SESSION_ID="$SESSION_ID" CG_HISTORY="$HISTORY_FILE" CG_TRAIL_N="$WINDOW_SIZE" \
+      python3 "$GATE_DECISION" caveman "$( [ -n "$AGENT_ID" ] && echo hard || echo ask )" \
+        "$(b64 'Read (분량 초과)')" "$(b64 "$DENY_VOL")" "$(b64 "$CTX_LABEL")"
     exit 0
   fi
 
   echo "$(date +%s) ${CTX_LABEL} Read:${FILE_PATH}" >> "$VIOLATION_FILE"
-  ASK_MSG=$(ASK4_TEMPLATE "소스 코드 Read 차단 — 파일: ${FILE_PATH}, 직전 ${WINDOW_SIZE}개 도구에 codegraph_* 호출 없음.")
-  emit_decision "Read" "Cave-Man Protocol L1: 소스 코드 Read 전 codegraph_* 도구 사용 필수 (${FILE_PATH})" "$ASK_MSG"
+  emit_decision "Read" "Cave-Man Protocol L1: 소스 코드 Read 전 codegraph_* 도구 사용 필수 (${FILE_PATH})"
   exit 0
 fi
 
@@ -202,7 +198,7 @@ print(json.dumps({
     'hookEventName': 'PreToolUse',
     'permissionDecision': 'deny',
     'permissionDecisionReason': f'Cave-Man Protocol L1: 서브에이전트 광역 Glob 차단 ({pat}) [{ctx}]',
-    'additionalContext': f'⛔ CAVE-MAN GUARD L1: 서브에이전트 광역 Glob 차단\n\n패턴: {pat} [{ctx}]\n\ncodegraph_files 또는 codegraph_query 사용:\n  codegraph_files(path=\"src/\") — 디렉토리 파일 구조\n  codegraph_query(query=\"...\") — 심볼 위치'
+    'additionalContext': f'⛔ CAVE-MAN GUARD L1: 서브에이전트 광역 Glob 차단\n\n패턴: {pat} [{ctx}]\n\ncodegraph files 또는 codegraph_query 사용:\n  codegraph files(path=\"src/\") — 디렉토리 파일 구조\n  codegraph_query(query=\"...\") — 심볼 위치'
   }
 }))
 " "$PATTERN" "$CTX_LABEL"
@@ -216,8 +212,7 @@ print(json.dumps({
     fi
 
     echo "$(date +%s) ${CTX_LABEL} Glob:${PATTERN}" >> "$VIOLATION_FILE"
-    ASK_MSG=$(ASK4_TEMPLATE "코드 Glob 패턴 차단 — 패턴: ${PATTERN}, 직전 ${WINDOW_SIZE}개 도구에 codegraph_* 호출 없음.")
-    emit_decision "Glob" "Cave-Man Protocol L1: 코드 Glob 전 codegraph_files 사용 필요 (${PATTERN})" "$ASK_MSG"
+    emit_decision "Glob" "Cave-Man Protocol L1: 코드 Glob 전 codegraph files 사용 필요 (${PATTERN})"
     exit 0
   fi
 
@@ -235,9 +230,6 @@ if [ "$TOOL_NAME" = "Grep" ]; then
     IS_SOURCE_GREP="1"
   elif echo "$GREP_GLOB" | grep -qE '\.(cs|py|ts|tsx|js|jsx|java|cpp|c|h|hpp|go|rs|swift|kt)'; then
     IS_SOURCE_GREP="1"
-  # 식별자 패턴 — type/glob 없음 + 순수 식별자(구조 검색) → D2 봉합
-  elif [ -z "$GREP_TYPE" ] && [ -z "$GREP_GLOB" ] && echo "$PATTERN" | grep -qE '^[A-Za-z_][A-Za-z0-9_.:]*$'; then
-    IS_SOURCE_GREP="1"
   fi
 
   if [ -n "$IS_SOURCE_GREP" ]; then
@@ -247,8 +239,7 @@ if [ "$TOOL_NAME" = "Grep" ]; then
     fi
 
     echo "$(date +%s) ${CTX_LABEL} Grep:type=${GREP_TYPE}:glob=${GREP_GLOB}:pat=${PATTERN}" >> "$VIOLATION_FILE"
-    ASK_MSG=$(ASK4_TEMPLATE "소스 코드 Grep 차단 — 소스 타입/식별자 검색 감지 (type=${GREP_TYPE} glob=${GREP_GLOB} pattern=${PATTERN}), 직전 ${WINDOW_SIZE}개 도구에 codegraph_* 호출 없음.")
-    emit_decision "Grep" "Cave-Man Protocol L1: 소스 코드 Grep 전 codegraph_* 사용 필요 (type=${GREP_TYPE} pattern=${PATTERN})" "$ASK_MSG"
+    emit_decision "Grep" "Cave-Man Protocol L1: 소스 코드 Grep 전 codegraph_* 사용 필요 (type=${GREP_TYPE} pattern=${PATTERN})"
     exit 0
   fi
 

@@ -1,7 +1,13 @@
 # Output Conclusion Schema — docs/output/*.md 필수 계약
 <!-- BLK: 인프라 -->
 
-Output Arm이 메인 컨텍스트 대신 적재하는 모든 산출물(`docs/output/YYYY-MM-DD-<slug>.md`)이 지켜야 할 최소 계약. 이 스키마를 지키면 codegraph md watcher가 자동 인덱싱하고, `keywords`로 후속 세션이 재검색할 수 있다.
+Output Arm이 메인 컨텍스트 대신 적재하는 모든 산출물(`docs/output/YYYY-MM-DD-<slug>.md`)이 지켜야 할 **작성 계약**.
+
+> **이 스키마 준수만으로는 회수되지 않는다.** 과거 이 자리에 "지키면 자동 인덱싱되고 재검색된다"고
+> 적혀 있었으나 반증됐다(RX_1 실측: 스키마 준수 21건 전량 회수 0건 — 원인은 `.codegraphignore`가
+> 산출물 디렉터리를 인덱스 범위에서 제외). 회수까지 보장하는 **바인딩 계약**과 그 정량 측정은
+> [`output-binding`](../output-binding/SKILL.md) 스킬이 담당한다. 새 산출물을 쓰거나
+> "회수가 안 된다"를 진단할 때는 그쪽을 먼저 볼 것.
 
 ## Frontmatter 필수 필드
 

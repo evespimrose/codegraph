@@ -41,7 +41,7 @@ RIPER 워크플로 순서 준수, 그리고 코드 컨벤션 all-pass.
 ## 검증 워크플로
 
 ### Phase 1 — RIPER 워크플로 감사
-1. `.claude/memory-bank/.riper-state` 로드 → PLAN_FILE 경로 확인
+1. 이번 작업의 상태 파일 `.claude/memory-bank/<branch>/riper/<slug>.state` 로드 → PLAN_FILE 경로 확인
 2. `.claude/memory-bank/{branch}/plans/` 에서 이번 작업 플랜 파일 로드 (PLAN_FILE 경로 우선)
 3. 플랜 파일 부재 = 소형 작업 → RIPER 감사 생략, Phase 2로 직행
 4. 플랜에 정의된 단계(Research → Plan → Execute)가 기록 순서대로 진행됐는지 확인

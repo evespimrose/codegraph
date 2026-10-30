@@ -8,7 +8,7 @@ description: Use when the user invokes /output-arm on|off|status, or to apply th
 
 > 이 스킬이 본 정책의 **정의 문서**다. 아래 본문이 규칙 전문이며, 타 스킬 헤더는 이 문서를 가리키는 **compact 포인터**(마커만 보존)다.
 
-- **메인 컨텍스트 타이핑 금지** · **도구 사용 허용** · **서브에이전트 디스패치 금지**(예외: 사용자 발의 초대형/병렬) · 완료 시 `XX 완료`만 · **Auto-Clarity 예외**(보안·비가역·모호 다단계·반복질문·하드블로커)
+- **답 먼저** · 과정 서술은 줄이고 도구로 작업 · 증거는 Review Pack 링크로 · 끝에 사람 확인 항목만 · **서브에이전트·Workflow 는 게이트 승인제**(기본 manual) · **Auto-Clarity 예외**(보안·비가역·모호 다단계·반복질문·하드블로커는 정상 출력)
 <!-- /CAVE-MAN-OUTPUT-ARM -->
 
 # Output Arm — 출력측 토큰 게이트 (기본 ON · 토글 가능)
@@ -33,10 +33,10 @@ description: Use when the user invokes /output-arm on|off|status, or to apply th
 
 ## ON일 때 행위 규칙 (Atom 5 — 출력 압축 모드)
 
-1. **메인 컨텍스트 서술 억제.** 작업 과정 narration·중간 요약·"이제 ~하겠습니다" 출력 금지. 도구로 일하고, 끝에 **`XX 완료`** 한 줄만.
+1. **과정 서술 줄이기.** 작업 과정 narration·중간 요약·"이제 ~하겠습니다" 출력은 생략한다. 도구로 일하고, 끝에 **답(결론 먼저)** 을 쓴다.
 2. 관사·filler·hedging 제거, fragment 허용. 단 코드·에러·기술용어·API명·경로는 verbatim 보존 — "same brain, fewer tokens".
-3. 진행 보고가 꼭 필요하면 메인이 아니라 `docs/output/`에 적재(아래).
-4. **서브에이전트 디스패치 금지.** Agent/Task 호출 안 함 — 콜드스타트 토큰세금(소형 작업 시 메인 한계비용 대비 ~100배). 메인이 hook 통제下 codegraph-first로 직접 작업. 예외: 초대형 규모·병렬 독립 작업을 사용자가 발의한 경우만(`subagent-dispatch-gate.sh`가 Task를 `ask`로 경고). 정책: [[main-context-zero-delegation]].
+3. 증거가 길면 채팅에 붙이지 않고 Review Pack 링크로 건넨다(아래 "증거 링크").
+4. **서브에이전트·Workflow 는 게이트 승인제.** `subagent-dispatch-gate.sh` 가 `Agent|Task|Workflow` 호출마다 승인을 묻는다(기본 `manual`). 위임 단위는 사용자가 승인한 세션 카드다. 콜드스타트 비용이 커서 소형 작업은 메인이 직접 한다. 정책: [[main-context-zero-delegation]].
 
 ## 압축을 멈추는 안전경계 (Atom 2 — Auto-Clarity · correctness > brevity)
 
@@ -49,11 +49,12 @@ description: Use when the user invokes /output-arm on|off|status, or to apply th
 
 → 안전·정확이 토큰 절감에 우선. 압축이 "정확도 사고"를 일으키면 즉시 중단.
 
-## must-see 출력 적재 (Atom 1·4 — grep 가능 출력 계약)
+## 증거 링크 (D4 · grep 가능 출력 계약)
 
-억제 중이라도 **반드시 봐야 할 산출물**은 메인에 흘리지 말고 `docs/output/`에 통합 마크다운으로 저장.
+사람이 봐야 할 증거(자동 기준 결과, 변경 파일, 확인 항목)는 **Review Pack** 에 모은다. 채팅에는 링크 한 줄과 확인 항목만 남긴다.
 
-- 경로: `docs/output/YYYY-MM-DD-<task-slug>.md`
+- 경로: `.claude/memory-bank/<branch>/plans/<slug>-review.md` (`pack.py build <slug>` 가 만든다. 모델이 직접 쓰지 않는다.)
+- 아래 "구버전 적재 경로(`docs/output/`)" 절의 형식은 과거 산출물 호환용이다. 새 증거에는 쓰지 않는다.
 - 코드베이스 위치 지목 → **BLK 태그**: `[BLK-XXX]` 또는 신규 `[NEW-BLK] 절대경로`
 - 다른 마크다운 참조 → **마크다운 링크** `[제목](상대경로)` (추후 codegraph 질의로 추적)
 - grep 가능 출력 계약(예외적 서브에이전트 사용 시 그 결과도 이 형식으로 수집):
@@ -61,7 +62,9 @@ description: Use when the user invokes /output-arm on|off|status, or to apply th
   - 편집: `path:range — 변경요약(≤10단어)` + `verified: <OK | mismatch @ path:line>`
   - 검증: `path:line: <emoji severity> <문제>. <수정>.` + `totals: N🔴 N🟡 N🔵`
   - 종결 토큰(첫 토큰이 실패 신호): `too-big.` `needs-confirm.` `ambiguous.`
-- 끝에 메인엔 그 문서로의 **링크 한 줄 + `XX 완료`**만.
+- 끝에 메인엔 Review Pack 링크 한 줄과 사람 확인 항목만 남긴다.
+
+### 구버전 적재 경로 (`docs/output/`, 호환용)
 - **대량저작 임계(온디맨드 원칙)**: 예상 산출물 ≥ 8K자(≈2K tok)는 메인이 직접 Write하지 않고 writer 서브에이전트 디스패치를 제안(manual 게이트 '초대형' 예외) — Write 인자도 가시출력과 동일하게 메인 윈도우에 실리므로(2026-07-06 실측), 대량 저작 토큰은 서브 컨텍스트에서 소화시키고 메인엔 링크만 남긴다.
 
 ### 저작 간접화 — `emit-output.sh` (M3, 2026-08-15)
@@ -93,7 +96,7 @@ docs/output 적재·파일 이동/압축 시:
 ## 결정론 게이트 (Atom 3 — Stop 훅)
 
 `.claude/hooks/output-arm-gate.sh`(Stop)가 사후 검증:
-- ON인데 파일을 변경했으면서 `docs/output/` 적재가 없으면 → 경고(누락 리마인더)
+- 묶인 작업이 `MODE=REVIEW` 인데 `<slug>-review.md`(Review Pack)가 없으면 → 세션당 1회 알림
 - 구조 불변식만 검사(의미 검증 아님). 차단하지 않고 알림만.
 
 ## OFF일 때
@@ -102,7 +105,7 @@ docs/output 적재·파일 이동/압축 시:
 
 ## 절대 금지
 - ON 상태에서 Auto-Clarity 경계를 무시하고 보안·비가역·블로커를 침묵 처리
-- must-see 산출물을 메인에 장황하게 흘리기(→ docs/output로)
+- 증거를 메인에 장황하게 흘리기(→ Review Pack 링크로)
 - 헌법급 문서(CLAUDE.md·schema) LLM lossy 압축 (Atom 7 반례 교훈: 구조 통과+의미 변질=침묵 오염)
 
 ## 사용하지 말아야 할 때 (Negative Constraints)

@@ -15,7 +15,7 @@ description: "회수(Read·codegraph 검색 결과) 비용 규율. RULE-1(Sonar)
 ## 근거
 
 - 2026-08-15 M1~M2 실측: `codegraph docs` 회수는 작동하나 BLK 좌표 연결이 최근에야 확정됨 → 좌표 기반 부분 로드가 이제 실제로 성립.
-- RULE-5(EXECUTE Scope Lock)와 동일 원리를 회수 전반에 확장 적용.
+- RULE-7(범위와 수락 기준)의 부분 로드 원리를 회수 전반에 확장 적용.
 
 ## CLAUDE.md와의 관계
-CLAUDE.md RULE-5는 EXECUTE 단계의 Scope Lock을 규정. 이 문서는 그 원리를 **모든** 회수 상황(EXECUTE 밖 포함)으로 확장한 상세 규율이며, RULE-5는 이 문서를 1줄 포인터로 참조한다(중복 방지 — 단일 출처).
+CLAUDE.md RULE-7은 플랜 범위와 부분 로드를 규정. 이 문서는 그 원리를 **모든** 회수 상황(EXECUTE 밖 포함)으로 확장한 상세 규율이며, RULE-7은 이 문서를 1줄 포인터로 참조한다(중복 방지 — 단일 출처).

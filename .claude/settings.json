@@ -1,4 +1,5 @@
 {
+  "model": "claude-sonnet-5-5",
   "enabledPlugins": {
     "claude-mem@thedotmack": false
   },
@@ -20,6 +21,16 @@
             "type": "command",
             "command": "bash .claude/hooks/violation-pattern-digest.sh",
             "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/post-compact.sh",
+            "timeout": 15
           }
         ]
       }
@@ -56,17 +67,7 @@
         ]
       },
       {
-        "matcher": "Write|Edit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash .claude/hooks/write-approval-reminder.sh",
-            "timeout": 5
-          }
-        ]
-      },
-      {
-        "matcher": "Task",
+        "matcher": "Agent|Task|Workflow",
         "hooks": [
           {
             "type": "command",
@@ -80,11 +81,6 @@
           {
             "type": "command",
             "command": "bash .claude/hooks/turn-budget-gate.sh",
-            "timeout": 5
-          },
-          {
-            "type": "command",
-            "command": "bash .claude/hooks/strict-arm-reminder.sh",
             "timeout": 5
           }
         ]
@@ -103,6 +99,11 @@
       {
         "matcher": "Write|Edit",
         "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/riper-bind.sh",
+            "timeout": 5
+          },
           {
             "type": "command",
             "command": "bash .claude/hooks/dict-sync-check.sh",
@@ -143,6 +144,11 @@
             "type": "command",
             "command": "bash .claude/hooks/turn-budget-gate.sh",
             "timeout": 5
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/hot-cache-update.sh",
+            "timeout": 5
           }
         ]
       }
@@ -154,6 +160,17 @@
             "type": "command",
             "command": "bash .claude/hooks/subagent-conclusion-gate.sh",
             "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/pre-compact.sh",
+            "timeout": 10
           }
         ]
       }

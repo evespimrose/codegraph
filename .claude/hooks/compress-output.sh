@@ -1,5 +1,5 @@
 #!/bin/bash
-# compress-output.sh: docs/output/*.md 결정론 compress (규칙 기반 — LLM lossy 압축 금지, RULE-9 Atom 7)
+# compress-output.sh: docs/output/*.md 결정론 compress (규칙 기반 — LLM lossy 압축 금지, RULE-8 Atom 7)
 # 입력: 파일 경로 1개 | --latest(최신 1개) | --pending(미압축 전부, SessionStart용 무음 일괄)
 # 동작: 30줄 초과 코드블록 → archive 참조 1행 치환, 연속 중복 문단 제거,
 #       원문 전체는 docs/output/archive/YYYY-MM/<basename>으로 보존 복사, frontmatter compressed:true 마킹.

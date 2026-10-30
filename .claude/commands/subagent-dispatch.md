@@ -9,7 +9,7 @@ allowed-tools: Bash, Read
 # /subagent-dispatch — 서브에이전트 디스패치 모드 제어
 
 서브에이전트 디스패치 정책 플래그를 `.claude/state/subagent-dispatch` 로 관리한다.
-PreToolUse:Task 훅 [`subagent-dispatch-gate.sh`](../hooks/subagent-dispatch-gate.sh) 가 이 플래그를 읽어 강제한다.
+PreToolUse 훅 [`subagent-dispatch-gate.sh`](../hooks/subagent-dispatch-gate.sh) 가 이 플래그를 읽어 강제한다. 매처는 `Agent|Task|Workflow` 다. `Workflow` 도 같은 모드를 따른다.
 
 | 모드 | 게이트 동작 |
 |------|------------|
@@ -17,7 +17,7 @@ PreToolUse:Task 훅 [`subagent-dispatch-gate.sh`](../hooks/subagent-dispatch-gat
 | `manual` | 디스패치 전 사용자 승인 요구 (ask) — **기본값** |
 | `off` | 디스패치 차단 (deny) — 메인이 codegraph→Read/Edit 직접 처리 |
 
-배경: 서브에이전트 콜드스타트 토큰 세금(소형 작업 시 메인 대비 ~100배). 정책 [[main-context-zero-delegation]] · CLAUDE.md RULE-9.
+배경: 서브에이전트 콜드스타트 토큰 세금(소형 작업 시 메인 대비 ~100배). 위임 단위는 사용자가 승인한 세션 카드다. 정책 [[main-context-zero-delegation]] · CLAUDE.md RULE-9.
 
 ## 수행 (메인 직접 — 서브에이전트 금지)
 

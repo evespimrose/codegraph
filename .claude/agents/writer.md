@@ -44,7 +44,7 @@ YourProject의 창의적 의도를 정확한 스펙과 RIPER 플랜으로 번역
 
 ## RIPER 플랜 생성 시 필수 절차
 
-플랜 파일 생성 완료 직후 `.claude/memory-bank/.riper-state` 업데이트:
+플랜 파일 생성 완료 직후 해당 작업의 상태 파일 `.claude/memory-bank/<branch>/riper/<slug>.state` 업데이트:
 
 ```
 MODE=PLAN
@@ -71,7 +71,7 @@ STARTED=<YYYY-MM-DD>
 - 모호한 범위 경계 — 비범위(Non-Goal) 섹션 항상 명시
 - 여러 기능을 한 PRD에 묶기 — 기능 단위로 분리
 - 사용자 승인 없이 디자인 방향 수정
-- 플랜 파일 저장 후 `.riper-state` 업데이트 생략
+- 플랜 파일 저장 후 작업 상태 파일(`riper/<slug>.state`) 업데이트 생략
 
 ## 권장 패턴
 - 사용자 시나리오 서술을 Given/When/Then으로 구조화
@@ -94,4 +94,4 @@ STARTED=<YYYY-MM-DD>
 - 플랜 체크박스 임의 완료 처리 — 구현 에이전트 완료 보고 기반으로만 표시
 - 승인되지 않은 PRD를 근거로 플랜 생성
 - `.csproj`·`.sln`·`.meta` 등 엔진 생성 파일 수정
-- 플랜 파일 저장 후 `.claude/memory-bank/.riper-state` 업데이트 생략
+- 플랜 파일 저장 후 `.claude/memory-bank/<branch>/riper/<slug>.state` 업데이트 생략

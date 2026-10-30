@@ -42,14 +42,22 @@ print('\n'.join(out))
 " "$hf" "$n"
 }
 
+# 2026-09-11 패턴 협소화. 이전 패턴들은 두 가지 결함이 있었다.
+#  (1) 단어 경계 미확인 — 'dir.*-s' 는 mkdir 처럼 dir 을 품은 단어만 있어도 뒤쪽 아무 -s 플래그와
+#      결합해 매칭됐다. 'gc'·'type'·'ls'·'sls' 도 같다(logcat·prototype·pulls·tools).
+#      bash 쪽 sonar-guard 의 grep -r · ls 버그와 정확히 같은 종류다.
+#  (2) '.*' 가 파이프·세미콜론을 넘어 무관한 후속 명령의 플래그를 끌어왔다.
+# 해결: 명령 위치 앵커 + 명령명 뒤 공백 강제 + [^|;&]* 로 파이프 비월경 + 플래그를 온전한 토큰으로.
+# PowerShell 은 대소문자를 안 가리므로 -i 를 쓴다.
+CMDPOS='(^|[|;&{([:space:]])'
 VIOLATION=""
-if echo "$COMMAND" | grep -qE 'Get-ChildItem.*-Recurse|gci.*-Recurse|ls.*-Recurse|dir.*-Recurse|dir.*-s'; then
+if echo "$COMMAND" | grep -qiE "${CMDPOS}(Get-ChildItem|gci|ls|dir)[[:space:]][^|;&]*-Recurse([[:space:]]|$)"; then
   VIOLATION="Get-ChildItem -Recurse (재귀 파일 탐색)"
-elif echo "$COMMAND" | grep -qE 'Select-String.*-Path.*\*|sls.*-Path.*\*'; then
+elif echo "$COMMAND" | grep -qiE "${CMDPOS}dir[[:space:]][^|;&]*[-/]s([[:space:]]|$)"; then
+  VIOLATION="dir /s (재귀 파일 탐색)"
+elif echo "$COMMAND" | grep -qiE "${CMDPOS}(Select-String|sls)[[:space:]][^|;&]*-Path[^|;&]*\*"; then
   VIOLATION="Select-String -Path 와일드카드 (재귀 grep)"
-elif echo "$COMMAND" | grep -qE 'Get-ChildItem.*-Filter.*-Recurse|gci.*-Filter.*-Recurse'; then
-  VIOLATION="Get-ChildItem -Filter -Recurse"
-elif echo "$COMMAND" | grep -qE '(Get-Content|gc|type)\s+.*\.(cs|py|ts|tsx|js|jsx|java|cpp|c|h|hpp|go|rs|swift|kt)(\s|$)'; then
+elif echo "$COMMAND" | grep -qiE "${CMDPOS}(Get-Content|gc|type)[[:space:]][^|;&]*\.(cs|py|ts|tsx|js|jsx|java|cpp|c|h|hpp|go|rs|swift|kt)([[:space:]]|$)"; then
   VIOLATION="Get-Content 소스 출력 우회"
 fi
 
@@ -108,7 +116,7 @@ Bash와 동일한 규칙 적용 — PowerShell은 시스템 작업(설치, 빌�
      printf '%s' \"사용자 승인: <사유>\" > .claude/state/sonar-override
      로 1회성 우회 토큰을 기록한 뒤 원래 명령을 재시도한다.
   2. codegraph 강제(회귀 및 재시도) — 이 시도를 취소하고 `codegraph context "<intent>" -p <root>`
-     또는 `codegraph search "<symbol>" -p <root>`(Bash로 직접 호출, MCP 아님)로 먼저 조사한 뒤
+     또는 `codegraph query "<symbol>" -p <root>`(Bash로 직접 호출, MCP 아님)로 먼저 조사한 뒤
      Glob/Grep/Read로 원 목표를 재시도한다.
   3. 거부(manual stop) — 여기서 작업을 중단하고 사용자에게 보고한다.
   4. 커스텀 답변 — 자유 응답으로 사용자가 직접 방향을 재지정한다.

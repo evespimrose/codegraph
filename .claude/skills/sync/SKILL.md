@@ -4,7 +4,7 @@ description: Use when the user invokes /sync or asks to install/propagate THIS r
 ---
 
 <!-- CAVE-MAN-OUTPUT-ARM -->
-> **출력 규약**(메인 직접·서술0·완료만·codegraph-first·서브에이전트 manual·Auto-Clarity 예외) — 전문: `output-arm` 스킬 · CLAUDE.md RULE-9.
+> **출력 규약**(답 먼저 · 증거는 Review Pack 링크 · 사람 확인 항목 · codegraph-first · 서브에이전트·Workflow 게이트 승인 · Auto-Clarity 예외) — 전문: `output-arm` 스킬 · CLAUDE.md RULE-8.
 <!-- /CAVE-MAN-OUTPUT-ARM -->
 
 # Sync — 워크플로우 스캐폴딩 배포기
@@ -16,6 +16,7 @@ description: Use when the user invokes /sync or asks to install/propagate THIS r
 | 파일 | 역할 |
 |---|---|
 | [`projects/list.txt`](projects/list.txt) | 타깃 프로젝트 루트 **절대경로** 목록 (한 줄 1개, `#`=주석). 빈 목록이면 안전 no-op. |
+| [`projects/groups.txt`](projects/groups.txt) | 제외 그룹. `[그룹]` 아래 `exclude=<상대경로>`(접두어, 하위 전체)와 소속 타깃 경로를 적는다. 소속 타깃에는 그 경로를 배포하지 않는다(기존 파일은 지우지 않음). 출력에 `excluded=N` 으로 나온다. |
 | [`manifest.txt`](manifest.txt) | 무엇이 "워크플로우"인지 — 원본 루트 기준 **상대경로**. 디렉토리는 재귀 복사. |
 
 ## 동기화 대상
@@ -24,7 +25,7 @@ description: Use when the user invokes /sync or asks to install/propagate THIS r
 - **포함(범용 feedback)**: `memory/feedback_korean_communication.md` (사용자 전역 선호 — 모든 프로젝트 적용)
 - **force-only(타깃 런타임 상태 — mixed/soft는 건너뜀, `--force`로만 덮어씀)**: `.claude/memory-bank`(`.riper-state`+브랜치 메모리) · `memory/MEMORY.md`. 평소 동기화는 타깃의 RIPER 상태·메모리를 **보존**하고, `--force`만 백업 후 덮어쓴다(타깃 하드 리셋용). `manifest.txt`에서 `!` 접두로 표기.
 - **제외(이 repo 고유 런타임 상태 — 절대 안 보냄)**: `.claude/state`, `settings.local.json`, 프로젝트별 메모리, `.codegraph`·`node_modules`·`dist`·`src`·`docs` 등
-- **생성**: 각 타깃 루트에 `.mcp.json` (codegraph MCP, `@evespimrose/codegraph` 전역 설치 기준). 기존 `.mcp.json`이 있으면 **다른 서버는 보존하고 codegraph만 병합**한다.
+- **생성 없음**: `.mcp.json`은 만들지도 고치지도 않는다(RULE-1: codegraph는 CLI, MCP 등록 금지). 타깃의 기존 `.mcp.json`은 그대로 둔다.
 
 ## 플래그 (3 모드)
 
@@ -40,7 +41,7 @@ description: Use when the user invokes /sync or asks to install/propagate THIS r
 
 ## 스코프 플래그 — `-AgentFolders` (별칭 `-a`, 보조 에이전트/도구 폴더만)
 
-기본 `manifest.txt` 대신 **`manifest.agents.txt`** 를 써서 보조 에이전트/도구 스캐폴딩 폴더 **`.agents .codex .cursor .trae .zcode`** 만 동기화한다(1차 `.claude`는 일반 sync가 담당). `.mcp.json` 생성도 생략. `-Mode`/`-Targets`/`-DryRun`/`-NoBackup`과 조합 가능.
+기본 `manifest.txt` 대신 **`manifest.agents.txt`** 를 써서 보조 에이전트/도구 스캐폴딩 폴더 **`.agents .codex .cursor .trae .zcode`** 만 동기화한다(1차 `.claude`는 일반 sync가 담당). `-Mode`/`-Targets`/`-DryRun`/`-NoBackup`과 조합 가능.
 
 **재귀 복사 시 런타임·머신로컬 처리 (`sync.ps1`에서 강제 — 모든 재귀 폴더 항목에 상시 적용)**:
 
@@ -86,7 +87,6 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .claude/skills/sync/scripts/
 ## 주의
 
 - **소스 = 스킬이 있는 repo 루트.** 이 스킬은 자기 자신(`.claude/skills/sync`)도 복사하므로 타깃의 `list.txt`/`manifest.txt`도 동기화 대상이다 — mixed가 백업으로 보호하나, 타깃별 목록을 따로 쓰는 경우 `--soft`를 쓰거나 적용 후 복원할 것.
-- `.mcp.json` 병합은 codegraph 키만 갱신/추가하고 형제 서버는 보존한다. 그래도 기존 파일 형식이 다르면 mixed가 충돌로 잡아 백업 후 정규화한다.
 - 타깃의 `memory/MEMORY.md`·`.claude/memory-bank`는 **force-only**라 mixed/soft에선 건드리지 않는다(타깃 RIPER 상태·메모리 보존). `--force`만 백업 후 덮어쓴다. 동기화된 feedback 파일 포인터가 필요하면 사용자 확인 후 한 줄 추가.
 
 ## 검증 (이 스킬 수정 시)

@@ -17,7 +17,7 @@
   Scope:
     -AgentFolders (-a) : sync only the auxiliary agent/tool scaffolding folders
                       (.agents .codex .cursor .trae .zcode) via manifest.agents.txt,
-                      and skip .mcp.json generation. Composable with -Mode/-Targets/-DryRun.
+                      Composable with -Mode/-Targets/-DryRun.
                       Typical use: push local tool folders to the user home (global).
 
   Applied to any RECURSIVE folder copy (so a whole-folder manifest entry such as .agents
@@ -30,8 +30,7 @@
     projects\list.txt : absolute target project-root paths (one per line, # = comment)
     manifest.txt      : source-relative paths to sync (dirs recursive, # = comment)
 
-  Generated into each target root: .mcp.json (codegraph MCP), merge-preserving any
-  sibling MCP servers already present. Subject to the same mode rules.
+  .mcp.json is NOT generated or touched (CLAUDE.md RULE-1: codegraph is a CLI, no MCP).
 
   Output: compact per-target summary on stdout (conflict paths listed only on -DryRun,
   where they are needed for user approval). Full machine-readable JSON is written to
@@ -42,6 +41,7 @@ param(
   [ValidateSet('force','soft','mixed')] [string]$Mode = 'mixed',
   [string]$Source,
   [string]$ListFile,
+  [string]$GroupFile,
   [string]$ManifestFile,
   [string[]]$Targets,
   [switch]$DryRun,
@@ -54,6 +54,7 @@ $SkillDir = Split-Path -Parent $PSScriptRoot
 if(-not $Source){ $Source = (Resolve-Path (Join-Path $SkillDir '..\..\..')).Path }
 $Source = $Source.TrimEnd('\','/')
 if(-not $ListFile){ $ListFile = Join-Path $SkillDir 'projects\list.txt' }
+if(-not $GroupFile){ $GroupFile = Join-Path $SkillDir 'projects\groups.txt' }
 if(-not $ManifestFile){
   if($AgentFolders){ $ManifestFile = Join-Path $SkillDir 'manifest.agents.txt' }
   else { $ManifestFile = Join-Path $SkillDir 'manifest.txt' }
@@ -110,22 +111,6 @@ function Backup-File($targetRoot, $rel){
   Copy-Item -LiteralPath $src -Destination $dest -Force
 }
 
-# --- codegraph .mcp.json, merge-preserving sibling servers ---
-function Build-DesiredMcp($targetRoot){
-  $f = Join-Path $targetRoot '.mcp.json'
-  $servers = [ordered]@{}
-  if(Test-Path -LiteralPath $f){
-    try {
-      $obj = (Get-Content -LiteralPath $f -Raw) | ConvertFrom-Json
-      if($obj -and $obj.mcpServers){
-        foreach($p in $obj.mcpServers.PSObject.Properties){ $servers[$p.Name] = $p.Value }
-      }
-    } catch { }
-  }
-  $servers['codegraph'] = [ordered]@{ type='stdio'; command='codegraph'; args=@('serve','--mcp') }
-  return ([ordered]@{ mcpServers = $servers } | ConvertTo-Json -Depth 8)
-}
-
 # Parse manifest. A leading '!' marks a FORCE-ONLY path: synced (overwritten) only in
 # -Mode force; skipped entirely in mixed/soft so each target's own runtime state
 # (RIPER .riper-state, branch memories, MEMORY.md) is left untouched by routine syncs.
@@ -134,6 +119,24 @@ foreach($m in (Read-Lines $ManifestFile)){
   if($m.StartsWith('!')){ $items.Add([pscustomobject]@{ Path=$m.Substring(1).Trim(); ForceOnly=$true }) }
   else { $items.Add([pscustomobject]@{ Path=$m; ForceOnly=$false }) }
 }
+# Exclusion groups (projects\groups.txt): a target listed in a group never receives files
+# under that group's 'exclude=' prefixes. Key = normalized target path.
+$excludeByTarget = @{}
+$curExcl = $null; $curMembers = $null
+function Flush-Group {
+  if($curMembers){ foreach($m in $curMembers){
+    $k = $m.TrimEnd('\','/').ToLowerInvariant()
+    if(-not $excludeByTarget.ContainsKey($k)){ $excludeByTarget[$k] = New-Object System.Collections.Generic.List[string] }
+    $excludeByTarget[$k].AddRange([string[]]$curExcl)
+  } }
+}
+foreach($ln in (Read-Lines $GroupFile)){
+  if($ln -match '^\[.+\]$'){ Flush-Group; $curExcl = New-Object System.Collections.Generic.List[string]; $curMembers = New-Object System.Collections.Generic.List[string]; continue }
+  if($null -eq $curExcl){ continue }
+  if($ln -match '^exclude\s*=\s*(.+)$'){ $curExcl.Add(($Matches[1].Trim() -replace '/','\').TrimEnd('\')) }
+  else { $curMembers.Add($ln) }
+}
+Flush-Group
 if($Targets){ $targetRoots = @($Targets) } else { $targetRoots = @(Read-Lines $ListFile) }
 
 # Build generic file ops from the manifest (.mcp.json handled separately via merge)
@@ -181,14 +184,20 @@ foreach($t in $targetRoots){
   $t = $t.TrimEnd('\','/')
   $r = @{
     Target=$t; Mode=$Mode; DryRun=[bool]$DryRun
-    Added=0; Overwritten=0; SkippedExisting=0; SkippedIdentical=0; SkippedProtected=0
+    Added=0; Overwritten=0; SkippedExisting=0; SkippedIdentical=0; SkippedProtected=0; SkippedExcluded=0
     Conflicts=@(); BackupDir=$null; Error=$null
   }
   if(-not (Test-Path -LiteralPath $t)){ $r.Error='TARGET_NOT_FOUND'; $report.Add([pscustomobject]$r); continue }
   if((Resolve-Path -LiteralPath $t).Path -ieq $Source){ $r.Error='TARGET_EQUALS_SOURCE_SKIPPED'; $report.Add([pscustomobject]$r); continue }
   $conflicts = New-Object System.Collections.Generic.List[string]
 
+  $excl = $excludeByTarget[$t.ToLowerInvariant()]
   foreach($op in $ops){
+    if($excl){
+      $isExcl = $false
+      foreach($p in $excl){ if($op.Rel -ieq $p -or $op.Rel.StartsWith($p + '\', [System.StringComparison]::OrdinalIgnoreCase)){ $isExcl = $true; break } }
+      if($isExcl){ $r.SkippedExcluded++; continue }
+    }
     # FORCE-ONLY paths (memory-bank, MEMORY.md, ...): only sync under -Mode force, so
     # mixed/soft never clobber the target's own RIPER state and memories.
     if($op.ForceOnly -and $Mode -ne 'force'){ $r.SkippedProtected++; continue }
@@ -216,32 +225,6 @@ foreach($t in $targetRoots){
     }
   }
 
-  # .mcp.json (merge-preserving) — skipped under -AgentFolders (copying tool scaffolding,
-  # not provisioning a project root; avoids writing .mcp.json into e.g. the user home).
-  if(-not $AgentFolders){
-    $mcpFile = Join-Path $t '.mcp.json'
-    $mcpExists = Test-Path -LiteralPath $mcpFile
-    $desiredMcp = Build-DesiredMcp $t
-    if($Mode -eq 'soft'){
-      if($mcpExists){ $r.SkippedExisting++ } else { if(-not $DryRun){ Write-Text $mcpFile $desiredMcp }; $r.Added++ }
-    }
-    elseif($Mode -eq 'force'){
-      if($mcpExists){ if(-not $DryRun -and -not $NoBackup){ Backup-File $t '.mcp.json' }; $r.Overwritten++ } else { $r.Added++ }
-      if(-not $DryRun){ Write-Text $mcpFile $desiredMcp }
-    }
-    else { # mixed
-      if(-not $mcpExists){ if(-not $DryRun){ Write-Text $mcpFile $desiredMcp }; $r.Added++ }
-      else {
-        $cur = ((Get-Content -LiteralPath $mcpFile -Raw) -replace "`r`n","`n").TrimEnd()
-        $want = ($desiredMcp -replace "`r`n","`n").TrimEnd()
-        if($cur -ne $want){
-          $conflicts.Add('.mcp.json')
-          if(-not $DryRun){ if(-not $NoBackup){ Backup-File $t '.mcp.json' }; Write-Text $mcpFile $desiredMcp }
-          $r.Overwritten++
-        } else { $r.SkippedIdentical++ }
-      }
-    }
-  }
 
   $r.Conflicts = $conflicts.ToArray()
   if(($Mode -ne 'soft') -and (-not $DryRun) -and ($r.Overwritten -gt 0) -and (-not $NoBackup)){
@@ -263,7 +246,7 @@ $md = $Mode; if($DryRun){ $md = "$Mode (dry-run)" }
 Write-Output "Source: $Source | Mode: $md | Targets: $($targetRoots.Count)"
 foreach($r in $report){
   if($r.Error){ Write-Output "  $($r.Target)  ! $($r.Error)"; continue }
-  Write-Output "  $($r.Target)  added=$($r.Added) overwritten=$($r.Overwritten) identical=$($r.SkippedIdentical) protected=$($r.SkippedProtected)$(if($r.BackupDir){ '  backup=' + $r.BackupDir })"
+  Write-Output "  $($r.Target)  added=$($r.Added) overwritten=$($r.Overwritten) identical=$($r.SkippedIdentical) protected=$($r.SkippedProtected)$(if($r.SkippedExcluded){ " excluded=$($r.SkippedExcluded)" })$(if($r.BackupDir){ '  backup=' + $r.BackupDir })"
   if($DryRun -and $r.Conflicts.Count -gt 0){
     $r.Conflicts | ForEach-Object { Write-Output "    ~ $_" }
   }

@@ -46,11 +46,80 @@ codegraph-sync-speed 는 `D:\Fork\codegraph` 루트 세션에서 한다.
 2. `/riper:workflow main-2026-11-04-codegraph-sync-speed` 로 APPROVAL 을 잇는다. 루트가 플랜을 직접 읽고 요약한 뒤 승인을 묻는다(G1).
 3. 승인하면 Execute 카드가 1~9단계를 하고, 10단계(빌드·전역 설치·저장소 맞추기)는 카드가 따로 승인을 묻는다.
 
+## 로컬 세션에 줄 프롬프트
+
+루트 세션은 Sonnet 5.5 여야 한다(`riper:workflow` 0절). ①②는 지금 함께 붙여 넣는다. ③은 kit 카드가 끝난 뒤, ④는 세 카드가 모두 끝난 뒤 붙여 넣는다. ①~④는 `D:\Fork\claude-personal-integrated-workflow` 루트 세션, ⑤는 `D:\Fork\codegraph` 루트 세션이다.
+
+① kit Execute 카드
+
+```text
+/riper:workflow main-2026-11-04-serena-cli-kit
+이 작업의 Execute 카드를 연다. G1 승인은 2026-11-04 에 받았다(플랜의 "## 승인 기록").
+- MODE 가 APPROVAL 이면 riper:workflow 2.1절을 따르고, EXECUTE 면 바로 카드를 연다.
+- hooks 카드(main-2026-11-04-serena-cli-hooks)와 동시에 돌려도 된다. 두 플랜의 파일은 겹치지 않는다.
+- 카드 background 끝에 다음 문장을 넣는다: "리모트 세션이 이 플랜의 1·2단계를 스크래치 사본에서 리허설했다(1단계 검증 ok, 2단계 시험 15/15 를 unittest 로 확인). 3~9단계는 정적 점검만 했고 결함은 0이다. 상세는 D:/Fork/codegraph 의 claude/keen-carson-turtwr 브랜치 docs/main-2026-11-04-serena-cli-remote-ledger.md 에 있다."
+- 카드가 끝나 MODE=REVIEW 가 되어도 REVIEW 를 시작하지 않는다. kit 의 pack.py build 는 KIT 배포(H1) 뒤에 한다(플랜 수락 기준). exec-log 의 단계별 상태만 보고한다.
+```
+
+② hooks Execute 카드
+
+```text
+/riper:workflow main-2026-11-04-serena-cli-hooks
+이 작업의 Execute 카드를 연다. G1 승인은 2026-11-04 에 받았다(플랜의 "## 승인 기록").
+- MODE 가 APPROVAL 이면 riper:workflow 2.1절을 따르고, EXECUTE 면 바로 카드를 연다.
+- kit 카드와 동시에 돌려도 된다.
+- 카드 background 끝에 다음 문장을 넣는다: "리모트 세션이 이 플랜 10단계를 codegraph 저장소의 하네스 사본에서 리허설했다. 10단계 모두 DONE, 수락 기준 A1~A4 통과(gate 19/0, outcome 27/0, sonar 28/0). 대상 파일 8개의 카드 전·뒤 해시는 D:/Fork/codegraph 의 claude/keen-carson-turtwr 브랜치 docs/main-2026-11-04-serena-cli-remote-ledger.md 에 있다."
+- 카드가 끝나 MODE=REVIEW 가 되어도 REVIEW 를 시작하지 않는다. A5 는 KIT 배포 뒤에만 통과한다(플랜 수락 기준). exec-log 의 단계별 상태만 보고한다.
+```
+
+③ guidance Execute 카드 (kit 카드가 끝난 뒤)
+
+```text
+/riper:workflow main-2026-11-04-serena-cli-guidance
+kit 카드의 결과를 확인한 뒤 이 작업의 Execute 카드를 연다(플랜의 "## 승인 기록").
+- 먼저 main-2026-11-04-serena-cli-kit 의 상태 파일이 MODE=REVIEW 이고, kit exec-log 의 모든 단계가 DONE 또는 DONE_WITH_CONCERNS 인지 확인한다. 아니면 카드를 열지 않고 확인한 내용을 보고한다.
+- MODE 가 APPROVAL 이면 riper:workflow 2.1절을 따르고, EXECUTE 면 바로 카드를 연다.
+- 카드 background 끝에 다음 문장을 넣는다: "리모트 세션은 이 플랜의 대상인 KIT 파일이 없어 리허설하지 못했다. 검증 문자열과 변경 블록을 대조하는 정적 점검만 했고 결함은 0이다."
+- 카드가 끝나 MODE=REVIEW 가 되어도 REVIEW 를 시작하지 않는다. H1 은 KIT 배포 뒤에 확인한다. exec-log 의 단계별 상태만 보고한다.
+```
+
+④ KIT 배포와 REVIEW (세 카드가 모두 끝난 뒤)
+
+```text
+serena-cli 세 작업의 Execute 카드가 모두 끝났다. KIT 를 배포하고(kit 플랜 H1) REVIEW 를 잇는다.
+1. 상태 파일 3개(.claude/memory-bank/main/riper/main-2026-11-04-serena-cli-{kit,hooks,guidance}.state)의 MODE 를 한 줄씩 보여 준다. 셋 다 REVIEW 가 아니면 멈추고 보고한다.
+2. 배포 스크립트를 받는다. 브랜치는 바꾸지 않는다.
+   git fetch origin claude/keen-carson-turtwr
+   git restore --source origin/claude/keen-carson-turtwr -- scripts/serena-cli-kit-deploy.ps1
+3. AskUserQuestion 으로 배포할지, 그리고 Codex 도 쓰는지 묻는다.
+4. 승인하면 PowerShell 도구로 직접 실행한다. Bash 에서 pwsh -Command 로 부르지 않는다.
+   powershell -NoProfile -ExecutionPolicy Bypass -File scripts\serena-cli-kit-deploy.ps1
+   Codex 를 쓰면 끝에 -Codex 를 붙인다. 종료 코드는 0 완료, 2 카드 미완료, 4 shim 없음, 그 밖은 설치 실패다. 0 이 아니면 멈추고 출력을 보고한다.
+5. 배포가 끝나면 main-2026-11-04-serena-cli-kit, main-2026-11-04-serena-cli-hooks, main-2026-11-04-serena-cli-guidance 순서로 riper:workflow 를 불러 REVIEW 를 잇는다(pack.py build). kit 의 A4~A6 과 hooks 의 A5 는 이제 통과해야 한다. G2 는 사람이 한다.
+```
+
+⑤ codegraph-sync-speed: G1 과 Execute 카드
+
+```text
+/riper:workflow main-2026-11-04-codegraph-sync-speed
+리모트 세션이 이 작업의 묶음 1 플랜을 썼다. G1 승인을 받은 뒤 Execute 카드를 연다.
+1. 준비 (D:\Fork\codegraph):
+   - git fetch origin claude/keen-carson-turtwr 를 한다. 지금 브랜치가 main 이고 추적 중인 파일에 바뀐 것이 없을 때만 git merge --ff-only origin/claude/keen-carson-turtwr 로 받는다. 조건이 맞지 않거나 fast-forward 가 안 되면 멈추고 보고한다.
+   - 상태 파일은 docs/main-2026-11-04-codegraph-sync-speed.state 에 있다(MODE=APPROVAL). .claude/memory-bank/main/riper/ 에 같은 이름의 파일이 없거나 그 파일의 MODE 가 PLAN 이면, docs 쪽 파일을 그 자리에 복사한다. 훅(riper-bind.sh, state-doctor.sh)과 이 명령은 riper/ 쪽을 읽는다.
+2. riper:workflow 2.1절을 따라 플랜(.claude/memory-bank/main/plans/main-2026-11-04-codegraph-sync-speed-1.md)을 직접 읽고 요약한 뒤 승인을 묻는다. 요약에 다음 세 가지를 넣는다.
+   - 측정 대상은 Arcyn, RX_1, BLADE 세 곳이다. plan-notes 의 "다섯 곳" 중 이름이 적힌 곳만 넣었다.
+   - 측정은 전역 설치본이 아니라 KIT 소스의 CLI 로 한다. 그래서 2단계 기준선은 3단계보다 먼저 잰다.
+   - R2 가 저장된 문서 판별을 다시 쓸 때 바이너리 확장자는 빼고 다시 판별한다(R4 와 맞춤).
+3. 승인하면 Execute 카드를 연다. 카드 background 끝에 다음 문장을 넣는다: "리모트 세션이 3~8단계를 이 저장소 source/ 사본(KIT 빌드 8e92ff564f22 와 다이제스트가 같음)에 그대로 적용해 단계 검증, 새 시험 3/3, 회귀 46/46, watcher 29/29 를 통과시켰다. 1·2·9단계(측정)는 합성 프로젝트로만 돌렸고, 10단계(배포)는 돌리지 않았다. 10단계는 카드가 따로 승인을 묻는다."
+4. 카드가 끝나면 riper:workflow 2절 표대로 이어 간다.
+```
+
 ## 이 세션의 사용자 지시
 
 1. 첫 메시지: 플랜 세션의 보고를 붙여 넣고 "실행 카드 두 장 시작". 카드가 끝나면 KIT 배포를 지시하는 스크립트를 남기고, git 설명에 넣어 로컬 머신에 전달.
 2. 플랜을 git 으로 올림. codegraph `08a6b23` 에는 sync-speed 문서와 `.serena/` 만 있었고, `5e290af` 에 serena-cli 플랜 3개와 kit 의 research·innovate 문서가 들어옴.
 3. "할 수 있는 만큼 ㄱㄱ", 번호는 지정하지 않음. 이 세션의 작업 전부를 원장 하나로 `docs/` 에 두고, 커밋에 넣고, 커밋 설명에서 언급.
+4. Execute 세션을 각각 열게 하는 프롬프트 작성. 로컬 머신 세션에 전달용(위 "로컬 세션에 줄 프롬프트" 절).
 
 ## 확인한 사실
 

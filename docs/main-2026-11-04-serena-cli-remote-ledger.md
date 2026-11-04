@@ -3,15 +3,15 @@
 리모트(클라우드) 세션이 한 일을 한곳에 모은 기록이다. 로컬 PC 세션이 이 파일 하나로 이어받도록 `/memory:save` 형식을 따른다.
 
 - **Session**: https://claude.ai/code/session_01DBP46Y5rMnj2dhDe3yFSGN (클라우드 컨테이너, Linux. `D:` 드라이브 없음)
-- **Saved**: 2026-11-04 14:08 KST (serena-cli), 14:35 KST (sync-speed 묶음 1 PLAN 덧붙임)
+- **Saved**: 2026-11-04 14:08 KST (serena-cli), 14:35 KST (sync-speed 묶음 1 PLAN 덧붙임), 16:02 KST (sync-speed 대체 처리, main 병합)
 - **Branch**: `claude/keen-carson-turtwr` (두 저장소 모두 같은 이름)
 - **Base**: codegraph `5e290af`(사용자 push), claude-personal-integrated-workflow `11c3ac3`(GitHub main, 2026-06-04)
-- **Commits made**: workflow `c7e6b5b`, `8350073` / codegraph `d4541f3`(원장 첫판), 그리고 sync-speed 플랜·상태 파일·이 원장 갱신을 넣은 커밋
+- **Commits made**: workflow `c7e6b5b`, `8350073`(main 에 fast-forward 병합) / codegraph `d4541f3`, `c63082c`, `e37cf61`, `47c1a29`, 그리고 sync-speed 대체 처리 커밋과 main 병합 커밋
 - **Not changed**: KIT(`D:\Fork\KIT`), 로컬 `D:\Fork\claude-personal-integrated-workflow`, serena-cli 플랜 3개와 상태 파일, 이 저장소의 `source/`
 
 ## 한 줄 요약
 
-실행 카드는 클라우드에서 돌리지 못했다. 세 플랜이 고치는 파일이 모두 로컬에만 있기 때문이다. 대신 hooks 플랜 10단계 전체와 kit 플랜 1·2단계를 스크래치 사본에서 리허설했고 모두 통과했다. KIT 배포 스크립트는 workflow 브랜치에 올렸다. 덧붙여 멈춰 있던 codegraph-sync-speed 의 묶음 1 플랜을 써서 APPROVAL 로 올렸다(코드 단계 리허설과 시험 통과).
+실행 카드는 클라우드에서 돌리지 못했다. 세 플랜이 고치는 파일이 모두 로컬에만 있기 때문이다. 대신 hooks 플랜 10단계 전체와 kit 플랜 1·2단계를 스크래치 사본에서 리허설했고 모두 통과했다. KIT 배포 스크립트는 workflow 브랜치에 올렸다. codegraph-sync-speed 묶음 1 플랜도 써서 리허설했지만, 그사이 다른 세션이 쓴 묶음 1·2 플랜이 G1 승인을 받아 이 세션의 플랜은 대체되었다(main 에 넣지 않음).
 
 ## 작업 상태
 
@@ -25,7 +25,7 @@
 
 | 작업 (slug) | 플랜 | 결과 | 로컬에서 할 일 |
 |---|---|---|---|
-| `main-2026-11-04-codegraph-sync-speed` | `.claude/memory-bank/main/plans/main-2026-11-04-codegraph-sync-speed-1.md` (묶음 1, 10단계) | 이 세션이 씀. 상태 파일 `docs/main-2026-11-04-codegraph-sync-speed.state` 를 `MODE=APPROVAL` 로 바꿈. 코드 단계 3~8 리허설 통과, 수락 기준 A1~A3 통과 | `D:\Fork\codegraph` 루트 세션에서 G1 승인 |
+| `main-2026-11-04-codegraph-sync-speed` | 승인된 플랜: `.claude/memory-bank/main/plans/main-2026-11-04-codegraph-sync-speed.md`(묶음 1), `-2.md`(묶음 2). 다른 세션(`claude/quirky-darwin-5ofnk7`)이 씀 | G1 승인됨, 상태 `MODE=EXECUTE`. 이 세션의 `-1.md` 는 대체되어 main 에서 뺌(원문: `c63082c`) | 승인된 플랜대로 진행 |
 
 ## 로컬 세션이 할 일
 
@@ -40,15 +40,11 @@
 
 선택: 카드 전에 아래 "리허설 해시" 로 로컬 파일이 리허설 기준과 같은지 보면, 리허설 결과를 그대로 믿어도 되는지 알 수 있다.
 
-codegraph-sync-speed 는 `D:\Fork\codegraph` 루트 세션에서 한다.
-
-1. 사용자가 08a6b23 에서 상태 파일을 `docs/` 로 옮겼으므로, 훅(`riper-bind.sh`, `session-start.sh`, `state-doctor.sh`)이 보도록 `docs/main-2026-11-04-codegraph-sync-speed.state` 를 `.claude/memory-bank/main/riper/` 로 되돌린다(옮길지는 사용자가 정한다).
-2. `/riper:workflow main-2026-11-04-codegraph-sync-speed` 로 APPROVAL 을 잇는다. 루트가 플랜을 직접 읽고 요약한 뒤 승인을 묻는다(G1).
-3. 승인하면 Execute 카드가 1~9단계를 하고, 10단계(빌드·전역 설치·저장소 맞추기)는 카드가 따로 승인을 묻는다.
+codegraph-sync-speed 는 다른 세션이 쓴 플랜이 G1 승인을 받았다(`567ff11`). 상태 파일 `.claude/memory-bank/main/riper/main-2026-11-04-codegraph-sync-speed.state` 가 `MODE=EXECUTE` 다. 이 원장의 묶음 1 플랜(`-1.md`)은 쓰지 않는다. 승인된 플랜은 R2 가 저장된 판별을 다시 쓸 때 바이너리 경로(`isBinaryPath`)와 확장자 형식을 확인하므로, 이 세션이 리허설에서 찾은 결함(아래 sync-speed 절)은 이미 막혀 있다.
 
 ## 로컬 세션에 줄 프롬프트
 
-루트 세션은 Sonnet 5.5 여야 한다(`riper:workflow` 0절). 프롬프트 A 는 `D:\Fork\claude-personal-integrated-workflow` 루트 세션에 한 번 붙여 넣는다. kit·hooks 카드 두 장을 한 턴에 동시에 열고, 카드가 끝난 뒤의 순서(guidance 카드, KIT 배포, REVIEW)도 같은 프롬프트가 정한다. 프롬프트 B 는 `D:\Fork\codegraph` 루트 세션용이다.
+루트 세션은 Sonnet 5.5 여야 한다(`riper:workflow` 0절). 프롬프트 A 는 `D:\Fork\claude-personal-integrated-workflow` 루트 세션에 한 번 붙여 넣는다. kit·hooks 카드 두 장을 한 턴에 동시에 열고, 카드가 끝난 뒤의 순서(guidance 카드, KIT 배포, REVIEW)도 같은 프롬프트가 정한다. codegraph-sync-speed 용 프롬프트는 뺐다(위 "로컬 세션이 할 일" 참고).
 
 프롬프트 A: serena-cli 세션 카드 두 장 동시에 열기
 
@@ -76,27 +72,13 @@ serena-cli 의 Execute 카드 두 장(kit, hooks)을 이 턴에 동시에 연다
 - 배포가 끝나면 kit, hooks, guidance 순서로 REVIEW 를 잇는다(pack.py build). G2 는 사람이 한다.
 ```
 
-프롬프트 B: codegraph-sync-speed G1 과 Execute 카드
-
-```text
-codegraph-sync-speed 묶음 1 플랜(리모트 세션 작성)을 승인 단계로 잇는다. 이 저장소(D:\Fork\codegraph) 루트 세션에서 한다.
-1. 지금 브랜치가 main 이고 추적 중인 파일에 바뀐 것이 없을 때만 git pull --ff-only origin main 으로 받는다. 조건이 맞지 않거나 fast-forward 가 안 되면 멈추고 보고한다.
-2. 상태 파일은 docs/main-2026-11-04-codegraph-sync-speed.state 에 있다(MODE=APPROVAL). .claude/memory-bank/main/riper/ 에 같은 이름의 파일이 없거나 그 파일의 MODE 가 PLAN 이면, docs 쪽 파일을 그 자리에 복사한다. 훅(riper-bind.sh, state-doctor.sh)과 riper:workflow 는 riper/ 쪽을 읽는다.
-3. Skill 도구로 riper:workflow main-2026-11-04-codegraph-sync-speed 를 부른다. 2.1절에 따라 플랜(.claude/memory-bank/main/plans/main-2026-11-04-codegraph-sync-speed-1.md)을 읽고 요약한 뒤 승인을 묻는다. 요약에 다음 세 가지를 넣는다.
-   - 측정 대상은 Arcyn, RX_1, BLADE 세 곳이다. plan-notes 의 "다섯 곳" 중 이름이 적힌 곳만 넣었다.
-   - 측정은 전역 설치본이 아니라 KIT 소스의 CLI 로 한다. 그래서 2단계 기준선은 3단계보다 먼저 잰다.
-   - R2 가 저장된 문서 판별을 다시 쓸 때 바이너리 확장자는 빼고 다시 판별한다(R4 와 맞춤).
-4. 승인하면 Execute 카드를 연다. background 끝에 다음 문장을 붙인다: "리모트 세션이 3~8단계를 이 저장소 source/ 사본(KIT 빌드 8e92ff564f22 와 다이제스트가 같음)에 그대로 적용해 단계 검증, 새 시험 3/3, 회귀 46/46, watcher 29/29 를 통과시켰다. 1·2·9단계(측정)는 합성 프로젝트로만 돌렸고, 10단계(배포)는 돌리지 않았다. 10단계는 카드가 따로 승인을 묻는다."
-5. 카드가 끝나면 riper:workflow 2절 표대로 이어 간다.
-```
-
 ## 이 세션의 사용자 지시
 
 1. 첫 메시지: 플랜 세션의 보고를 붙여 넣고 "실행 카드 두 장 시작". 카드가 끝나면 KIT 배포를 지시하는 스크립트를 남기고, git 설명에 넣어 로컬 머신에 전달.
 2. 플랜을 git 으로 올림. codegraph `08a6b23` 에는 sync-speed 문서와 `.serena/` 만 있었고, `5e290af` 에 serena-cli 플랜 3개와 kit 의 research·innovate 문서가 들어옴.
 3. "할 수 있는 만큼 ㄱㄱ", 번호는 지정하지 않음. 이 세션의 작업 전부를 원장 하나로 `docs/` 에 두고, 커밋에 넣고, 커밋 설명에서 언급.
 4. Execute 세션을 각각 열게 하는 프롬프트 작성. 로컬 머신 세션에 전달용(위 "로컬 세션에 줄 프롬프트" 절).
-5. 프롬프트를 "세션 카드 둘을 동시에 열도록" 고침(위 프롬프트 A). 이번 작업을 push 하고 두 저장소 main 에 병합(이 원장 갱신 커밋까지 fast-forward).
+5. 프롬프트를 "세션 카드 둘을 동시에 열도록" 고침(위 프롬프트 A). 이번 작업을 push 하고 두 저장소 main 에 병합(이 원장 갱신 커밋까지 fast-forward). codegraph 는 그사이 main 에 다른 세션의 승인 플랜이 올라와 있어, 이 세션의 sync-speed 플랜과 상태 파일 변경을 빼고 merge commit 으로 병합했다.
 
 ## 확인한 사실
 
@@ -275,12 +257,14 @@ Write-Host 'KIT deploy done. Next: kit A4-A6 and hooks A5, then REVIEW with /rip
 
 </details>
 
-## codegraph-sync-speed 묶음 1 PLAN
+## codegraph-sync-speed 묶음 1 PLAN (대체됨)
+
+> 대체됨: 이 세션이 플랜을 쓰는 동안 다른 세션(`claude/quirky-darwin-5ofnk7`)이 묶음 1·2 플랜을 써서 G1 승인을 받았다(`bf8892b`, `567ff11`). 그래서 이 절의 플랜 `-1.md` 와 상태 파일 변경은 main 에 넣지 않았다. 플랜 원문은 `c63082c` 에 남아 있다. 아래는 이 세션이 한 일의 기록이다.
 
 innovate 12절의 사용자 결정(묶음 1 을 먼저 PLAN 으로)과 plan-notes 의 설계 결정을 따라 이 세션이 플랜을 썼다. 형식은 `/riper:plan` 을 따랐다.
 
-- 플랜: `.claude/memory-bank/main/plans/main-2026-11-04-codegraph-sync-speed-1.md` (10단계, 하위 변경 26개, 수락 기준 auto 4개와 human 2개, 미결 질문 없음)
-- 상태 파일: `docs/main-2026-11-04-codegraph-sync-speed.state` 를 `MODE=APPROVAL`, `PLAN_FILE=` 위 플랜, `CURRENT=승인 대기: ...` 로 바꿨다.
+- 플랜: `.claude/memory-bank/main/plans/main-2026-11-04-codegraph-sync-speed-1.md` (10단계, 하위 변경 26개, 수락 기준 auto 4개와 human 2개, 미결 질문 없음) — main 에서 뺌. 원문은 `c63082c`
+- 상태 파일: `docs/main-2026-11-04-codegraph-sync-speed.state` 를 `MODE=APPROVAL`, `PLAN_FILE=` 위 플랜, `CURRENT=승인 대기: ...` 로 바꿨었다. main 병합 때 승인판(`MODE=EXECUTE`)으로 되돌렸다.
 - 대상: KIT `D:/Fork/KIT/tools/codegraph/source`. 이 저장소 `source/` 는 KIT 빌드 `8e92ff564f22` 와 다이제스트가 같아서(파일 363개), 이 사본에서 '변경 전' 원문을 잘랐다. 모든 '변경 전' 블록은 원본 파일에서 줄 범위로 그대로 잘라 썼고, 파일 안에서 유일한지 확인했다.
 
 | 단계 | 내용 | 리허설 |
@@ -348,12 +332,11 @@ plan-notes 와 다른 점:
 - 실행 카드 3장, KIT 배포(H1), REVIEW, G2 는 로컬에서 한다.
 - hooks 리허설은 codegraph 의 하네스 사본으로 했다. 로컬 workflow 폴더의 파일이 이 사본과 다르면 결과가 다를 수 있다. 위 해시로 확인한다.
 - 리허설에 쓴 스크래치 파일(clone, 가짜 모듈, 점검 스크립트)은 세션이 끝나면 사라진다. 저장소에는 넣지 않았다.
-- codegraph-sync-speed: 묶음 1 플랜은 G1 승인 대기다. 1·2·9단계(측정)와 10단계(배포)는 로컬 전용이라 실제 프로젝트에서 돌려 보지 않았다. 묶음 2 플랜은 아직 없다(innovate 12절: 묶음 1 의 EXECUTE, REVIEW, G2 를 마친 뒤 시작).
+- codegraph-sync-speed: 다른 세션의 승인 플랜(묶음 1·2)으로 진행한다. 이 세션의 묶음 1 플랜은 대체되었다.
 
 ## 사람 확인 항목
 
 - 로컬 루트 세션에서 "로컬 세션이 할 일" 1번부터 진행한다.
 - `install-codex.ps1` 이 `D:\Fork\KIT` 에 있다고 가정했다. 다르면 스크립트에 `-KitRoot` 를 주거나 직접 실행한다.
 - 배포 스크립트는 Windows PowerShell 에서 처음 실행된다. 첫 실행 출력을 확인한다.
-- codegraph-sync-speed 묶음 1 플랜의 G1: 측정 대상 세 곳, 측정을 KIT 소스 CLI 로 하는 방식, R2 재사용 조건(바이너리 확장자 제외)을 확인한다.
-- sync-speed 상태 파일을 `docs/` 에서 `.claude/memory-bank/main/riper/` 로 되돌릴지 정한다.
+- 승인된 sync-speed 묶음 1 플랜도 이 세션 방식(코드 단계를 `source/` 사본에 적용하고 시험)으로 미리 리허설할지 정한다.

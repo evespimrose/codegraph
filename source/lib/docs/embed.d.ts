@@ -1,9 +1,11 @@
-export declare const EMBED_MODEL_ID = "Xenova/multilingual-e5-small";
+export declare const EMBED_MODEL_ID = "dragonkue/multilingual-e5-small-ko";
 export declare const EMBED_QUERY_PREFIX = "query: ";
 export declare const EMBED_PASSAGE_PREFIX = "passage: ";
 export declare const EMBEDDINGS_DISABLE_ENV = "CODEGRAPH_DISABLE_EMBEDDINGS";
 /** Lazy singleton. First call loads the model; subsequent runs are offline. */
 export declare function getEmbedder(): Promise<any>;
+/** Start loading the model without waiting. A load error surfaces on the next getEmbedder call. */
+export declare function warmEmbedder(): void;
 /** Embed a single string → Float32Array(EMBED_DIM). */
 export declare function embed(text: string): Promise<Float32Array>;
 /** Embed batches in order, tokenizing batch N+1 while the model runs batch N. */

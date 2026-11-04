@@ -4,7 +4,7 @@ export declare function searchDocsLexical(db: SqliteDatabase, query: string, lim
     hits: DocHit[];
     warnings: string[];
 };
-export declare function fuseHits(vectorHits: DocHit[], lexicalHits: DocHit[], limit: number): DocHit[];
+export declare function fuseHits(vectorHits: DocHit[], lexicalHits: DocHit[], limit: number, lexicalWeight?: number): DocHit[];
 export declare function resolveCodeSymbols(db: SqliteDatabase, files: string[]): {
     byFile: Map<string, DocCodeSymbol[]>;
     warnings: string[];

@@ -1,0 +1,10 @@
+MODE=REVIEW
+STATUS=done
+TASK=안 A: 평가 장치, 순위 조정(D1 D2 D6), 식별자 분해(C1), 모델 로딩 겹치기(S2), 설치(S1)
+PLAN_FILE=.claude/memory-bank/main/plans/main-2026-11-03-codegraph-search-a.md
+RESEARCH_FILE=.claude/memory-bank/main/plans/main-2026-11-03-codegraph-structure-research.md
+INNOVATE_FILE=.claude/memory-bank/main/plans/main-2026-11-03-codegraph-structure-innovate.md
+BRANCH=main
+STARTED=2026-11-03
+UPDATED=2026-11-04
+CURRENT=E1: 완료. G2 통과 2026-11-04

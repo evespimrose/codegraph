@@ -6,13 +6,26 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.BUNDLED_MODEL_DIMENSION = exports.BUNDLED_MODEL_LICENSE = exports.BUNDLED_MODEL_REVISION = exports.BUNDLED_MODEL_ID = exports.MODEL_ROOT_ENV = void 0;
 exports.inspectModelAssets = inspectModelAssets;
 exports.configureModelEnvironment = configureModelEnvironment;
+exports.inspectRerankAssets = inspectRerankAssets;
+exports.RERANK_MODEL_ENV = 'CODEGRAPH_RERANK_MODEL_ROOT';
+exports.RERANK_MODEL_ID = 'nlpai-lab/KURE-Reranker-nano';
+exports.RERANK_MODEL_REVISION = '8514b9e113f3b27c441ed9c2b50f81d80388b2fd';
+const RERANK_MANIFEST_NAME = 'rerank-model-manifest.json';
+const RERANK_REQUIRED_PATHS = new Set([
+    'config.json',
+    'tokenizer.json',
+    'tokenizer_config.json',
+    'special_tokens_map.json',
+    'onnx/model_quantized.onnx',
+    'LICENSE.txt',
+]);
 const crypto_1 = require("crypto");
 const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
 exports.MODEL_ROOT_ENV = 'CODEGRAPH_MODEL_ROOT';
-exports.BUNDLED_MODEL_ID = 'Xenova/multilingual-e5-small';
-exports.BUNDLED_MODEL_REVISION = '761b726dd34fb83930e26aab4e9ac3899aa1fa78';
-exports.BUNDLED_MODEL_LICENSE = 'MIT';
+exports.BUNDLED_MODEL_ID = 'dragonkue/multilingual-e5-small-ko';
+exports.BUNDLED_MODEL_REVISION = 'bba4cb8e3299d445c04f62bf62e2b26461d03715';
+exports.BUNDLED_MODEL_LICENSE = 'Apache-2.0';
 exports.BUNDLED_MODEL_DIMENSION = 384;
 const REQUIRED_MODEL_PATHS = new Set([
     'config.json',
@@ -154,6 +167,85 @@ function isManifestFile(value) {
     return typeof file.path === 'string'
         && Number.isSafeInteger(file.size) && Number(file.size) > 0
         && typeof file.sha256 === 'string' && /^[a-f0-9]{64}$/.test(file.sha256);
+}
+// 리랭커는 임베딩 모델과 같은 방식으로 검증하되 manifest 와 식별자를 따로 둠
+function inspectRerankAssets(rootOverride) {
+    const configured = rootOverride ?? process.env[exports.RERANK_MODEL_ENV]?.trim();
+    const defaultRoot = path_1.default.resolve(__dirname, '../../models');
+    const root = configured || (fs_1.default.existsSync(path_1.default.join(defaultRoot, RERANK_MANIFEST_NAME)) ? defaultRoot : undefined);
+    if (!root)
+        return { valid: false, issues: ['rerank model is not configured'] };
+    const resolvedRoot = path_1.default.resolve(root);
+    let manifest;
+    try {
+        manifest = JSON.parse(fs_1.default.readFileSync(path_1.default.join(resolvedRoot, RERANK_MANIFEST_NAME), 'utf8'));
+    }
+    catch (error) {
+        return { valid: false, modelRoot: resolvedRoot, issues: [`rerank model manifest unavailable: ${messageOf(error)}`] };
+    }
+    let issues;
+    try {
+        issues = validateRerankManifest(resolvedRoot, manifest);
+    }
+    catch (error) {
+        return { valid: false, modelRoot: resolvedRoot, issues: [`invalid rerank model manifest: ${messageOf(error)}`] };
+    }
+    return {
+        valid: issues.length === 0,
+        modelRoot: resolvedRoot,
+        modelId: manifest.modelId,
+        revision: manifest.revision,
+        license: manifest.license,
+        issues,
+    };
+}
+function validateRerankManifest(root, manifest) {
+    const issues = [];
+    if (manifest.schemaVersion !== 1)
+        issues.push(`unsupported rerank model manifest schema: ${manifest.schemaVersion}`);
+    if (manifest.modelId !== exports.RERANK_MODEL_ID || manifest.revision !== exports.RERANK_MODEL_REVISION || manifest.license !== 'Apache-2.0') {
+        issues.push('unexpected rerank model identity');
+        return issues;
+    }
+    const modelRoot = path_1.default.resolve(root, ...manifest.modelId.split('/'));
+    if (!isSafeRelativePath(root, modelRoot)) {
+        issues.push(`unsafe rerank model id: ${manifest.modelId}`);
+        return issues;
+    }
+    if (!Array.isArray(manifest.files) || !isManifestFile(manifest.licenseFile)) {
+        issues.push('invalid rerank model file list');
+        return issues;
+    }
+    const entries = [...manifest.files, manifest.licenseFile];
+    if (!entries.every(isManifestFile)) {
+        issues.push('invalid rerank model file entry');
+        return issues;
+    }
+    const paths = new Set(entries.map((entry) => entry.path));
+    if (paths.size !== entries.length || paths.size !== RERANK_REQUIRED_PATHS.size
+        || [...RERANK_REQUIRED_PATHS].some((required) => !paths.has(required))) {
+        issues.push('rerank model file set is incomplete or unexpected');
+        return issues;
+    }
+    for (const entry of entries) {
+        const file = path_1.default.resolve(modelRoot, entry.path);
+        if (!isSafeRelativePath(modelRoot, file)) {
+            issues.push(`unsafe rerank model path: ${entry.path}`);
+            continue;
+        }
+        try {
+            const body = fs_1.default.readFileSync(file);
+            if (body.length !== entry.size)
+                issues.push(`rerank model size mismatch: ${entry.path}`);
+            else if ((0, crypto_1.createHash)('sha256').update(body).digest('hex') !== entry.sha256) {
+                issues.push(`rerank model checksum mismatch: ${entry.path}`);
+            }
+        }
+        catch (error) {
+            issues.push(`rerank model file unavailable: ${entry.path}: ${messageOf(error)}`);
+        }
+    }
+    return issues;
 }
 function bundledFailure(root, issue) {
     return { mode: 'bundled', valid: false, modelRoot: root, issues: [issue] };

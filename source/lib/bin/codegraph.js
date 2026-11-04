@@ -1066,6 +1066,8 @@ async function main() {
         .option('-p, --path <path>', 'Project path')
         .option('-l, --limit <number>', 'Maximum results', '10')
         .option('--no-sync', 'Skip the incremental freshness check')
+        .option('--rerank', 'Re-rank the top candidates with the cross-encoder (also CODEGRAPH_DOCS_RERANK=1)')
+        .option('--rerank-depth <number>', 'Candidates passed to the re-ranker', '10')
         .option('-j, --json', 'Output as JSON')
         .action(async (query, options) => {
         const projectPath = resolveProjectPath(options.path);
@@ -1081,7 +1083,7 @@ async function main() {
                 const syncResult = options.sync === false ? null : await syncForRead(cg, projectPath);
                 if (syncResult && syncResult.status !== 'current') process.exitCode = 1;
                 const { searchDocs } = await Promise.resolve().then(() => __importStar(require('../docs/search')));
-                const result = await searchDocs(cg.getDb(), query, { topk: limit });
+                const result = await searchDocs(cg.getDb(), query, docsSearchOptions(limit, options));
                 if (options.json) {
                     console.log(JSON.stringify({
                         ...result,
@@ -1115,6 +1117,80 @@ async function main() {
         }
         catch (err) {
             error(`Docs search failed: ${err instanceof Error ? err.message : String(err)}`);
+            process.exit(1);
+        }
+    });
+    function docsSearchOptions(limit, options) {
+        const rerank = Boolean(options.rerank) || process.env.CODEGRAPH_DOCS_RERANK === '1';
+        return { topk: limit, rerank, rerankDepth: parseInt(options.rerankDepth || '10', 10) };
+    }
+    // 줄 하나가 질문 하나. `{`로 시작하는 줄은 JSON 으로 읽음
+    function parseBatchQueries(text) {
+        const queries = [];
+        text.split(/\r?\n/).forEach((raw, index) => {
+            const line = raw.trim();
+            if (!line)
+                return;
+            if (!line.startsWith('{')) {
+                queries.push({ id: null, q: line, limit: undefined });
+                return;
+            }
+            let entry;
+            try {
+                entry = JSON.parse(line);
+            }
+            catch {
+                throw new Error(`line ${index + 1}: invalid JSON query`);
+            }
+            if (typeof entry.q !== 'string' || !entry.q.trim())
+                throw new Error(`line ${index + 1}: "q" is required`);
+            queries.push({ id: entry.id ?? null, q: entry.q, limit: entry.limit });
+        });
+        return queries;
+    }
+    /**
+     * codegraph docs-batch
+     *
+     * Runs many document searches in one process so the embedding model and the
+     * re-ranker load once. Never syncs, starts a watcher, takes a lock, or calls git.
+     */
+    program
+        .command('docs-batch')
+        .description('Run document searches for many queries in one process (no sync, no watcher)')
+        .option('-p, --path <path>', 'Project path')
+        .option('-i, --input <file>', 'Query file, one query per line (reads stdin when omitted)')
+        .option('-l, --limit <number>', 'Maximum results per query', '10')
+        .option('--rerank', 'Re-rank the top candidates with the cross-encoder (also CODEGRAPH_DOCS_RERANK=1)')
+        .option('--rerank-depth <number>', 'Candidates passed to the re-ranker', '10')
+        .action(async (options) => {
+        const projectPath = resolveProjectPath(options.path);
+        try {
+            if (!(0, directory_1.isInitialized)(projectPath)) {
+                error(`CodeGraph not initialized in ${projectPath}`);
+                process.exit(1);
+            }
+            const input = options.input ? fs.readFileSync(options.input, 'utf8') : fs.readFileSync(0, 'utf8');
+            const queries = parseBatchQueries(input);
+            const { default: CodeGraph } = await loadCodeGraph();
+            const openStarted = Date.now();
+            const cg = await CodeGraph.open(projectPath);
+            const loadMs = Date.now() - openStarted;
+            try {
+                const { searchDocs } = await Promise.resolve().then(() => __importStar(require('../docs/search')));
+                const batchStarted = Date.now();
+                for (const entry of queries) {
+                    const limit = parseInt(entry.limit ?? options.limit ?? '10', 10);
+                    const result = await searchDocs(cg.getDb(), entry.q, docsSearchOptions(limit, options));
+                    console.log(JSON.stringify({ id: entry.id, query: entry.q, ...result }));
+                }
+                console.log(JSON.stringify({ summary: { queries: queries.length, totalMs: Date.now() - batchStarted, loadMs } }));
+            }
+            finally {
+                cg.destroy();
+            }
+        }
+        catch (err) {
+            error(`Docs batch failed: ${err instanceof Error ? err.message : String(err)}`);
             process.exit(1);
         }
     });

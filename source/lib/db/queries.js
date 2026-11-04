@@ -10,6 +10,8 @@ const types_1 = require("../types");
 const utils_1 = require("../utils");
 const query_utils_1 = require("../search/query-utils");
 const query_parser_1 = require("../search/query-parser");
+const name_tokens_1 = require("../search/name-tokens");
+const search_tuning_1 = require("../search-tuning");
 const generated_detection_1 = require("../extraction/generated-detection");
 /**
  * Path-only heuristic for files that should not be candidates for
@@ -140,13 +142,13 @@ class QueryBuilder {
           start_line, end_line, start_column, end_column,
           docstring, signature, visibility,
           is_exported, is_async, is_static, is_abstract,
-          decorators, type_parameters, domain_kind, metadata_json, updated_at
+          decorators, type_parameters, domain_kind, metadata_json, name_tokens, updated_at
         ) VALUES (
           @id, @kind, @name, @qualifiedName, @filePath, @language,
           @startLine, @endLine, @startColumn, @endColumn,
           @docstring, @signature, @visibility,
           @isExported, @isAsync, @isStatic, @isAbstract,
-          @decorators, @typeParameters, @domainKind, @metadataJson, @updatedAt
+          @decorators, @typeParameters, @domainKind, @metadataJson, @nameTokens, @updatedAt
         )
       `);
         }
@@ -188,6 +190,7 @@ class QueryBuilder {
             typeParameters: node.typeParameters ? JSON.stringify(node.typeParameters) : null,
             domainKind: node.domainKind ?? null,
             metadataJson: node.metadata ? JSON.stringify(node.metadata) : null,
+            nameTokens: (0, name_tokens_1.nameTokens)(node.name),
             updatedAt: node.updatedAt ?? Date.now(),
         });
     }
@@ -228,6 +231,7 @@ class QueryBuilder {
           type_parameters = @typeParameters,
           domain_kind = @domainKind,
           metadata_json = @metadataJson,
+          name_tokens = @nameTokens,
           updated_at = @updatedAt
         WHERE id = @id
       `);
@@ -261,6 +265,7 @@ class QueryBuilder {
             typeParameters: node.typeParameters ? JSON.stringify(node.typeParameters) : null,
             domainKind: node.domainKind ?? null,
             metadataJson: node.metadata ? JSON.stringify(node.metadata) : null,
+            nameTokens: (0, name_tokens_1.nameTokens)(node.name),
             updatedAt: node.updatedAt ?? Date.now(),
         });
     }
@@ -849,14 +854,14 @@ class QueryBuilder {
         if (!ftsQuery) {
             return [];
         }
-        // BM25 column weights: id=0, name=20, qualified_name=5, docstring=1, signature=2
+        // BM25 column weights: id=0, name=20, qualified_name=5, docstring=1, signature=2, name_tokens from search-tuning.json
         // Heavy name weight ensures exact/prefix name matches rank above incidental
         // mentions in long docstrings or qualified names of nested symbols.
         // Fetch 5x requested limit so post-hoc rescoring (kindBonus, pathRelevance,
         // nameMatchBonus) can promote results that BM25 alone undervalues.
         const ftsLimit = Math.max(limit * 5, 100);
         let sql = `
-      SELECT nodes.*, bm25(nodes_fts, 0, 20, 5, 1, 2) as score
+      SELECT nodes.*, bm25(nodes_fts, 0, 20, 5, 1, 2, ${(0, search_tuning_1.loadSearchTuning)().nameTokensWeight}) as score
       FROM nodes_fts
       JOIN nodes ON nodes_fts.id = nodes.id
       WHERE nodes_fts MATCH ?

@@ -1,0 +1,10 @@
+MODE=EXECUTE
+STATUS=paused
+TASK=안 B: 코드 심볼 임베딩(C3)과 코드 하이브리드 검색
+PLAN_FILE=.claude/memory-bank/main/plans/main-2026-11-03-codegraph-search-b.md
+RESEARCH_FILE=.claude/memory-bank/main/plans/main-2026-11-03-codegraph-structure-research.md
+INNOVATE_FILE=.claude/memory-bank/main/plans/main-2026-11-03-codegraph-structure-innovate.md
+BRANCH=main
+STARTED=2026-11-03
+UPDATED=2026-11-04
+CURRENT=E1: 대기 (사용자 결정 2026-11-04: 속도 조사 먼저. main-2026-11-04-codegraph-sync-speed 뒤 시작)

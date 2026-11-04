@@ -1,0 +1,10 @@
+MODE=INNOVATE
+STATUS=done
+TASK=KIT codegraph 최신본 반영 확인, codegraph 구조 분석 보고서, hada.io 25854 라이브러리 조사 보고서
+PLAN_FILE=
+RESEARCH_FILE=.claude/memory-bank/main/plans/main-2026-11-03-codegraph-structure-research.md
+INNOVATE_FILE=.claude/memory-bank/main/plans/main-2026-11-03-codegraph-structure-innovate.md
+BRANCH=main
+STARTED=2026-11-03
+UPDATED=2026-11-03
+CURRENT=INNOVATE 완료. PLAN 은 작업 3개로 넘김: main-2026-11-03-codegraph-search-a, -b, -c

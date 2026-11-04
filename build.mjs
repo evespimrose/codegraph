@@ -135,7 +135,22 @@ function stageEmbeddingModel(modelsRoot, spec, modelRoot) {
   verifyModelFiles(modelsRoot, modelManifest);
 }
 
-export function buildBundle({ inputRoot = bundleRoot, outputRoot = bundleRoot, sourceRoot = path.join(bundleRoot, 'source'), grammarRoot = path.join(bundleRoot, 'grammars'), modelRoot, platform = 'win32-x64' } = {}) {
+function stageRerankModel(modelsRoot, spec, modelRoot) {
+  if (!modelRoot) throw new Error(`Rerank model ${spec.id}@${spec.revision} needs --rerank-model-root with its pinned rerank-model-manifest.json and assets.`);
+  const sourceManifestPath = path.join(modelRoot, 'rerank-model-manifest.json');
+  const manifestBytes = fs.readFileSync(sourceManifestPath);
+  if (sha256(manifestBytes) !== spec.manifestSha256) throw new Error('Rerank model manifest does not match manifest.json rerankModel.manifestSha256.');
+  const modelManifest = JSON.parse(manifestBytes);
+  if (modelManifest.modelId !== spec.id || modelManifest.revision !== spec.revision || modelManifest.license !== spec.license) {
+    throw new Error('Rerank model manifest identity differs from manifest.json rerankModel.');
+  }
+  const { modelDirectory, entries } = verifyModelFiles(path.resolve(modelRoot), modelManifest);
+  copySnapshot(modelDirectory, path.resolve(modelsRoot, ...modelManifest.modelId.split('/')), entries);
+  fs.copyFileSync(sourceManifestPath, path.join(modelsRoot, 'rerank-model-manifest.json'));
+  verifyModelFiles(modelsRoot, modelManifest);
+}
+
+export function buildBundle({ inputRoot = bundleRoot, outputRoot = bundleRoot, sourceRoot = path.join(bundleRoot, 'source'), grammarRoot = path.join(bundleRoot, 'grammars'), modelRoot, rerankModelRoot, platform = 'win32-x64' } = {}) {
   inputRoot = path.resolve(inputRoot);
   outputRoot = path.resolve(outputRoot);
   sourceRoot = path.resolve(sourceRoot);
@@ -169,6 +184,8 @@ export function buildBundle({ inputRoot = bundleRoot, outputRoot = bundleRoot, s
     const modelsRoot = path.join(packagedLib, 'models');
     requireInside(stage, modelsRoot);
     stageEmbeddingModel(modelsRoot, inputManifest.embeddingModel, modelRoot && path.resolve(modelRoot));
+    // 임베딩 모델 단계가 models 폴더를 지울 수 있으므로 반드시 그 뒤에 넣음
+    if (inputManifest.rerankModel) stageRerankModel(modelsRoot, inputManifest.rerankModel, rerankModelRoot && path.resolve(rerankModelRoot));
     const packagedPackage = {
       ...sourcePackage,
       main: 'dist/index.js',
@@ -193,7 +210,7 @@ export function buildBundle({ inputRoot = bundleRoot, outputRoot = bundleRoot, s
     const actualVersion = run(nodePath, [path.join(packagedLib, 'dist', 'bin', 'codegraph.js'), '--version'], { env: { ...process.env, CODEGRAPH_NO_WATCH: '1' } });
     if (actualVersion !== sourcePackage.version) throw new Error(`Staged CLI version mismatch: ${actualVersion}`);
     // 소스 상수와 번들 모델이 어긋나면 런타임은 임베딩을 조용히 끄고 어휘 검색만 남김. 빌드에서 막아야 함
-    const assetCheck = `const s = require(${JSON.stringify(path.join(packagedLib, 'dist', 'docs', 'model-assets.js'))}).inspectModelAssets(${JSON.stringify(modelsRoot)}); if (!s.valid) { console.error(s.issues.join('; ')); process.exit(1); }`;
+    const assetCheck = `const m = require(${JSON.stringify(path.join(packagedLib, 'dist', 'docs', 'model-assets.js'))}); const s = m.inspectModelAssets(${JSON.stringify(modelsRoot)}); if (!s.valid) { console.error(s.issues.join('; ')); process.exit(1); } if (${Boolean(inputManifest.rerankModel)}) { const r = m.inspectRerankAssets(${JSON.stringify(modelsRoot)}); if (!r.valid) { console.error(r.issues.join('; ')); process.exit(1); } }`;
     run(nodePath, ['-e', assetCheck], { env: { ...process.env, CODEGRAPH_NO_WATCH: '1' } });
     const integrity = { version: 1, codegraphVersion: sourcePackage.version, sourceTreeSha256: source.sourceTreeSha256, grammarTreeSha256: grammarSources.grammarTreeSha256, files: describeFiles(releaseRoot) };
     writeJson(path.join(releaseRoot, 'release-integrity.json'), integrity);
@@ -234,11 +251,11 @@ export function buildBundle({ inputRoot = bundleRoot, outputRoot = bundleRoot, s
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   try {
     const options = {};
-    const names = { '--base-bundle': 'inputRoot', '--output-root': 'outputRoot', '--source-root': 'sourceRoot', '--grammar-root': 'grammarRoot', '--model-root': 'modelRoot', '--platform': 'platform' };
+    const names = { '--base-bundle': 'inputRoot', '--output-root': 'outputRoot', '--source-root': 'sourceRoot', '--grammar-root': 'grammarRoot', '--model-root': 'modelRoot', '--rerank-model-root': 'rerankModelRoot', '--platform': 'platform' };
     for (let index = 2; index < process.argv.length; index += 2) {
       const name = names[process.argv[index]];
       const value = process.argv[index + 1];
-      if (!name || !value) throw new Error('Usage: node build.mjs [--base-bundle DIR] [--output-root DIR] [--source-root DIR] [--grammar-root DIR] [--model-root DIR] [--platform NAME]');
+      if (!name || !value) throw new Error('Usage: node build.mjs [--base-bundle DIR] [--output-root DIR] [--source-root DIR] [--grammar-root DIR] [--model-root DIR] [--rerank-model-root DIR] [--platform NAME]');
       options[name] = value;
     }
     console.log(JSON.stringify(buildBundle(options), null, 2));

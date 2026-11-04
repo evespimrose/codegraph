@@ -44,11 +44,15 @@ const config_1 = require("./config");
 const document_parser_1 = require("./document-parser");
 const document_store_1 = require("./document-store");
 const embed_1 = require("./embed");
+const embed_cache_1 = require("./embed-cache");
+const embed_lock_1 = require("./embed-lock");
+const os = __importStar(require("os"));
 const parse_1 = require("./parse");
 const scan_files_1 = require("./scan-files");
 const vec_1 = require("./vec");
 exports.GOVERNED_DIRS = ['cxt/', 'docs/contextmd/', 'manage/'];
 const EMBEDDING_BATCH_SIZE = 16;
+const CACHED_PUBLISH_CHUNK = 200;
 function ensureVectorTable(db) {
     db.exec(`CREATE VIRTUAL TABLE IF NOT EXISTS mdast_vectors USING vec0(embedding float[${config_1.EMBED_DIM}]);`);
 }
@@ -183,22 +187,84 @@ async function indexMarkdown(db, projectRoot, opts = {}) {
     return result;
 }
 // 실패하면 앞 배치까지는 이미 게시된 채로 첫 실패 배치의 경로와 오류를 돌려줌
+// 캐시에 있는 벡터는 계산 없이 게시하고, 나머지는 PC 전체 잠금 아래 낮은 우선순위로 계산함
 async function publishPendingEmbeddings(store, pendingEmbeddings) {
-    const batches = [];
-    for (let offset = 0; offset < pendingEmbeddings.length; offset += EMBEDDING_BATCH_SIZE) {
-        batches.push(pendingEmbeddings.slice(offset, offset + EMBEDDING_BATCH_SIZE));
-    }
-    let published = 0;
+    const cache = (0, embed_cache_1.openEmbedCache)();
+    let lock = null;
+    let previousPriority = null;
+    let failurePath = 'document batch';
     try {
-        const texts = batches.map((batch) => batch.map((item) => embed_1.EMBED_PASSAGE_PREFIX + item.text));
+        const keyed = pendingEmbeddings.map((item) => {
+            const text = embed_1.EMBED_PASSAGE_PREFIX + item.text;
+            return { item, text, key: (0, embed_cache_1.embedTextKey)(text) };
+        });
+        let hits = new Map();
+        if (cache) {
+            try {
+                hits = cache.get(embed_1.EMBED_MODEL_ID, keyed.map((entry) => entry.key));
+            }
+            catch {
+                hits = new Map();
+            }
+        }
+        const cached = [];
+        const misses = [];
+        for (const entry of keyed) {
+            const vector = hits.get(entry.key);
+            if (vector)
+                cached.push({ rowId: entry.item.rowId, vector });
+            else
+                misses.push(entry);
+        }
+        for (let offset = 0; offset < cached.length; offset += CACHED_PUBLISH_CHUNK) {
+            store.publishEmbeddings(cached.slice(offset, offset + CACHED_PUBLISH_CHUNK));
+        }
+        if (misses.length === 0)
+            return null;
+        lock = await (0, embed_lock_1.acquireEmbedLock)({ dir: (0, embed_cache_1.cacheDirectory)() });
+        try {
+            previousPriority = os.getPriority();
+            os.setPriority(os.constants.priority.PRIORITY_BELOW_NORMAL);
+        }
+        catch {
+            previousPriority = null;
+        }
+        const batches = [];
+        for (let offset = 0; offset < misses.length; offset += EMBEDDING_BATCH_SIZE) {
+            batches.push(misses.slice(offset, offset + EMBEDDING_BATCH_SIZE));
+        }
+        let published = 0;
+        const texts = batches.map((batch) => batch.map((entry) => entry.text));
+        failurePath = batches[0][0].item.filePath;
         for await (const vectors of (0, embed_1.embedBatches)(texts)) {
-            store.publishEmbeddings(batches[published].map((item, index) => ({ rowId: item.rowId, vector: vectors[index] })));
+            const batch = batches[published];
+            store.publishEmbeddings(batch.map((entry, index) => ({ rowId: entry.item.rowId, vector: vectors[index] })));
+            try {
+                cache?.put(embed_1.EMBED_MODEL_ID, batch.map((entry, index) => ({ key: entry.key, vector: vectors[index] })));
+            }
+            catch {
+                // 캐시 쓰기 실패는 색인을 막지 않음
+            }
+            lock?.touch();
             published++;
+            failurePath = batches[published]?.[0]?.item.filePath ?? failurePath;
         }
         return null;
     }
     catch (error) {
-        return { error, filePath: batches[published]?.[0]?.filePath ?? 'document batch' };
+        return { error, filePath: failurePath };
+    }
+    finally {
+        lock?.release();
+        cache?.close();
+        if (previousPriority !== null) {
+            try {
+                os.setPriority(previousPriority);
+            }
+            catch {
+                // 우선순위 복원 실패는 무시함
+            }
+        }
     }
 }
 function recordDocumentFailure(result, opts, filePath, error) {

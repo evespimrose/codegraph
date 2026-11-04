@@ -35,13 +35,14 @@ var __importStar = (this && this.__importStar) || (function () {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.EMBEDDINGS_DISABLE_ENV = exports.EMBED_PASSAGE_PREFIX = exports.EMBED_QUERY_PREFIX = exports.EMBED_MODEL_ID = void 0;
 exports.getEmbedder = getEmbedder;
+exports.warmEmbedder = warmEmbedder;
 exports.embed = embed;
 exports.embedBatches = embedBatches;
 exports.isEmbedAvailable = isEmbedAvailable;
 /**
  * Local multilingual E5 embeddings via @huggingface/transformers (Transformers.js).
  *
- * multilingual-e5-small → 384-dim, mean-pooled + L2-normalized. Offline after the
+ * multilingual-e5-small-ko → 384-dim, mean-pooled + L2-normalized. Offline after the
  * first model fetch. The runtime is a required package dependency but loaded
  * lazily, so importing this module does not initialize ONNX. Team bundles
  * include pinned model assets; ordinary npm installs populate the local model
@@ -50,7 +51,7 @@ exports.isEmbedAvailable = isEmbedAvailable;
 const config_1 = require("./config");
 const leading_tokens_1 = require("./leading-tokens");
 const model_assets_1 = require("./model-assets");
-exports.EMBED_MODEL_ID = 'Xenova/multilingual-e5-small';
+exports.EMBED_MODEL_ID = 'dragonkue/multilingual-e5-small-ko';
 // E5 는 이 접두사로 학습됨. 빠지면 질의·문서 벡터가 다른 분포로 떨어져 검색 품질이 무너짐
 exports.EMBED_QUERY_PREFIX = 'query: ';
 exports.EMBED_PASSAGE_PREFIX = 'passage: ';
@@ -61,6 +62,7 @@ const EMBED_INTRA_OP_THREADS = 4;
 let _extractor = null;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let _runtime = null;
+let _loading = null;
 /** Lazy singleton. First call loads the model; subsequent runs are offline. */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function getEmbedder() {
@@ -68,6 +70,23 @@ async function getEmbedder() {
         return _extractor;
     if (embeddingsDisabled())
         throw new Error('Embeddings are disabled by CODEGRAPH_DISABLE_EMBEDDINGS.');
+    if (!_loading) {
+        // 실패한 로딩은 다음 호출이 다시 시도하게 비움
+        _loading = loadEmbedder().catch((error) => {
+            _loading = null;
+            throw error;
+        });
+    }
+    return _loading;
+}
+/** Start loading the model without waiting. A load error surfaces on the next getEmbedder call. */
+function warmEmbedder() {
+    if (_extractor || embeddingsDisabled())
+        return;
+    getEmbedder().catch(() => { });
+}
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function loadEmbedder() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let mod;
     try {

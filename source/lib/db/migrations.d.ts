@@ -7,7 +7,7 @@ import { SqliteDatabase } from './sqlite-adapter';
 /**
  * Current schema version
  */
-export declare const CURRENT_SCHEMA_VERSION = 11;
+export declare const CURRENT_SCHEMA_VERSION = 12;
 /**
  * Migration definition
  */

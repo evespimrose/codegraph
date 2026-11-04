@@ -297,7 +297,8 @@ function getGitVisibleFiles(rootDir, opts) {
 function getGitChangedFiles(rootDir) {
     try {
         const ignoreMatcher = buildDefaultIgnore(rootDir);
-        const output = (0, child_process_1.execFileSync)('git', ['-c', 'core.quotePath=false', 'status', '--porcelain', '--no-renames'], { cwd: rootDir, encoding: 'utf-8', timeout: 10000, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
+        // 상태 조회가 .git/index.lock 을 잡지 않게 함. 사용자의 git 작업과 겹쳐도 잠금이 생기지 않음
+        const output = (0, child_process_1.execFileSync)('git', ['--no-optional-locks', '-c', 'core.quotePath=false', 'status', '--porcelain', '--no-renames'], { cwd: rootDir, encoding: 'utf-8', timeout: 10000, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
         const modified = [];
         const added = [];
         const deleted = [];

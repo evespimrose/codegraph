@@ -4,6 +4,7 @@ exports.searchDocsLexical = searchDocsLexical;
 exports.fuseHits = fuseHits;
 exports.resolveCodeSymbols = resolveCodeSymbols;
 const links_util_1 = require("./links-util");
+const search_tuning_1 = require("../search-tuning");
 const SUMMARY_CAP = 200;
 const SYMBOL_KINDS = [
     'class', 'struct', 'interface', 'trait', 'protocol',
@@ -20,7 +21,7 @@ function searchDocsLexical(db, query, limit, codeLimit) {
     try {
         rows = db.prepare(`
       SELECT m.id, m.file_path, m.blk_tags, m.code_refs, m.doc_links,
-             m.content_summary, m.format, m.title, bm25(document_fts) AS rank
+             m.content_summary, m.format, m.title, bm25(document_fts, ${(0, search_tuning_1.loadSearchTuning)().docsFtsWeights.join(', ')}) AS rank
       FROM document_fts
       JOIN mdast_metadata m ON m.id = document_fts.rowid
       WHERE document_fts MATCH ?
@@ -56,22 +57,22 @@ function searchDocsLexical(db, query, limit, codeLimit) {
     });
     return { hits, warnings: resolved.warnings };
 }
-function fuseHits(vectorHits, lexicalHits, limit) {
+function fuseHits(vectorHits, lexicalHits, limit, lexicalWeight = 1) {
     const ranked = new Map();
-    const add = (hits, source) => {
+    const add = (hits, source, weight) => {
         hits.forEach((hit, index) => {
             const existing = ranked.get(hit.file);
             if (existing) {
-                existing.score += 1 / (61 + index);
+                existing.score += weight / (61 + index);
                 existing.sources.add(source);
             }
             else {
-                ranked.set(hit.file, { hit, score: 1 / (61 + index), sources: new Set([source]) });
+                ranked.set(hit.file, { hit, score: weight / (61 + index), sources: new Set([source]) });
             }
         });
     };
-    add(vectorHits, 'vector');
-    add(lexicalHits, 'lexical');
+    add(vectorHits, 'vector', 1);
+    add(lexicalHits, 'lexical', lexicalWeight);
     return [...ranked.values()]
         .sort((left, right) => right.score - left.score || left.hit.file.localeCompare(right.hit.file))
         .slice(0, limit)

@@ -1,0 +1,13 @@
+{
+  "docsFtsWeights": [
+    1,
+    1,
+    1,
+    1
+  ],
+  "docsLexicalWeight": 1,
+  "docsLexicalWeightHangul": 1,
+  "docsMarkdownFirst": false,
+  "docsMarkdownDepth": 50,
+  "nameTokensWeight": 2
+}

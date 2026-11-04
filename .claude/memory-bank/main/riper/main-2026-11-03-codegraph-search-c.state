@@ -1,0 +1,10 @@
+MODE=EXECUTE
+STATUS=paused
+TASK=안 C: 한국어 2-gram 열(D3b), 임베딩 입력 정리(D4), 긴 문서 섹션 벡터(D5)
+PLAN_FILE=.claude/memory-bank/main/plans/main-2026-11-03-codegraph-search-c.md
+RESEARCH_FILE=.claude/memory-bank/main/plans/main-2026-11-03-codegraph-structure-research.md
+INNOVATE_FILE=.claude/memory-bank/main/plans/main-2026-11-03-codegraph-structure-innovate.md
+BRANCH=main
+STARTED=2026-11-03
+UPDATED=2026-11-03
+CURRENT=E1: 대기 (G1 승인 2026-11-03, 앞 안 G2 뒤 시작)

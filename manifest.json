@@ -5,23 +5,29 @@
   "private": true,
   "license": "MIT",
   "notice": "TEAM-CODEGRAPH-NOTICE.txt",
-  "codegraphVersion": "1.1.0",
+  "codegraphVersion": "1.1.2",
   "nodeVersion": "24.16.0",
   "nodeArchiveSha256": "edaca9bd58ec8e92037dac4e877d52f6b8f430b81c18b57e264b4e2fb111cd56",
   "embeddingModel": {
-    "id": "Xenova/multilingual-e5-small",
-    "revision": "761b726dd34fb83930e26aab4e9ac3899aa1fa78",
-    "license": "MIT",
+    "id": "dragonkue/multilingual-e5-small-ko",
+    "revision": "bba4cb8e3299d445c04f62bf62e2b26461d03715",
+    "license": "Apache-2.0",
     "dimension": 384,
-    "manifestSha256": "154465b83f884f5ba79ccea2e49b82cd55e73e81c991d5248aa8ff1f00aa5a1f"
+    "manifestSha256": "d20ca1deb2c18aa5872ee8b3de3c48a9353ebddf7a97c6c275b083fe4790e408"
   },
-  "sourceTreeSha256": "0f658c59096391a329a8c56adb5c786d44dc48da52f07ac59850ddfae8d61bed",
+  "rerankModel": {
+    "id": "nlpai-lab/KURE-Reranker-nano",
+    "revision": "8514b9e113f3b27c441ed9c2b50f81d80388b2fd",
+    "license": "Apache-2.0",
+    "manifestSha256": "16a37ea7cdce301073c69f21019193cf6b4fa73d3a1d86b4ff23989fcd797c02"
+  },
+  "sourceTreeSha256": "122d32cc87b51958633f78052c982b3f989a2bdcae2aa97559f96b4e7738b72c",
   "sourceDigestContract": "sha256 of UTF-8 JSONL [relativePosixPath,sha256,size] records sorted by path; exact file bytes; excludes node_modules,.git,.cache,.codegraph,.serena directories",
   "sourceSnapshot": "source",
   "sourceManifest": "SOURCE-MANIFEST.json",
   "runtimeAssets": {
-    "baseArtifactSha256": "a1139f9d6cbbc6797429b6c9020fc72c227df5749acf3cbb3506b5d0e8d1e784",
-    "baseCodegraphVersion": "1.0.4"
+    "baseArtifactSha256": "f0a9ee70351eb170bbd3ac357187bc7128af942742dcfd57ba439c8d58d62263",
+    "baseCodegraphVersion": "1.1.2"
   },
   "grammarSources": {
     "snapshot": "grammar-sources",
@@ -32,10 +38,10 @@
   "artifacts": {
     "win32-x64": {
       "archive": "artifacts/codegraph-win32-x64.zip",
-      "size": 260573495,
-      "sha256": "10a01b5190e720c74a6df63c15532eeca85c3e81617eea7bf420f4ce10c946e7",
+      "size": 405993487,
+      "sha256": "8e92ff564f223b389861d7780444322ff238104d7ed37df960fb2ba17d375bf3",
       "integrityManifest": "release-integrity.json",
-      "integritySha256": "416bdd8a6e1eef31300a3e43d6c1dda5250300c52d7e5e66e1946db903ffe481"
+      "integritySha256": "b41099c69d7ebd5373aef6122d2dbaa7e26fe3d70c3cd05918df80cfd8f69643"
     }
   }
 }

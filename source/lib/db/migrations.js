@@ -14,10 +14,11 @@ exports.getMigrationHistory = getMigrationHistory;
 const migration_v9_1 = require("./migration-v9");
 const migration_v10_1 = require("./migration-v10");
 const migration_v11_1 = require("./migration-v11");
+const migration_v12_1 = require("./migration-v12");
 /**
  * Current schema version
  */
-exports.CURRENT_SCHEMA_VERSION = 11;
+exports.CURRENT_SCHEMA_VERSION = 12;
 /**
  * All migrations in order
  *
@@ -117,6 +118,11 @@ const migrations = [
         version: 11,
         description: 'Add incremental semantic neighbor cache',
         up: migration_v11_1.applySemanticNeighborCacheMigration,
+    },
+    {
+        version: 12,
+        description: 'Add identifier word tokens to node full-text search',
+        up: migration_v12_1.applyNameTokensMigration,
     },
 ];
 /**

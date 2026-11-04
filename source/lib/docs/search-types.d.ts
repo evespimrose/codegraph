@@ -15,6 +15,7 @@ export interface DocHit {
     format: string;
     title: string | null;
     retrieval: Array<'lexical' | 'vector'>;
+    rerankScore?: number;
 }
 export interface SearchDocsResult {
     schemaVersion: 1;
@@ -22,7 +23,14 @@ export interface SearchDocsResult {
     available: boolean;
     hits: DocHit[];
     warnings: string[];
-    semanticState: 'ready' | 'unavailable' | 'disabled';
+    semanticState: 'ready' | 'unavailable' | 'disabled' | 'stale';
+    rerank?: RerankSummary;
+}
+export interface RerankSummary {
+    enabled: boolean;
+    depth: number;
+    model: string | null;
+    ms: number;
 }
 export interface GoverningDoc {
     file: string;
@@ -38,5 +46,7 @@ export interface DocLinksResult {
 export interface SearchDocsOptions {
     topk?: number;
     codeLimit?: number;
+    rerank?: boolean;
+    rerankDepth?: number;
 }
 //# sourceMappingURL=search-types.d.ts.map

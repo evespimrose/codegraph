@@ -27,3 +27,11 @@ A watcher stops after 30 minutes without CLI requests. `CODEGRAPH_WATCH_IDLE_MS`
 Use `codegraph watch stop <repository>` to stop it explicitly or `CODEGRAPH_NO_WATCH=1` to disable automatic startup in CI. `codegraph watch start <repository>` resumes it and reconciles changes made while stopped. `--no-sync` query commands intentionally read the existing snapshot. Inline reconciliation retries a busy writer for up to 30 seconds and reports unknown freshness if it remains unavailable.
 
 The installer validates every packaged runtime file against the release integrity manifest. Reinstalling repairs missing or modified code, models, and dependencies, promotes the bundled launcher on PATH, and migrates authenticated watchers to the installed release. It never signals a process solely because a saved PID matches.
+
+## Document search
+
+`codegraph docs <query>` searches indexed documents. Reranking is off by default. `--rerank` (or `CODEGRAPH_DOCS_RERANK=1`) turns it on, and `--rerank-depth` sets how many candidates it scores. Measured on 30 queries per corpus, it adds about 2 to 5 seconds per query and changes Hit@1 by at most 10 points, so use it only when a query needs it.
+
+`codegraph docs-batch` runs many queries in one process, so the embedding model loads once. Queries come from `--input <file>` or stdin, one per line. A line that starts with `{` is read as JSON with `q`, and optionally `id` and `limit`. Output is one JSON object per query, followed by a summary line. This command never syncs, starts a watcher, takes a lock, or calls git.
+
+When stored document vectors came from a different embedding model, search skips the vector step, returns lexical hits, and reports `semanticState: "stale"` with a warning. Run `codegraph sync` to rebuild the vectors.

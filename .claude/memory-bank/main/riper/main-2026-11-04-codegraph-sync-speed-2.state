@@ -1,0 +1,10 @@
+MODE=APPROVAL
+STATUS=active
+TASK=묶음 2: 감시기 상시 운용 비용 줄이기(W1 W2 W3 W5)
+PLAN_FILE=.claude/memory-bank/main/plans/main-2026-11-04-codegraph-sync-speed-2.md
+RESEARCH_FILE=.claude/memory-bank/main/plans/main-2026-11-04-codegraph-sync-speed-research.md
+INNOVATE_FILE=.claude/memory-bank/main/plans/main-2026-11-04-codegraph-sync-speed-innovate.md
+BRANCH=main
+STARTED=2026-11-04
+UPDATED=2026-11-04
+CURRENT=승인 대기(G1). 실행은 묶음 1(main-2026-11-04-codegraph-sync-speed)의 G2 뒤

@@ -143,6 +143,9 @@ flowchart LR
 - 실행 순서: 묶음 1 EXECUTE, REVIEW, G2 를 마친 뒤 묶음 2 를 시작한다. 안 B 는 그 뒤에 다시 시작한다.
 - W4 와 K2 는 이번 플랜에 넣지 않는다. 측정이 먼저다.
 - 묶음 1, 2 는 `lib/index.js` 의 `sync` 와 `context/index.js` 를 바꿀 수 있다. 안 B, C 플랜의 변경 전 문구가 그 파일에 걸려 있으므로, 안 B 를 다시 시작하기 전에 루트 세션이 그 문구가 실제 파일과 맞는지 다시 확인한다.
+- (PLAN 세션 질문 1) K1 의 갱신 시점: sync 에 `refreshDominant` 인자를 둔다. context 명령의 sync, 감시기의 sync, indexAll 만 저장값을 다시 계산한다. query 등 다른 명령의 sync 는 계산하지 않는다. 코드를 고친 뒤 첫 query 가 집계 SQL(Arcyn 0.74~3.3초)을 치르지 않게 하려는 것이다.
+- (PLAN 세션 질문 2) W5: 묶음 2 플랜은 `install.ps1`, `install.sh` 변경과 새 정적 Pester 시험까지 쓴다. KIT `test/Codegraph-Installer.Tests.ps1` 의 감시 이전 시험 수정은 사람 확인 항목으로 둔다. PLAN 세션이 그 파일을 볼 수 없었기 때문이다(KIT 는 GitHub 에 없음).
+- (PLAN 세션 질문 3) R5 를 묶음 1 에 넣는다.
 
 ## 라벨
 
@@ -151,3 +154,4 @@ flowchart LR
 - K1, K2: context 비용 후보. 출처는 이 문서 3절 셋째 표. 각각 `getDominantFile` 저장, 문서 부분 모델 로딩 줄이기.
 - W1~W6: 감시기 상시 운용의 비용을 줄이는 후보. 출처는 이 문서 9절 표.
 - 묶음 1, 묶음 2: 이 문서 10절의 조합.
+- R5: git 목록 경로가 `.git`, `.codegraph` 아래 파일을 목록에 넣는 기존 결함의 수정. sync 중에 생기는 `.codegraph/codegraph.lock` 이 문서로 색인되고, CLI 는 PID 가 매번 달라 sync 마다 다시 색인한다. 출처는 PLAN 세션(2026-11-04)의 시제품 측정이다.

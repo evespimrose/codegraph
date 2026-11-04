@@ -1,4 +1,4 @@
-MODE=APPROVAL
+MODE=EXECUTE
 STATUS=active
 TASK=묶음 1: 바뀐 것 없는 sync 줄이기(R2~R5)와 getDominantFile 저장(K1)
 PLAN_FILE=.claude/memory-bank/main/plans/main-2026-11-04-codegraph-sync-speed.md
@@ -7,4 +7,4 @@ INNOVATE_FILE=.claude/memory-bank/main/plans/main-2026-11-04-codegraph-sync-spee
 BRANCH=main
 STARTED=2026-11-04
 UPDATED=2026-11-04
-CURRENT=승인 대기(G1). 묶음 2 는 main-2026-11-04-codegraph-sync-speed-2 상태 파일
+CURRENT=실행 대기(G1 승인 2026-11-04). 묶음 2 는 main-2026-11-04-codegraph-sync-speed-2 상태 파일

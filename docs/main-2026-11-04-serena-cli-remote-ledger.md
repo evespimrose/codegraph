@@ -3,15 +3,15 @@
 리모트(클라우드) 세션이 한 일을 한곳에 모은 기록이다. 로컬 PC 세션이 이 파일 하나로 이어받도록 `/memory:save` 형식을 따른다.
 
 - **Session**: https://claude.ai/code/session_01DBP46Y5rMnj2dhDe3yFSGN (클라우드 컨테이너, Linux. `D:` 드라이브 없음)
-- **Saved**: 2026-11-04 14:08 KST
+- **Saved**: 2026-11-04 14:08 KST (serena-cli), 14:35 KST (sync-speed 묶음 1 PLAN 덧붙임)
 - **Branch**: `claude/keen-carson-turtwr` (두 저장소 모두 같은 이름)
 - **Base**: codegraph `5e290af`(사용자 push), claude-personal-integrated-workflow `11c3ac3`(GitHub main, 2026-06-04)
-- **Commits made**: workflow `c7e6b5b`, `8350073` / codegraph: 이 원장을 넣은 커밋
-- **Not changed**: KIT(`D:\Fork\KIT`), 로컬 `D:\Fork\claude-personal-integrated-workflow`, 플랜 3개, 상태 파일
+- **Commits made**: workflow `c7e6b5b`, `8350073` / codegraph `d4541f3`(원장 첫판), 그리고 sync-speed 플랜·상태 파일·이 원장 갱신을 넣은 커밋
+- **Not changed**: KIT(`D:\Fork\KIT`), 로컬 `D:\Fork\claude-personal-integrated-workflow`, serena-cli 플랜 3개와 상태 파일, 이 저장소의 `source/`
 
 ## 한 줄 요약
 
-실행 카드는 클라우드에서 돌리지 못했다. 세 플랜이 고치는 파일이 모두 로컬에만 있기 때문이다. 대신 hooks 플랜 10단계 전체와 kit 플랜 1·2단계를 스크래치 사본에서 리허설했고 모두 통과했다. KIT 배포 스크립트는 workflow 브랜치에 올렸다.
+실행 카드는 클라우드에서 돌리지 못했다. 세 플랜이 고치는 파일이 모두 로컬에만 있기 때문이다. 대신 hooks 플랜 10단계 전체와 kit 플랜 1·2단계를 스크래치 사본에서 리허설했고 모두 통과했다. KIT 배포 스크립트는 workflow 브랜치에 올렸다. 덧붙여 멈춰 있던 codegraph-sync-speed 의 묶음 1 플랜을 써서 APPROVAL 로 올렸다(코드 단계 리허설과 시험 통과).
 
 ## 작업 상태
 
@@ -22,6 +22,10 @@
 | `main-2026-11-04-serena-cli-guidance` | `docs/main-2026-11-04-serena-cli-guidance.md` (10단계) | 대상이 모두 KIT 파일이라 못 함. 정적 점검 결함 0 | kit 결과 확인 뒤 Execute 카드 |
 
 상태 파일 3개는 push 되지 않아 MODE 를 보지 못했다. 세 플랜의 `## 승인 기록` 에는 G1 승인(2026-11-04)이 적혀 있다.
+
+| 작업 (slug) | 플랜 | 결과 | 로컬에서 할 일 |
+|---|---|---|---|
+| `main-2026-11-04-codegraph-sync-speed` | `.claude/memory-bank/main/plans/main-2026-11-04-codegraph-sync-speed-1.md` (묶음 1, 10단계) | 이 세션이 씀. 상태 파일 `docs/main-2026-11-04-codegraph-sync-speed.state` 를 `MODE=APPROVAL` 로 바꿈. 코드 단계 3~8 리허설 통과, 수락 기준 A1~A3 통과 | `D:\Fork\codegraph` 루트 세션에서 G1 승인 |
 
 ## 로컬 세션이 할 일
 
@@ -35,6 +39,12 @@
 4. 배포 뒤 작업마다 `/riper:workflow <slug>` 로 REVIEW 를 잇는다. kit 의 A4~A6 과 hooks 의 A5 는 배포 뒤에만 통과한다. kit 의 `pack.py build` 는 H1 뒤에 돌린다(kit 플랜 수락 기준).
 
 선택: 카드 전에 아래 "리허설 해시" 로 로컬 파일이 리허설 기준과 같은지 보면, 리허설 결과를 그대로 믿어도 되는지 알 수 있다.
+
+codegraph-sync-speed 는 `D:\Fork\codegraph` 루트 세션에서 한다.
+
+1. 사용자가 08a6b23 에서 상태 파일을 `docs/` 로 옮겼으므로, 훅(`riper-bind.sh`, `session-start.sh`, `state-doctor.sh`)이 보도록 `docs/main-2026-11-04-codegraph-sync-speed.state` 를 `.claude/memory-bank/main/riper/` 로 되돌린다(옮길지는 사용자가 정한다).
+2. `/riper:workflow main-2026-11-04-codegraph-sync-speed` 로 APPROVAL 을 잇는다. 루트가 플랜을 직접 읽고 요약한 뒤 승인을 묻는다(G1).
+3. 승인하면 Execute 카드가 1~9단계를 하고, 10단계(빌드·전역 설치·저장소 맞추기)는 카드가 따로 승인을 묻는다.
 
 ## 이 세션의 사용자 지시
 
@@ -219,6 +229,54 @@ Write-Host 'KIT deploy done. Next: kit A4-A6 and hooks A5, then REVIEW with /rip
 
 </details>
 
+## codegraph-sync-speed 묶음 1 PLAN
+
+innovate 12절의 사용자 결정(묶음 1 을 먼저 PLAN 으로)과 plan-notes 의 설계 결정을 따라 이 세션이 플랜을 썼다. 형식은 `/riper:plan` 을 따랐다.
+
+- 플랜: `.claude/memory-bank/main/plans/main-2026-11-04-codegraph-sync-speed-1.md` (10단계, 하위 변경 26개, 수락 기준 auto 4개와 human 2개, 미결 질문 없음)
+- 상태 파일: `docs/main-2026-11-04-codegraph-sync-speed.state` 를 `MODE=APPROVAL`, `PLAN_FILE=` 위 플랜, `CURRENT=승인 대기: ...` 로 바꿨다.
+- 대상: KIT `D:/Fork/KIT/tools/codegraph/source`. 이 저장소 `source/` 는 KIT 빌드 `8e92ff564f22` 와 다이제스트가 같아서(파일 363개), 이 사본에서 '변경 전' 원문을 잘랐다. 모든 '변경 전' 블록은 원본 파일에서 줄 범위로 그대로 잘라 썼고, 파일 안에서 유일한지 확인했다.
+
+| 단계 | 내용 | 리허설 |
+|---|---|---|
+| 1 | 측정 도구 `D:/Fork/.AI/context/search-eval/sync-speed.cjs` 만들기 | 검증 통과. 합성 프로젝트 2곳으로 baseline·after 를 끝까지 실행(아래) |
+| 2 | 기준선 측정 (코드를 바꾸기 전) | 로컬 전용 (Arcyn, RX_1, BLADE) |
+| 3 | R4 `BINARY_EXT`·`hasBinaryExtension`, R3 realpath 순서와 `gitVisibleFiles` 무시 규칙 선거름 (scan-files) | DONE `null true true 2` |
+| 4 | R2 `createDocumentClassifier`, `classifyFile` 여섯째 인자 (classifier) | DONE `function 6` |
+| 5 | R2 연결 (docs/indexer, inventory/index) | DONE `1 1` |
+| 6 | K1 `computeDominantFile`·`refreshDominantFile`, 지문 `COUNT(*)`·`MAX(rowid)` (queries) | DONE `1 1 1` |
+| 7 | sync 가 판별기를 만들어 넘기고, sync·indexAll 끝에서 K1 저장 (lib/index.js) | DONE `1 2 2` |
+| 8 | 새 시험 `test/sync-speed.test.cjs` 3개 | DONE `# pass 3 # fail 0` |
+| 9 | 뒤 측정과 비교 | 로컬 전용 |
+| 10 | 빌드, 전역 설치, 저장소 맞추기 (안 A 10단계와 같음, 승인 필요) | 안 돌림 |
+
+수락 기준 (리허설 사본, Linux, Node 22.23.4):
+
+| id | 결과 |
+|---|---|
+| A1 새 시험 | exit 0, 3/3 |
+| A2 freshness, cli, indexing-regression, indexing-resolution, indexing-lock, indexing-revision | exit 0, 46/46 (바꾸기 전 기준선도 46/46) |
+| A3 watcher, watcher-cli-edge, watcher-daemon | exit 0, 29/29 |
+| A4 측정 비교 `passed` | 로컬 전용 (9단계 뒤) |
+| H1, H2 | 사람 확인 |
+
+추가 확인:
+
+- 새 시험은 바꾸기 전 코드에서 3개 모두 실패한다(0/3). 시험이 바뀐 동작을 실제로 잡는다.
+- 옛 코드로 색인한 프로젝트를 새 코드로 sync 하면, 텍스트 내용의 `fake.png` 가 `document.text` 에서 `metadata-only`·`application/octet-stream` 으로 바뀐다.
+- 측정 도구: 합성 프로젝트 2곳에서 baseline(옛 CLI)과 after(새 CLI)가 끝까지 돌았고 결과 파일 3개가 생겼다. 파일 목록 차이는 "없음" 이었다. 합성 프로젝트는 한 번에 0.4초 정도라 시간 비교가 잡음에 묻혀 `passed: false` 였다. 느려지면 exit 1 을 내는 것도 이때 확인됐다. 결과가 없는 `query` 도 exit 0 이다(RX_1, BLADE 에는 `DamageHitJob` 이 없음).
+- 안 B·C 플랜의 '변경 전' 블록(B 9개, C 31개)은 묶음 1 적용 전후로 소스에 나오는 개수가 같다. 지금 소스에 없는 4개는 search-eval 도구 파일을 가리키는 것(B 7a·7b, C 1a)과 안 B 가 만들 문구(C 2a)다.
+
+리허설 중 찾아 고친 결함: 처음 판에서는 R2 가 저장된 문서 판별을 그대로 다시 써서, 옛 코드가 문서로 분류한 바이너리 확장자 파일이 계속 문서로 남았다(R4 와 어긋남). 저장된 문서 판별은 바이너리 확장자가 아닐 때만 다시 쓰도록 고쳤고, 시험 2 에 그 경우를 넣었다.
+
+plan-notes 와 다른 점:
+
+- 측정 대상은 조사 문서에 이름이 있는 세 곳(Arcyn, RX_1, BLADE)이다. "다섯 곳" 중 나머지 두 곳은 문서에 이름이 없다.
+- 측정은 전역 설치본이 아니라 KIT 소스의 CLI(`lib/bin/codegraph.js`)를 직접 부른다. 그래서 기준선은 3단계 전에, 뒤 측정은 8단계 뒤에 잰다(배포와 상관없음).
+- R2 의 재사용 조건에 바이너리 확장자 제외를 더했다(위 결함).
+
+의존성: 이 컨테이너에서 시험을 돌리려고 스크래치 사본에 `npm install --ignore-scripts --no-audit --no-fund --omit=dev` 를 했다(exit 0, 패키지 63개). 저장소에는 넣지 않았다.
+
 ## 커밋, push, 차단 기록 (명령 = 종료 코드)
 
 | 명령 | 결과 |
@@ -232,16 +290,24 @@ Write-Host 'KIT deploy done. Next: kit A4-A6 and hooks A5, then REVIEW with /rip
 | kit 2단계 검증 (pytest) | 1 (pytest 없음). unittest 로 다시 돌려 0 |
 | PowerShell 7 내려받기 (스크립트 문법 검사용) | 권한 분류기가 막음 (외부 코드 실행) |
 | `c7e6b5b` amend 와 force push | 권한 분류기가 막음 (git 파괴 동작). 새 커밋 `8350073` 로 대신함 |
+| codegraph `git push origin claude/keen-carson-turtwr` (`d4541f3`, 원장 첫판) | 0 |
+| 스크래치 사본에서 `npm install --ignore-scripts --no-audit --no-fund --omit=dev` | 0 |
+| 시험 기준선(바꾸기 전): 6개 묶음 46/46, watcher 8/8, watcher-cli-edge 1/1, watcher-daemon 20/20, watcher-hooks 는 Linux 에서 건너뜀 | 모두 0 |
+| sync-speed 리허설: 1·3~8단계 검증, A1~A3 | 모두 0 |
+| 바꾸기 전 코드로 새 시험 실행 | 1 (0/3, 의도한 실패) |
+| 측정 도구 합성 실행: baseline / after | 0 / 1 (합성 프로젝트의 시간 잡음, 위 설명) |
 
 ## 남은 것과 한계
 
 - 실행 카드 3장, KIT 배포(H1), REVIEW, G2 는 로컬에서 한다.
 - hooks 리허설은 codegraph 의 하네스 사본으로 했다. 로컬 workflow 폴더의 파일이 이 사본과 다르면 결과가 다를 수 있다. 위 해시로 확인한다.
 - 리허설에 쓴 스크래치 파일(clone, 가짜 모듈, 점검 스크립트)은 세션이 끝나면 사라진다. 저장소에는 넣지 않았다.
-- 다음 작업: codegraph-sync-speed 묶음 1 PLAN. 할 수 있다고 판정했다(위 다이제스트 일치). 결과는 이 원장에 덧붙인다.
+- codegraph-sync-speed: 묶음 1 플랜은 G1 승인 대기다. 1·2·9단계(측정)와 10단계(배포)는 로컬 전용이라 실제 프로젝트에서 돌려 보지 않았다. 묶음 2 플랜은 아직 없다(innovate 12절: 묶음 1 의 EXECUTE, REVIEW, G2 를 마친 뒤 시작).
 
 ## 사람 확인 항목
 
 - 로컬 루트 세션에서 "로컬 세션이 할 일" 1번부터 진행한다.
 - `install-codex.ps1` 이 `D:\Fork\KIT` 에 있다고 가정했다. 다르면 스크립트에 `-KitRoot` 를 주거나 직접 실행한다.
 - 배포 스크립트는 Windows PowerShell 에서 처음 실행된다. 첫 실행 출력을 확인한다.
+- codegraph-sync-speed 묶음 1 플랜의 G1: 측정 대상 세 곳, 측정을 KIT 소스 CLI 로 하는 방식, R2 재사용 조건(바이너리 확장자 제외)을 확인한다.
+- sync-speed 상태 파일을 `docs/` 에서 `.claude/memory-bank/main/riper/` 로 되돌릴지 정한다.

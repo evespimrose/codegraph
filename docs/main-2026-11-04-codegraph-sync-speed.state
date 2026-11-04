@@ -1,10 +1,10 @@
-MODE=PLAN
+MODE=APPROVAL
 STATUS=active
 TASK=질의 속도 조사: 바뀐 것 없는 sync 28초(S6)와 맥락 검색(context) 비용의 원인 확인
-PLAN_FILE=
+PLAN_FILE=.claude/memory-bank/main/plans/main-2026-11-04-codegraph-sync-speed-1.md
 RESEARCH_FILE=.claude/memory-bank/main/plans/main-2026-11-04-codegraph-sync-speed-research.md
 INNOVATE_FILE=.claude/memory-bank/main/plans/main-2026-11-04-codegraph-sync-speed-innovate.md
 BRANCH=main
 STARTED=2026-11-04
 UPDATED=2026-11-04
-CURRENT=PLAN 멈춤(사용량 한도): 묶음 1 설계 결정은 plans/main-2026-11-04-codegraph-sync-speed-plan-notes.md. 플랜 파일 두 개 아직 없음
+CURRENT=승인 대기: 묶음 1 플랜(리모트 세션 작성, 3~8단계 리허설 통과). 묶음 2 플랜은 아직 없음

@@ -69,6 +69,8 @@ export interface IndexResult {
 export interface SyncResult {
     /** Whether the graph was refreshed successfully and is safe for derived publication. */
     status?: 'current' | 'blocked' | 'failed';
+    /** 전체 sync 인지, 감시기가 넘긴 경로만 맞춘 국소 sync 인지 */
+    scope?: 'full' | 'paths';
     filesChecked: number;
     filesAdded: number;
     filesModified: number;
@@ -124,6 +126,8 @@ export interface ScanOptions {
      * honors .gitignore (re-including git-ignored files is out of scope, §1.3-C).
      */
     respectGitignore?: boolean;
+    /** 감시기의 국소 sync 가 넘긴 경로. 있으면 sync 가 트리를 훑지 않고 이 경로만 맞춤 */
+    paths?: readonly string[];
 }
 export declare function scanDirectory(rootDir: string, onProgress?: (current: number, file: string) => void, opts?: ScanOptions): string[];
 /**

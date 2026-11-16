@@ -73,8 +73,9 @@ function fuseHits(vectorHits, lexicalHits, limit, lexicalWeight = 1) {
     };
     add(vectorHits, 'vector', 1);
     add(lexicalHits, 'lexical', lexicalWeight);
+    // 동점은 넣은 순서(벡터 순위, 그다음 어휘 순위)를 그대로 둠. 파일 이름순으로 가르면 질의와 무관한 순서가 1위를 정함
     return [...ranked.values()]
-        .sort((left, right) => right.score - left.score || left.hit.file.localeCompare(right.hit.file))
+        .sort((left, right) => right.score - left.score)
         .slice(0, limit)
         .map(({ hit, sources }) => ({ ...hit, retrieval: [...sources].sort() }));
 }

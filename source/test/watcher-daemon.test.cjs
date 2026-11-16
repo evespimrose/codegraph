@@ -10,6 +10,7 @@ const { setTimeout: delay } = require('node:timers/promises');
 const { CodeGraph } = require('../lib');
 const manager = require('../lib/watch/manager');
 const protocol = require('../lib/watch/protocol');
+delete process.env.CODEGRAPH_NO_WATCH; // 셸에 남은 값 때문에 감시가 꺼져 시간 초과되지 않게 함
 process.env.CODEGRAPH_DOCS = '0';
 process.env.CODEGRAPH_DISABLE_EMBEDDINGS = '1';
 process.env.CODEGRAPH_WATCH_REGISTRY = fs.mkdtempSync(path.join(os.tmpdir(), 'cg-watch-registry-'));
@@ -244,4 +245,42 @@ test('a worker exits after the idle limit and status requests postpone it', { ti
     }
     await t.waitFor(() => assert.equal(protocol.livePid(started.pid), false), { timeout: 15000, interval: 250 });
     assert.match(fs.readFileSync(protocol.locations(root).log, 'utf8'), /without CLI requests/);
+});
+
+test('a task holds the worker in tasking, edits queue, and release reconciles them', { timeout: 40000 }, async t => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cg-watch-tasking-'));
+    fs.writeFileSync(path.join(root, 'Base.cs'), 'public class Base {}');
+    const initial = await CodeGraph.init(root, { index: true }); initial.close();
+    t.after(async () => { await manager.stopWatcher(root); });
+    await manager.ensureWatcher(root, { debounceMs: 150 });
+    await t.waitFor(async () => assert.equal((await manager.watcherStatus(root)).ready, true), { timeout: 20000 });
+    const reader = CodeGraph.openSync(root);
+    t.after(() => reader.close());
+    const found = name => reader.getDb().prepare('SELECT name FROM nodes WHERE name = ?').get(name);
+    const release = await manager.holdWatcher(root);
+    const held = await manager.watcherStatus(root);
+    assert.equal(held.phase, 'tasking'); assert.equal(held.ready, false);
+    fs.writeFileSync(path.join(root, 'Queued.cs'), 'public class Queued {}');
+    await t.waitFor(async () => assert.ok((await manager.watcherStatus(root)).pendingFiles.some(file => file.path === 'Queued.cs')), { timeout: 5000 });
+    await delay(1000);
+    assert.equal(found('Queued'), undefined);
+    await release();
+    await t.waitFor(() => assert.ok(found('Queued')), { timeout: 15000 });
+    await t.waitFor(async () => assert.equal((await manager.watcherStatus(root)).phase, 'watching'), { timeout: 10000 });
+});
+
+test('a holder whose process died is reclaimed and the worker resumes', { timeout: 40000 }, async t => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cg-watch-deadholder-'));
+    const initial = await CodeGraph.init(root, { index: true }); initial.close();
+    t.after(async () => { await manager.stopWatcher(root); });
+    await manager.ensureWatcher(root, { debounceMs: 150 });
+    await t.waitFor(async () => assert.equal((await manager.watcherStatus(root)).ready, true), { timeout: 20000 });
+    const child = spawn(process.execPath, ['-e', 'setTimeout(()=>{},60000)'], { windowsHide: true, stdio: 'ignore' });
+    await once(child, 'spawn');
+    const location = protocol.locations(root);
+    const response = await protocol.request(location, 'pause', 5000, { holder: 'dead-holder', pid: child.pid });
+    assert.equal(response.phase, 'tasking');
+    child.kill('SIGKILL');
+    await once(child, 'exit');
+    await t.waitFor(async () => assert.equal((await manager.watcherStatus(root)).tasking, false), { timeout: 10000 });
 });

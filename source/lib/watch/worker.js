@@ -9,6 +9,12 @@ const protocol = require('./protocol');
 const LOG_BYTES = 10 * 1024 * 1024;
 const DEFAULT_IDLE_MS = 30 * 60 * 1000;
 const MAX_START_ATTEMPTS = 5;
+// flush 요청이 감시기의 맞추기를 기다리는 최대 시간. 질의 쪽 직접 sync 의 잠금 대기 한도(bin/freshness.js)와 같음
+const FLUSH_WAIT_MS = 30000;
+// 상태 파일은 내용이 바뀔 때만 쓰고, 그대로면 이 간격으로만 다시 씀. manager 의 시작 판정(10초)보다 짧아야 함
+const STATE_REFRESH_MS = 5000;
+const PAUSE_WAIT_MS = 15000;
+const HOLD_MAX_MS = 30 * 60 * 1000;
 
 function writeDiagnostic(message) {
     if (process.env.CODEGRAPH_WATCH_LOG) fs.appendFileSync(process.env.CODEGRAPH_WATCH_LOG, message);
@@ -26,6 +32,23 @@ function idleLimitMs() {
     return Number.isFinite(configured) && configured > 0 ? configured : DEFAULT_IDLE_MS;
 }
 
+// 상태 파일 쓰기 판정(W3). heartbeatAt 을 뺀 내용이 바뀌었거나 마지막 쓰기 뒤 refreshMs 가 지났을 때만 write 를 부름.
+// write 가 던지면(Windows 의 EPERM 등) 기록을 바꾸지 않으므로 다음 박동에 다시 씀
+function createStateWriter(write, refreshMs = STATE_REFRESH_MS, now = Date.now) {
+    let written = null;
+    let writtenAt = 0;
+    return (state) => {
+        const { heartbeatAt, ...content } = state;
+        const text = JSON.stringify(content);
+        if (text === written && now() - writtenAt < refreshMs)
+            return false;
+        write(state);
+        written = text;
+        writtenAt = now();
+        return true;
+    };
+}
+
 async function runWatcher(projectPath, options = {}) {
     process.env.CODEGRAPH_WATCH_WORKER = '1';
     const location = protocol.locations(projectPath);
@@ -41,6 +64,8 @@ async function runWatcher(projectPath, options = {}) {
     let retryTimer;
     let lastRequestAt = Date.now();
     let startFailures = 0;
+    // tasking: index/sync 같은 쓰기 작업이 워처 동기화를 넘겨받은 동안의 홀더. 홀더가 있으면 watching 이 아님
+    const holders = new Map();
     const idleMs = idleLimitMs();
     const state = {
         schemaVersion: 1, projectPath: location.projectRoot, projectId: location.id,
@@ -55,13 +80,18 @@ async function runWatcher(projectPath, options = {}) {
         const { token: secret, ...publicState } = state;
         const pendingFiles = graph?.getPendingFiles() ?? [];
         const reconciling = graph?.isIndexing() ?? false;
-        return { ...publicState, ready: state.ready && !reconciling && pendingFiles.length === 0,
+        const tasking = holders.size > 0;
+        return { ...publicState, phase: tasking ? 'tasking' : publicState.phase, tasking, holders: [...holders.keys()],
+            ready: state.ready && !reconciling && !tasking && pendingFiles.length === 0,
             watching: graph?.isWatching() ?? false, pendingFiles };
     };
+    // 상태 파일은 내용이 바뀔 때와 STATE_REFRESH_MS 마다만 씀(W3). 1초마다 쓰면 Windows 에서 교체 rename 이 EPERM 으로 거부되곤 했음
+    const writeState = createStateWriter(value => protocol.writeJson(location.state, value));
+    let writeFailing = false;
     const persist = () => {
         state.heartbeatAt = Date.now();
         Object.assign(state, snapshot());
-        protocol.writeJson(location.state, state);
+        writeState(state);
     };
     let resolveDone;
     const done = new Promise(resolve => { resolveDone = resolve; });
@@ -71,6 +101,10 @@ async function runWatcher(projectPath, options = {}) {
         socket.once('close', () => sockets.delete(socket));
         socket.on('error', () => socket.destroy());
         socket.setTimeout(2000, () => socket.destroy());
+        const lease = holder => {
+            if (typeof holder !== 'string' || holder.length === 0 || holder.length > 128) return false;
+            return true;
+        };
         let buffer = '';
         socket.on('data', chunk => {
             buffer += chunk.toString('utf8');
@@ -90,6 +124,32 @@ async function runWatcher(projectPath, options = {}) {
                 void shutdown();
             } else if (request.command === 'status') {
                 lastRequestAt = Date.now();
+                socket.end(JSON.stringify(snapshot()) + '\n');
+            } else if (request.command === 'flush') {
+                // 질의가 직접 sync 하지 않고 감시기의 맞추기를 기다림(W2). 끝나거나 시간 제한에 걸리면 지금 상태를 돌려줌
+                lastRequestAt = Date.now();
+                socket.setTimeout(FLUSH_WAIT_MS + 2000, () => socket.destroy());
+                const flushed = graph && !initializing ? graph.flushWatcher() : Promise.resolve();
+                // 시간 제한 타이머는 flush 가 먼저 끝나도 남으므로 ref 를 꺼서 멈춘 뒤 프로세스 종료를 붙잡지 않게 함
+                void Promise.race([flushed.catch(() => {}), delay(FLUSH_WAIT_MS, undefined, { ref: false })]).then(() => {
+                    if (!socket.destroyed) socket.end(JSON.stringify(snapshot()) + '\n');
+                });
+            } else if (request.command === 'pause') {
+                lastRequestAt = Date.now();
+                if (!lease(request.holder) || !Number.isInteger(request.pid) || closing) {
+                    return socket.end(JSON.stringify({ projectId: location.id, error: 'invalid pause request' }) + '\n');
+                }
+                socket.setTimeout(PAUSE_WAIT_MS + 5000, () => socket.destroy());
+                holders.set(request.holder, { pid: request.pid, since: Date.now() });
+                const reply = error => socket.end(JSON.stringify(error ? { projectId: location.id, error } : snapshot()) + '\n');
+                if (!graph) return reply();
+                graph.pauseWatch(request.holder, PAUSE_WAIT_MS).then(() => reply(), error => {
+                    holders.delete(request.holder);
+                    reply(error.message || 'pause failed');
+                });
+            } else if (request.command === 'resume') {
+                lastRequestAt = Date.now();
+                if (lease(request.holder) && holders.delete(request.holder)) graph?.resumeWatch(request.holder);
                 socket.end(JSON.stringify(snapshot()) + '\n');
             } else {
                 socket.end(JSON.stringify({ projectId: location.id, error: 'unknown command' }) + '\n');
@@ -172,6 +232,7 @@ async function runWatcher(projectPath, options = {}) {
                 },
             });
             if (!started) throw new Error('Native file watcher is disabled or unavailable');
+            for (const holder of holders.keys()) void graph.pauseWatch(holder, PAUSE_WAIT_MS).catch(() => {});
             state.phase = 'reconciling';
             await graph.waitUntilWatcherReady(120000);
             startFailures = 0;
@@ -194,19 +255,30 @@ async function runWatcher(projectPath, options = {}) {
         throw error;
     }
     heartbeat = setInterval(() => {
+        for (const [holder, info] of holders) {
+            if (!protocol.livePid(info.pid) || Date.now() - info.since > HOLD_MAX_MS) {
+                holders.delete(holder);
+                graph?.resumeWatch(holder);
+            }
+        }
         if (!fs.existsSync(path.join(location.directory, 'codegraph.db'))) { void shutdown(); return; }
-        if (Date.now() - lastRequestAt >= idleMs && !initializing && !graph?.isIndexing()) {
+        if (Date.now() - lastRequestAt >= idleMs && holders.size === 0 && !initializing && !graph?.isIndexing()) {
             writeDiagnostic(`Watcher stopped after ${Math.round(idleMs / 1000)} s without CLI requests.\n`);
             void shutdown();
             return;
         }
-        try { persist(); } catch (error) { writeDiagnostic(`Watcher state write failed: ${error.message}\n`); }
+        try { persist(); writeFailing = false; }
+        catch (error) {
+            // 실패가 이어지는 동안은 한 번만 기록하고 다음 박동에 다시 씀
+            if (!writeFailing) writeDiagnostic(`Watcher state write failed: ${error.message}\n`);
+            writeFailing = true;
+        }
     }, 1000);
     retryTimer = setTimeout(() => void initialize(), 150);
     return done;
 }
 
-module.exports = { runWatcher };
+module.exports = { runWatcher, createStateWriter };
 if (require.main === module) {
     if (process.env.CODEGRAPH_WATCH_LOG) {
         rotateLog(process.env.CODEGRAPH_WATCH_LOG);

@@ -18,6 +18,9 @@ function loadSearchTuning() {
         docsMarkdownFirst: flag(process.env.CODEGRAPH_DOCS_MARKDOWN_FIRST, base.docsMarkdownFirst),
         docsMarkdownDepth: number(process.env.CODEGRAPH_DOCS_MARKDOWN_DEPTH, base.docsMarkdownDepth, 50),
         nameTokensWeight: number(process.env.CODEGRAPH_NAME_TOKENS_WEIGHT, base.nameTokensWeight, 10),
+        codeVectors: flag(process.env.CODEGRAPH_CODE_VECTORS, base.codeVectors),
+        codeVectorWeight: number(process.env.CODEGRAPH_CODE_VECTOR_WEIGHT, base.codeVectorWeight, 1),
+        codeVectorScore: number(process.env.CODEGRAPH_CODE_VECTOR_SCORE, base.codeVectorScore, 20),
     };
     return cached;
 }

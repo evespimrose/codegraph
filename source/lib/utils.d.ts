@@ -97,6 +97,7 @@ export declare class FileLock {
      * Acquire the lock. Throws if the lock is held by another live process.
      */
     acquire(): void;
+    acquireWithWait(timeoutMs?: number, pollMs?: number): Promise<void>;
     /**
      * Release the lock
      */

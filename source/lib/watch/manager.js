@@ -21,6 +21,13 @@ async function watcherStatus(projectPath) {
     };
 }
 
+// 감시기에게 기다리던 변경을 지금 맞추게 하고 끝날 때까지 기다림(W2). 응답이 없으면 지금 상태를 돌려줌
+async function flushWatcher(projectPath, options = {}) {
+    const location = protocol.locations(projectPath);
+    const response = await protocol.request(location, 'flush', options.timeoutMs ?? 32000);
+    return response.error ? watcherStatus(projectPath) : response;
+}
+
 async function stopWatcher(projectPath, options = {}) {
     const location = protocol.locations(projectPath);
     const response = await protocol.request(location, 'stop');
@@ -119,6 +126,25 @@ async function ensureWatcher(projectPath, options = {}) {
     } finally { releaseLease?.(); }
 }
 
+let holdCounter = 0;
+const noop = async () => {};
+
+// 쓰기 작업이 워처를 tasking 상태로 넘겨받고, 반환 함수로 돌려줌. 워처가 없거나 응답이 없으면 아무것도 안 함
+async function holdWatcher(projectPath) {
+    if (process.env.CODEGRAPH_WATCH_WORKER === '1' || process.env.CODEGRAPH_NO_WATCH === '1') return noop;
+    let location;
+    try { location = protocol.locations(projectPath); } catch { return noop; }
+    if (!fs.existsSync(location.state)) return noop;
+    const holder = `${process.pid}-${++holdCounter}`;
+    const response = await protocol.request(location, 'pause', 20000, { holder, pid: process.pid });
+    if (response.error) {
+        // 워커가 살아 있으나 응답이 늦은 경우를 대비해 반납을 보내 둠. 락 대기가 최후 안전장치로 남음
+        if (response.error === 'timeout') await protocol.request(location, 'resume', 800, { holder });
+        return noop;
+    }
+    return async () => { await protocol.request(location, 'resume', 2000, { holder }); };
+}
+
 async function listWatchers() {
     let files;
     try { files = fs.readdirSync(protocol.registryDirectory()); }
@@ -138,4 +164,4 @@ async function listWatchers() {
     return result;
 }
 
-module.exports = { ensureWatcher, stopWatcher, watcherStatus, listWatchers, runWatcher: (...args) => require('./worker').runWatcher(...args) };
+module.exports = { ensureWatcher, stopWatcher, flushWatcher, watcherStatus, listWatchers, holdWatcher, runWatcher: (...args) => require('./worker').runWatcher(...args) };

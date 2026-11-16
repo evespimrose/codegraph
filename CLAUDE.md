@@ -15,29 +15,25 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 아래 RULE 번호 한 체계를 쓴다. `.claude/hooks/session-start.sh` 와 `post-compact.sh` 의 `CORE_RULES` 가 RULE-1~6 을 같은 번호로 인용한다. 번호나 문구를 바꾸면 두 훅의 `CORE_RULES` 도 같이 바꾸고 byte-equal 을 확인한다(cache-aligner 스킬).
 
-## RULE-1: Sonar Protocol (DEADLY · L1 Hook 강제)
+## RULE-1: Sonar Protocol (DEADLY · 훅 강제)
 
-**모든 소스 코드 접근 전 codegraph 우선 사용.**
+**모든 소스 코드 접근 전 코드 탐색 도구를 먼저 쓴다.**
 
-### ❌ 자동 차단 (PreToolUse hook)
-- `find`(깊이 제한 없음) / `ls -R` / `grep -r` / `rg` / `fd` (bash)
-- `Get-ChildItem -Recurse` / `Select-String -Path *` (PowerShell)
-- `cat` 등 범위 없는 소스 출력. `head`·`tail`·범위를 준 `sed -n 'A,Bp'` 는 허용
-- **codegraph 미사용 후 소스 코드 Read** (자동 차단)
-- 문서·설정 문자열 검색은 Grep 도구(type/glob 소스 필터 없이)로 한다. codegraph 인덱스에 없는 문자열이라 막지 않는다.
+### ❌ 자동 차단 (전역 KIT `source-read-guard` PreToolUse hook)
+- 셸로 소스 파일을 읽거나 찾는 명령: `cat`, `head`, `tail`, `sed`, `awk`, `grep`, `rg`, `find`, `Get-Content`, `Select-String` 등
+- 문서·설정 문자열 검색은 Grep 도구(type/glob 소스 필터 없이)로 한다.
 
 ### ✅ 올바른 순서 (codegraph는 MCP가 아니라 CLI — Bash로 직접 호출)
 ```
 1. codegraph context "<intent>" -p <root> / codegraph query "<symbol>" -p <root> → 심볼 위치
 2. codegraph callers "<symbol>" -p <root> / codegraph impact "<symbol>" -p <root> → 영향 범위
-3. Read(offset+limit) 로 좌표 구간만 읽음 → 소스 코드
-4. (보완 시만) Glob / Grep
+3. probe-scoped symbols <file> / probe-scoped extract <file>#<Symbol> → 구조와 본문
+4. Read(offset+limit, 200줄 이하) 로 좌표 구간만 읽음 → 소스 코드
+5. (보완 시만) Glob / Grep
 ```
 
 `mcp__codegraph__*` 툴은 더 이상 존재하지 않는다(CLI 바이너리 전환, 920cd03). codegraph MCP를 등록·기동하지 말 것.
-차단 hook: `.claude/hooks/sonar-guard*.sh`, `codegraph-gate.sh` — 게이트는 Bash로 호출된 `codegraph <subcommand>`를
-`tool-history-recorder.sh`가 `codegraph_<subcommand>`로 번역 기록해야 인식한다(둘 다 이미 반영됨).
-위반 로그: `.claude/state/violation-count.log`
+codegraph 우선 순서는 규약이다. `sonar-guard*.sh`와 `codegraph-gate.sh`는 이 프로젝트 설정에서 등록을 해제했으므로(2026-11-12) 훅이 강제하지 않는다. 셸 읽기 차단은 전역 `source-read-guard`가 맡는다.
 
 ### ⚖️ 조건부 신뢰 (Conditional Trust · state-doctor 게이트)
 

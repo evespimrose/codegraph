@@ -19,5 +19,8 @@ export declare function indexMarkdown(db: SqliteDatabase, projectRoot: string, o
     onWarn?: (message: string) => void;
     respectGitignore?: boolean;
     visibleFiles?: readonly string[];
+    classify?: import('./scan-files').DocumentClassifier;
+    /** 감시기의 국소 sync 범위. 있으면 이 경로의 문서만 지우고, 실패 기록도 이 경로만 바꿈 */
+    paths?: readonly string[];
 }): Promise<MarkdownIndexResult>;
 //# sourceMappingURL=indexer.d.ts.map

@@ -33,12 +33,12 @@ function autoWatch(program, resolvePath) {
         catch (error) { if (process.exitCode) return; throw error; }
         if (!isInitialized(projectPath)) return;
         const { ensureWatcher } = require('../watch/manager');
+        // 워처 자동 기동은 부가 기능임. 질의 결과는 이미 출력됐으므로 기동 실패가 종료 코드를 바꾸면 안 됨
         try {
             const result = await ensureWatcher(projectPath, { respectGitignore: options.gitignore });
             if (!result.active && !result.busy && !result.restartPending) throw new Error(result.error || `Watcher is ${result.phase}`);
         } catch (error) {
-            console.error(`Automatic file watching could not start: ${error.message || error}`);
-            process.exitCode = 1;
+            console.error(`Automatic file watching could not start (ignored): ${error.message || error}`);
         }
     });
 }

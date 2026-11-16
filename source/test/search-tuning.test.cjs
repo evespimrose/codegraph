@@ -47,8 +47,15 @@ test('lexical weight scales the lexical side of the fusion', () => {
     const hit = (file) => ({ file, retrieval: [] });
     const vectorHits = [hit('v.md'), hit('both.md')];
     const lexicalHits = [hit('l.md'), hit('both.md')];
-    assert.deepEqual(fuseHits(vectorHits, lexicalHits, 3).map((h) => h.file), ['both.md', 'l.md', 'v.md']);
-    assert.deepEqual(fuseHits(vectorHits, lexicalHits, 3, 0.5).map((h) => h.file), ['both.md', 'v.md', 'l.md']);
+    assert.deepEqual(fuseHits(vectorHits, lexicalHits, 3).map((h) => h.file), ['both.md', 'v.md', 'l.md']);
+    assert.deepEqual(fuseHits(vectorHits, lexicalHits, 3, 2).map((h) => h.file), ['both.md', 'l.md', 'v.md']);
+});
+
+test('a fused tie goes to the better vector rank, not the file name', () => {
+    const hit = (file) => ({ file, retrieval: [] });
+    assert.deepEqual(fuseHits([hit('z.md')], [hit('a.md')], 2).map((h) => h.file), ['z.md', 'a.md']);
+    const crossed = fuseHits([hit('z.md'), hit('a.md')], [hit('a.md'), hit('z.md')], 2);
+    assert.deepEqual(crossed.map((h) => h.file), ['z.md', 'a.md']);
 });
 
 test('environment overrides the tuning file', (context) => {

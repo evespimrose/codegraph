@@ -13,20 +13,20 @@
     "revision": "bba4cb8e3299d445c04f62bf62e2b26461d03715",
     "license": "Apache-2.0",
     "dimension": 384,
-    "manifestSha256": "d20ca1deb2c18aa5872ee8b3de3c48a9353ebddf7a97c6c275b083fe4790e408"
+    "manifestSha256": "f7e8d97238c132d8e22f1f886a0793d22044ffe3b98817fd3285c23aef949b55"
   },
   "rerankModel": {
     "id": "nlpai-lab/KURE-Reranker-nano",
     "revision": "8514b9e113f3b27c441ed9c2b50f81d80388b2fd",
     "license": "Apache-2.0",
-    "manifestSha256": "16a37ea7cdce301073c69f21019193cf6b4fa73d3a1d86b4ff23989fcd797c02"
+    "manifestSha256": "06baca2847546e8408d02df6d36b7e9855d9ff418fb2ba0bc8c2c8ed2f5d3c8f"
   },
-  "sourceTreeSha256": "122d32cc87b51958633f78052c982b3f989a2bdcae2aa97559f96b4e7738b72c",
+  "sourceTreeSha256": "03af309477ba1b6da6e2cd29da217aff196b8784e4470a1dd21160dd8be88e7a",
   "sourceDigestContract": "sha256 of UTF-8 JSONL [relativePosixPath,sha256,size] records sorted by path; exact file bytes; excludes node_modules,.git,.cache,.codegraph,.serena directories",
   "sourceSnapshot": "source",
   "sourceManifest": "SOURCE-MANIFEST.json",
   "runtimeAssets": {
-    "baseArtifactSha256": "f0a9ee70351eb170bbd3ac357187bc7128af942742dcfd57ba439c8d58d62263",
+    "baseArtifactSha256": "0ceb2eb54fcec338e2071d36fb3ed757f29fbe6b5ba01e9b293da184897ca188",
     "baseCodegraphVersion": "1.1.2"
   },
   "grammarSources": {
@@ -38,10 +38,10 @@
   "artifacts": {
     "win32-x64": {
       "archive": "artifacts/codegraph-win32-x64.zip",
-      "size": 405993487,
-      "sha256": "8e92ff564f223b389861d7780444322ff238104d7ed37df960fb2ba17d375bf3",
+      "size": 401542419,
+      "sha256": "dae4c231f862c1af5616c7f98ecab15fc604547724ddae58e71985d61e8a4506",
       "integrityManifest": "release-integrity.json",
-      "integritySha256": "b41099c69d7ebd5373aef6122d2dbaa7e26fe3d70c3cd05918df80cfd8f69643"
+      "integritySha256": "074f3596e749b951efcf5b670f8206e9a05004314424c97dbf809072157c1e61"
     }
   }
 }

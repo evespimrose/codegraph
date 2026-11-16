@@ -43,12 +43,14 @@ var __exportStar = (this && this.__exportStar) || function(m, exports) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.CodeGraph = exports.LockUnavailableError = exports.FileWatcher = exports.MemoryMonitor = exports.throttle = exports.debounce = exports.processInBatches = exports.FileLock = exports.Mutex = exports.defaultLogger = exports.silentLogger = exports.getLogger = exports.setLogger = exports.ConfigError = exports.VectorError = exports.SearchError = exports.DatabaseError = exports.ParseError = exports.FileError = exports.CodeGraphError = exports.loadAllGrammars = exports.loadGrammarsForLanguages = exports.initGrammars = exports.getSupportedLanguages = exports.isGrammarLoaded = exports.isLanguageSupported = exports.detectLanguage = exports.CODEGRAPH_DIR = exports.findNearestCodeGraphRoot = exports.isInitialized = exports.getCodeGraphDir = exports.QueryBuilder = exports.DatabaseConnection = exports.getDatabasePath = void 0;
+const fs = __importStar(require("fs"));
 const path = __importStar(require("path"));
 const db_1 = require("./db");
 const indexer_1 = require("./docs/indexer");
 const scan_files_1 = require("./docs/scan-files");
 const config_1 = require("./docs/config");
 const governs_linker_1 = require("./docs/governs-linker");
+const code_vectors_1 = require("./search/code-vectors");
 const doc_links_linker_1 = require("./docs/doc-links-linker");
 const semantic_edges_1 = require("./docs/semantic-edges");
 const queries_1 = require("./db/queries");
@@ -60,6 +62,7 @@ const context_1 = require("./context");
 const utils_1 = require("./utils");
 const sync_1 = require("./sync");
 const inventory_1 = require("./inventory");
+const classifier_1 = require("./inventory/classifier");
 const index_health_1 = require("./inventory/health");
 const provenance_1 = require("./provenance");
 // Re-export types for consumers
@@ -283,16 +286,38 @@ class CodeGraph {
     // Indexing
     // ===========================================================================
     /**
+     * 쓰기 작업 동안 백그라운드 워처를 tasking 상태로 넘기고, 끝나면 돌려줌.
+     * 워처 워커 자신의 동기화와 워처가 없는 경우는 그냥 실행함.
+     */
+    async withWatcherHeld(fn) {
+        const release = await require('./watch/manager').holdWatcher(this.projectRoot);
+        try {
+            return await fn();
+        }
+        finally {
+            await release();
+        }
+    }
+    indexAll(options = {}) {
+        return this.withWatcherHeld(() => this.runIndexAll(options));
+    }
+    indexFiles(filePaths) {
+        return this.withWatcherHeld(() => this.runIndexFiles(filePaths));
+    }
+    sync(options = {}) {
+        return this.withWatcherHeld(() => this.runSync(options));
+    }
+    /**
      * Index all files in the project
      *
      * Uses a mutex to prevent concurrent indexing operations.
      */
-    async indexAll(options = {}) {
+    async runIndexAll(options = {}) {
         const operationStartedAt = Date.now();
         const provenanceRebuildReason = (0, provenance_1.getProvenanceRebuildReason)(this.db.getDb());
         return this.indexMutex.withLock(async () => {
             try {
-                this.fileLock.acquire();
+                await this.fileLock.acquireWithWait();
             }
             catch {
                 return { success: false, filesIndexed: 0, filesSkipped: 0, filesErrored: 0, filesRemoved: 0, nodesCreated: 0, edgesCreated: 0, errors: [{ message: 'Could not acquire file lock - another process may be indexing', severity: 'error', code: 'lock_unavailable' }], durationMs: 0 };
@@ -449,6 +474,18 @@ class CodeGraph {
                         }
                     }
                     try {
+                        const codeVectors = await (0, code_vectors_1.syncCodeVectors)(this.db.getDb());
+                        if (codeVectors.enabled)
+                            result.codeVectors = codeVectors;
+                    }
+                    catch (error) {
+                        result.errors.push({
+                            message: `Code vector update failed: ${error instanceof Error ? error.message : String(error)}`,
+                            severity: 'warning',
+                            code: 'code_vectors',
+                        });
+                    }
+                    try {
                         result.inventory = (0, inventory_1.refreshFileInventory)(this.db.getDb(), this.projectRoot, {
                             respectGitignore: options.respectGitignore,
                             visibleFiles,
@@ -494,6 +531,14 @@ class CodeGraph {
                         });
                     }
                 }
+                if (result.success) {
+                    try {
+                        this.queries.refreshDominantFile();
+                    }
+                    catch {
+                        // 저장하지 못해도 context 가 읽을 때 계산함
+                    }
+                }
                 result.durationMs = Date.now() - operationStartedAt;
                 return result;
             }
@@ -507,10 +552,10 @@ class CodeGraph {
      *
      * Uses a mutex to prevent concurrent indexing operations.
      */
-    async indexFiles(filePaths) {
+    async runIndexFiles(filePaths) {
         return this.indexMutex.withLock(async () => {
             try {
-                this.fileLock.acquire();
+                await this.fileLock.acquireWithWait();
             }
             catch {
                 return { success: false, filesIndexed: 0, filesSkipped: 0, filesErrored: 0, filesRemoved: 0, nodesCreated: 0, edgesCreated: 0, errors: [{ message: 'Could not acquire file lock - another process may be indexing', severity: 'error' }], durationMs: 0 };
@@ -528,7 +573,7 @@ class CodeGraph {
      *
      * Uses a mutex to prevent concurrent indexing operations.
      */
-    async sync(options = {}) {
+    async runSync(options = {}) {
         const operationStartedAt = Date.now();
         const provenanceRebuildReason = (0, provenance_1.getProvenanceRebuildReason)(this.db.getDb());
         if (provenanceRebuildReason) {
@@ -569,7 +614,7 @@ class CodeGraph {
         }
         return this.indexMutex.withLock(async () => {
             try {
-                this.fileLock.acquire();
+                await this.fileLock.acquireWithWait();
             }
             catch {
                 return {
@@ -586,9 +631,13 @@ class CodeGraph {
             try {
                 await require('./resolution/incremental').recoverReferenceIntent(this.orchestrator, this.queries, this.db.getDb(), options.onProgress);
                 this.queries.beginReferenceUpdate();
+                // 감시기가 넘긴 경로가 모두 지난 전체 sync 가 본 파일이면 그 경로만 맞춤(W1). 아니면 전체 sync
+                const targets = this.resolveSyncTargets(options.paths);
                 const result = await this.orchestrator.sync(options.onProgress, {
                     respectGitignore: options.respectGitignore,
+                    paths: targets?.paths,
                 });
+                result.scope = targets ? 'paths' : 'full';
                 // Cross-file finalization (e.g. NestJS RouterModule prefixes). Run on
                 // every sync that touched files so edits to `app.module.ts` propagate
                 // to controllers in unchanged files. The pass is idempotent and cheap
@@ -643,13 +692,17 @@ class CodeGraph {
                 if (result.filesAdded > 0 || result.filesModified > 0 || result.filesRemoved > 0) {
                     this.db.runMaintenance();
                 }
-                const visibleFiles = (0, scan_files_1.listVisibleFiles)(this.projectRoot, {
+                const visibleFiles = targets ? targets.existing : (0, scan_files_1.listVisibleFiles)(this.projectRoot, {
                     respectGitignore: options.respectGitignore,
                 });
+                // 문서 스캔과 파일 목록 갱신이 같은 판별 결과를 씀. 크기와 수정 시각이 그대로인 파일은 열지 않음
+                const classify = (0, classifier_1.createDocumentClassifier)(this.db.getDb(), this.projectRoot);
                 try {
                     const docs = await (0, indexer_1.indexMarkdown)(this.db.getDb(), this.projectRoot, {
                         respectGitignore: options.respectGitignore,
                         visibleFiles,
+                        classify,
+                        paths: targets?.paths,
                     });
                     // New/updated concept nodes — re-link governs + doc edges so
                     // callers/impact follow them. Skipped when nothing was (re)indexed.
@@ -701,9 +754,20 @@ class CodeGraph {
                     }
                 }
                 try {
+                    const codeVectors = await (0, code_vectors_1.syncCodeVectors)(this.db.getDb());
+                    if (codeVectors.enabled)
+                        result.codeVectors = codeVectors;
+                }
+                catch (error) {
+                    result.warnings = [...(result.warnings ?? []),
+                        `Code vector update failed: ${error instanceof Error ? error.message : String(error)}`];
+                }
+                try {
                     result.inventory = (0, inventory_1.refreshFileInventory)(this.db.getDb(), this.projectRoot, {
                         respectGitignore: options.respectGitignore,
                         visibleFiles,
+                        classify,
+                        paths: targets?.paths,
                     });
                     if (result.inventory.byStatus.error > 0) {
                         result.warnings = [...(result.warnings ?? []),
@@ -715,6 +779,14 @@ class CodeGraph {
                         message: `File inventory refresh failed: ${error instanceof Error ? error.message : String(error)}`,
                         severity: 'error', code: 'file_inventory',
                     }];
+                }
+                if (options.refreshDominant) {
+                    try {
+                        this.queries.refreshDominantFile();
+                    }
+                    catch {
+                        // 저장하지 못해도 context 가 읽을 때 계산함
+                    }
                 }
                 result.indexHealth = (0, index_health_1.readIndexHealth)(this.db.getDb());
                 if (!result.indexHealth.healthy)
@@ -732,6 +804,36 @@ class CodeGraph {
                 this.fileLock.release();
             }
         });
+    }
+    /**
+     * 감시기가 넘긴 경로로 국소 sync 를 할 수 있는지 정함(W1). 모든 경로가 file_inventory 에 있고(지난 전체 sync 가 본 파일)
+     * 무시 규칙 파일이 아니면 { paths, existing } 을 돌려줌. existing 은 지금 디스크에 있는 경로의 절대 경로임.
+     * 새 경로가 하나라도 있으면 null 을 돌려 전체 sync 를 하게 함. 새 파일의 범위(.gitignore, 중첩 저장소)는 전체 sync 가 정함.
+     */
+    resolveSyncTargets(paths) {
+        if (!Array.isArray(paths) || paths.length === 0)
+            return null;
+        const known = this.db.getDb().prepare('SELECT 1 AS found FROM file_inventory WHERE path = ?');
+        const unique = [...new Set(paths)];
+        const existing = [];
+        for (const relativePath of unique) {
+            const name = relativePath.split('/').pop();
+            if (name === '.gitignore' || name === '.codegraphignore' || !known.get(relativePath))
+                return null;
+            const absolutePath = path.join(this.projectRoot, relativePath);
+            try {
+                if (fs.statSync(absolutePath).isFile())
+                    existing.push(absolutePath);
+            }
+            catch {
+                // 지워진 파일: 국소 sync 가 색인과 파일 목록에서 지움
+            }
+        }
+        return { paths: unique, existing };
+    }
+    /** 감시기가 기다리던 변경을 지금 맞추게 하고 그 시도가 끝날 때까지 기다림(W2). 감시기가 없으면 바로 돌아옴 */
+    async flushWatcher() {
+        await this.watcher?.flushNow();
     }
     /**
      * Check if an indexing operation is currently in progress
@@ -759,8 +861,8 @@ class CodeGraph {
         // sync per Markdown edit). Re-enabling docs after watch starts needs a
         // re-watch, same as respectGitignore.
         const docsEnabled = (0, config_1.resolveDocsEnabled)(this.db.getDb());
-        this.watcher = new sync_1.FileWatcher(this.projectRoot, async () => {
-            const result = await this.sync({ respectGitignore: options.respectGitignore });
+        this.watcher = new sync_1.FileWatcher(this.projectRoot, async (paths) => {
+            const result = await this.sync({ respectGitignore: options.respectGitignore, refreshDominant: true, paths });
             if (result.status === 'blocked') {
                 throw new sync_1.LockUnavailableError();
             }
@@ -768,7 +870,7 @@ class CodeGraph {
                 throw new Error(summarizeFailure([...(result.errors ?? []).map(error => error.message), ...(result.warnings ?? [])]) || 'Incremental reconciliation failed');
             }
             const filesChanged = result.filesAdded + result.filesModified + result.filesRemoved;
-            return { filesChanged, durationMs: result.durationMs, warnings: result.warnings ?? [] };
+            return { filesChanged, durationMs: result.durationMs, warnings: result.warnings ?? [], full: result.scope !== 'paths' };
         }, { ...options, docsEnabled });
         return this.watcher.start();
     }
@@ -807,6 +909,12 @@ class CodeGraph {
      * Useful for tests that need a deterministic boundary before asserting on
      * `getPendingFiles()`. Resolves immediately when no watcher is active.
      */
+    pauseWatch(holder, timeoutMs) {
+        return this.watcher ? this.watcher.pause(holder, timeoutMs) : Promise.resolve();
+    }
+    resumeWatch(holder) {
+        this.watcher?.resume(holder);
+    }
     waitUntilWatcherReady(timeoutMs) {
         return this.watcher ? this.watcher.waitUntilReady(timeoutMs) : Promise.resolve();
     }
@@ -937,6 +1045,19 @@ class CodeGraph {
      */
     searchNodes(query, options) {
         return this.queries.searchNodes(query, options);
+    }
+    /**
+     * Search nodes with BM25 and, when code vectors are enabled, fuse in vector neighbours.
+     */
+    async searchNodesHybrid(query, options = {}) {
+        const limit = options.limit ?? 10;
+        const depth = Math.max(limit * 2, 20);
+        const vectorSearch = (0, code_vectors_1.searchCodeVectors)(this.db.getDb(), query, depth);
+        const lexical = this.queries.searchNodes(query, { ...options, limit: depth });
+        const vectorIds = await vectorSearch;
+        if (vectorIds.length === 0)
+            return lexical.slice(0, limit);
+        return (0, code_vectors_1.fuseNodeResults)(lexical, vectorIds, (id) => this.queries.getNodeById(id), limit, options.kinds);
     }
     /**
      * Find the project's "primary route file" — the file with the densest

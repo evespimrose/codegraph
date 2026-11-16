@@ -13,6 +13,8 @@ const query_parser_1 = require("../search/query-parser");
 const name_tokens_1 = require("../search/name-tokens");
 const search_tuning_1 = require("../search-tuning");
 const generated_detection_1 = require("../extraction/generated-detection");
+/** getDominantFile 저장값의 project_metadata 키. 값은 {"fingerprint": 간선 지문, "dominant": 결과 또는 null} 임 */
+const DOMINANT_FILE_META_KEY = 'dominant_file';
 /**
  * Path-only heuristic for files that should not be candidates for
  * "dominant file" detection: test/spec files and tool-generated files.
@@ -447,6 +449,40 @@ class QueryBuilder {
      * boosting a test file's directory would be a misfire.
      */
     getDominantFile() {
+        // 저장값이 지금 간선과 같은 시점이면 그 값을 씀. 아니면 계산만 하고 저장 안 함(읽기 경로는 쓰지 않음)
+        const stored = this.readStoredDominantFile();
+        if (stored && stored.fingerprint === this.getEdgeFingerprint())
+            return stored.dominant;
+        return this.computeDominantFile();
+    }
+    /**
+     * 간선 지문이 저장값과 다를 때만 다시 계산해 project_metadata 의 dominant_file 에 저장하고 지금 값을 돌려줌.
+     * 쓰기 잠금을 가진 쪽(sync, indexAll)만 부름.
+     */
+    refreshDominantFile() {
+        const fingerprint = this.getEdgeFingerprint();
+        const stored = this.readStoredDominantFile();
+        if (stored && stored.fingerprint === fingerprint)
+            return stored.dominant;
+        const dominant = this.computeDominantFile();
+        this.setMetadata(DOMINANT_FILE_META_KEY, JSON.stringify({ fingerprint, dominant }));
+        return dominant;
+    }
+    /** 간선 표의 지문. edges.id 가 AUTOINCREMENT 라 간선을 지우거나 더하면 개수나 최댓값이 바뀜 */
+    getEdgeFingerprint() {
+        if (!this.stmts.getEdgeFingerprint) {
+            this.stmts.getEdgeFingerprint = this.db.prepare('SELECT COUNT(*) AS c, MAX(rowid) AS m FROM edges');
+        }
+        const row = this.stmts.getEdgeFingerprint.get();
+        return `${row.c}:${row.m ?? 0}`;
+    }
+    readStoredDominantFile() {
+        const value = this.getMetadata(DOMINANT_FILE_META_KEY);
+        const parsed = value ? (0, utils_1.safeJsonParse)(value, null) : null;
+        return parsed && typeof parsed.fingerprint === 'string' && 'dominant' in parsed ? parsed : null;
+    }
+    /** 저장값을 보지 않고 그래프에서 다시 계산함 */
+    computeDominantFile() {
         if (!this.stmts.getDominantFile) {
             // Pull top 20 candidates; we then filter out test/generated files
             // in code (regex-grade matching that SQL LIKE can't express). The

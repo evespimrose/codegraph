@@ -50,11 +50,25 @@ test('reads reconcile inline when the watcher cannot vouch for the current graph
         { ...ready, active: false },
     ];
     const status = context.mock.method(manager, 'watcherStatus', async () => watchers.shift() ?? ready);
+    // 같은 런타임의 바쁜 감시기에는 먼저 flush 를 청하고, 그래도 보증하지 못하면 직접 맞춤(W2)
+    const flush = context.mock.method(manager, 'flushWatcher', async () => ({ ...ready, ready: false }));
     const sync = context.mock.method(graph, 'sync');
     for (let index = 0; index < 4; index++) assert.equal((await syncForRead(graph, root)).status, 'current');
     assert.equal(sync.mock.callCount(), 4);
+    assert.equal(flush.mock.callCount(), 2);
     graph.getDb().prepare("INSERT INTO project_metadata (key, value, updated_at) VALUES ('graph_rebuild_required', 'provenance-v10', 1)").run();
     assert.equal((await syncForRead(graph, root)).status, 'current');
     assert.equal(sync.mock.callCount(), 5);
     assert.equal(status.mock.callCount(), 5);
+});
+
+test('reads wait for a busy watcher of the same runtime instead of reconciling inline', async context => {
+    const { root, graph } = await indexedProject(context);
+    const ready = { active: true, ready: true, pendingFiles: [], runtimeId: protocol.runtimeId(), configuration: { respectGitignore: true }, lastSync: { warnings: [] } };
+    context.mock.method(manager, 'watcherStatus', async () => ({ ...ready, ready: false, pendingFiles: [{ path: 'Runner.cs' }] }));
+    const flush = context.mock.method(manager, 'flushWatcher', async () => ready);
+    const sync = context.mock.method(graph, 'sync');
+    assert.equal((await syncForRead(graph, root)).status, 'current');
+    assert.equal(flush.mock.callCount(), 1);
+    assert.equal(sync.mock.callCount(), 0);
 });

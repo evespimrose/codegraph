@@ -5,6 +5,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { setTimeout: delay } = require('node:timers/promises');
 const { CodeGraph, FileWatcher, LockUnavailableError } = require('../lib');
+delete process.env.CODEGRAPH_NO_WATCH; // 셸에 남은 값 때문에 감시가 꺼져 ready 대기가 시간 초과되지 않게 함
 process.env.CODEGRAPH_DOCS = '0';
 process.env.CODEGRAPH_DISABLE_EMBEDDINGS = '1';
 

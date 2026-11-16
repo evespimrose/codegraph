@@ -1265,10 +1265,16 @@ class ExtractionOrchestrator {
         // whether or not the project uses git, and crucially also catches committed
         // changes from `git pull`/`checkout`/`merge`/`rebase` — which `git status`
         // cannot see, because the working tree is clean afterward.
-        const currentFiles = scanDirectory(this.rootDir, undefined, scanOpts);
+        // scanOpts.paths 가 있으면(감시기의 국소 sync) 그 경로만 봄. 트리를 훑지 않고, 그 밖의 색인 파일은 건드리지 않음
+        const targeted = Array.isArray(scanOpts?.paths);
+        const currentFiles = targeted
+            ? scanOpts.paths.filter((filePath) => (0, grammars_1.isSourceFile)(filePath) && fs.existsSync(path.join(this.rootDir, filePath)))
+            : scanDirectory(this.rootDir, undefined, scanOpts);
         filesChecked = currentFiles.length;
         const currentSet = new Set(currentFiles);
-        const trackedFiles = this.queries.getAllFiles();
+        const trackedFiles = targeted
+            ? scanOpts.paths.map((filePath) => this.queries.getFileByPath(filePath)).filter(Boolean)
+            : this.queries.getAllFiles();
         const trackedMap = new Map();
         for (const f of trackedFiles) {
             trackedMap.set(f.path, f);

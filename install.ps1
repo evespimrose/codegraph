@@ -136,23 +136,23 @@ const target = path.resolve(process.argv[2]).toLowerCase() + path.sep;
     return @(([string]$result | ConvertFrom-Json))
 }
 
-function Upgrade-Watchers([string]$Root, [string[]]$RestartProjects = @()) {
+# 설치 뒤 활성 감시기를 새 런타임으로 옮기지 않고 멈추기만 함(W5). 다음 CLI 사용 때 새 런타임으로 다시 뜸.
+# 옮기면 감시기마다 새 런타임으로 처음부터 다시 맞추고, 모델이 바뀐 설치에서는 한꺼번에 다시 임베딩함
+function Stop-ActiveWatchers([string]$Root) {
     if ($env:CODEGRAPH_NO_WATCH -eq '1') { return }
     $managerPath = Join-Path $Root 'lib\dist\watch\manager.js'
     if (-not (Test-Path -LiteralPath $managerPath -PathType Leaf)) { return }
     $script = @'
 const manager = require(process.argv[1]);
 (async () => {
-  const projects = new Set([...JSON.parse(process.argv[2]), ...(await manager.listWatchers()).map(watcher => watcher.projectPath)]);
-  for (const projectPath of projects) {
-    const running = await manager.ensureWatcher(projectPath, { timeoutMs: 30000 });
-    if (!running.active || running.restartPending) throw new Error(`Watcher migration is incomplete for ${projectPath}: ${running.phase || 'inactive'}`);
+  for (const watcher of await manager.listWatchers()) {
+    const stopped = await manager.stopWatcher(watcher.projectPath, { timeoutMs: 30000 });
+    if (stopped.active || stopped.stopPending) throw new Error(`Watcher did not stop: ${watcher.projectPath}`);
   }
 })().catch(error => { console.error(error.message); process.exitCode = 1; });
 '@
-    $restartJson = ConvertTo-Json -InputObject @($RestartProjects) -Compress
-    & (Join-Path $Root 'node.exe') -e $script $managerPath $restartJson
-    if (-not $?) { throw 'CodeGraph was installed, but an active project watcher could not migrate to the installed runtime.' }
+    & (Join-Path $Root 'node.exe') -e $script $managerPath
+    if (-not $?) { throw 'CodeGraph was installed, but an active project watcher could not stop.' }
 }
 
 function Remove-Tree([string]$Path, [string]$Root) {
@@ -356,7 +356,6 @@ if ($artifactHash -cnotmatch '^[0-9a-f]{64}$') { throw 'CodeGraph artifact SHA-2
 $releaseId = "$version-$($artifactHash.Substring(0, 12))"
 $target = Join-Path (Join-Path $InstallRoot $releaseId) $Platform
 $launcher = Join-Path $target 'bin\codegraph.cmd'
-$restartProjects = @()
 if (-not (Test-Release $target $version $artifact)) {
     if ($PSCmdlet.ShouldProcess($target, "install bundled CodeGraph $version for $Platform")) {
         $versionRoot = Split-Path $target -Parent
@@ -374,7 +373,7 @@ if (-not (Test-Release $target $version $artifact)) {
             }
             $backup = ''
             if (Test-Path -LiteralPath $target) {
-                $restartProjects = @(Stop-TargetWatchers $staged $target)
+                $null = Stop-TargetWatchers $staged $target
                 $backup = "$target.backup-$(Get-Date -Format 'yyyyMMdd-HHmmssfff')"
                 Move-Item -LiteralPath $target -Destination $backup
             }
@@ -388,9 +387,7 @@ if (-not (Test-Release $target $version $artifact)) {
             Remove-Tree $stage $InstallRoot
             $stage = ''
         } catch {
-            if ($restartProjects.Count -gt 0 -and (Test-Path -LiteralPath $launcher -PathType Leaf)) {
-                Upgrade-Watchers $target $restartProjects
-            }
+            # 되돌린 옛 런타임의 감시기는 다시 띄우지 않음. 다음 CLI 사용 때 뜸(W5)
             throw
         } finally {
             if ($stage) { Remove-Tree $stage $InstallRoot }
@@ -430,7 +427,7 @@ $posixShimText = "#!/bin/sh`nexport TEAM_HARNESS_CODEGRAPH=1`nexport CODEGRAPH_M
     "`nexec " + (ConvertTo-ShellLiteral "$posixRelease/node.exe") + ' --liftoff-only ' + (ConvertTo-ShellLiteral "$posixRelease/lib/dist/bin/codegraph.js") + " `"`$@`"`n"
 Write-Shim (Join-Path $BinRoot 'codegraph') $posixShimText '(?m)^export TEAM_HARNESS_CODEGRAPH=1$'
 
-if (-not $WhatIfPreference) { Upgrade-Watchers $target $restartProjects }
+if (-not $WhatIfPreference) { Stop-ActiveWatchers $target }
 
 if (-not $SkipLegacyPackageCleanup) { Remove-LegacyGlobalNpmPackages }
 

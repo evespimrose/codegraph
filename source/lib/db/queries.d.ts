@@ -92,6 +92,28 @@ export declare class QueryBuilder {
         edgeCount: number;
         nextEdgeCount: number;
     } | null;
+    /** 간선 지문이 저장값과 다를 때만 다시 계산해 project_metadata 의 dominant_file 에 저장함 */
+    refreshDominantFile(): {
+        filePath: string;
+        edgeCount: number;
+        nextEdgeCount: number;
+    } | null;
+    /** 간선 표의 지문(`개수:최대 rowid`) */
+    getEdgeFingerprint(): string;
+    readStoredDominantFile(): {
+        fingerprint: string;
+        dominant: {
+            filePath: string;
+            edgeCount: number;
+            nextEdgeCount: number;
+        } | null;
+    } | null;
+    /** 저장값을 보지 않고 그래프에서 다시 계산함 */
+    computeDominantFile(): {
+        filePath: string;
+        edgeCount: number;
+        nextEdgeCount: number;
+    } | null;
     /**
      * Find the file that holds the densest concentration of the project's
      * `route` nodes (framework-emitted: Express/Gin/Flask/Rails/Drupal/etc.).

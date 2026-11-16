@@ -9,5 +9,8 @@
   "docsLexicalWeightHangul": 1,
   "docsMarkdownFirst": false,
   "docsMarkdownDepth": 50,
-  "nameTokensWeight": 2
+  "nameTokensWeight": 2,
+  "codeVectors": true,
+  "codeVectorWeight": 1,
+  "codeVectorScore": 40
 }

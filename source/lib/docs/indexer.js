@@ -95,7 +95,7 @@ async function indexMarkdown(db, projectRoot, opts = {}) {
     const pendingEmbeddings = [];
     let documents;
     try {
-        documents = (0, scan_files_1.listTextDocumentFiles)(projectRoot, { respectGitignore: opts.respectGitignore }, opts.visibleFiles);
+        documents = (0, scan_files_1.listTextDocumentFiles)(projectRoot, { respectGitignore: opts.respectGitignore }, opts.visibleFiles, opts.classify);
     }
     catch (error) {
         recordDocumentFailure(result, opts, '.', error);
@@ -108,7 +108,9 @@ async function indexMarkdown(db, projectRoot, opts = {}) {
     }
     const diskPaths = new Set(documents.map((document) => normalizeRelative(projectRoot, document.absolutePath)));
     const storedDocuments = store.listDocuments();
-    const removedDocuments = storedDocuments.filter((document) => !diskPaths.has(document.file_path));
+    // opts.paths 가 있으면(감시기의 국소 sync) 그 경로의 문서만 지울 수 있음
+    const scope = opts.paths ? new Set(opts.paths) : null;
+    const removedDocuments = storedDocuments.filter((document) => (!scope || scope.has(document.file_path)) && !diskPaths.has(document.file_path));
     if (removedDocuments.length > 0) {
         store.removeDocuments(removedDocuments);
         result.removed = removedDocuments.length;
@@ -183,7 +185,7 @@ async function indexMarkdown(db, projectRoot, opts = {}) {
             pushWarn(result, opts, `${failure.filePath}: embedding batch unavailable: ${failure.error instanceof Error ? failure.error.message : String(failure.error)}`);
         }
     }
-    persistDocumentFailures(db, result.errors);
+    persistDocumentFailures(db, scope ? mergeDocumentFailures(db, scope, result.errors) : result.errors);
     return result;
 }
 // 실패하면 앞 배치까지는 이미 게시된 채로 첫 실패 배치의 경로와 오류를 돌려줌
@@ -271,6 +273,19 @@ function recordDocumentFailure(result, opts, filePath, error) {
     const message = error instanceof Error ? error.message : String(error);
     result.errors.push({ filePath, message });
     pushWarn(result, opts, `${filePath}: ${message}`);
+}
+// 국소 sync 는 범위 밖 문서의 지난 실패 기록을 그대로 두고, 범위 안 문서의 기록만 이번 결과로 바꿈
+function mergeDocumentFailures(db, scope, errors) {
+    const row = db.prepare("SELECT value FROM project_metadata WHERE key = 'document_index_errors'").get();
+    let previous = [];
+    try {
+        previous = row ? JSON.parse(row.value) : [];
+    }
+    catch {
+        previous = [];
+    }
+    const kept = Array.isArray(previous) ? previous.filter((failure) => typeof failure?.filePath === 'string' && !scope.has(failure.filePath)) : [];
+    return [...kept, ...errors];
 }
 function persistDocumentFailures(db, errors) {
     db.prepare(`INSERT INTO project_metadata (key, value, updated_at) VALUES ('document_index_errors', ?, ?)

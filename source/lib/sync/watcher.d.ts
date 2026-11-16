@@ -124,6 +124,8 @@ export declare class FileWatcher {
      * gate on the end of the initial scan instead of guessing at a sleep duration.
      */
     private readyWaiters;
+    private holds;
+    private idleWaiters;
     private ignoreMatcher;
     private readonly projectRoot;
     private readonly debounceMs;
@@ -171,6 +173,8 @@ export declare class FileWatcher {
      * initial-scan window is a small one-time startup cost.
      */
     waitUntilReady(timeoutMs?: number): Promise<void>;
+    pause(holder: string, timeoutMs?: number): Promise<void>;
+    resume(holder: string): void;
     /**
      * Schedule a debounced sync.
      */
@@ -192,5 +196,7 @@ export declare class FileWatcher {
      * Cheap: O(pendingFiles.size), no I/O, no locks.
      */
     getPendingFiles(): PendingFile[];
+    /** 기다리던 변경을 지금 맞추고 그 시도가 끝나면 돌아옴 */
+    flushNow(): Promise<void>;
 }
 //# sourceMappingURL=watcher.d.ts.map

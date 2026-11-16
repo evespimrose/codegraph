@@ -76,6 +76,10 @@ exports.LockUnavailableError = LockUnavailableError;
 const MAX_AUTOMATIC_RETRIES = 6;
 // 잠긴 파일이나 지워진 경로 하나 때문에 저장소 전체 감시를 다시 시작하지 않음
 const PATH_ERROR_CODES = new Set(['EBUSY', 'EPERM', 'EACCES', 'ENOENT']);
+// 기다리는 경로가 이보다 많으면(체크아웃, 대량 재임포트) 국소 sync 대신 전체 sync 를 함. 그때 놓친 이벤트도 함께 메움
+const MAX_TARGETED_FILES = 200;
+// 국소 sync 만 이어질 때 마지막 전체 sync 뒤 이 시간이 지나면 다음 맞추기는 전체 sync 로 함(놓친 이벤트 메우기)
+const FULL_RECONCILE_MS = 10 * 60 * 1000;
 /**
  * FileWatcher monitors a project directory for changes and triggers
  * debounced sync operations via a provided callback.
@@ -103,6 +107,8 @@ class FileWatcher {
     syncing = false;
     generation = 0;
     fullSyncPending = false;
+    lastFullSyncAt = 0;
+    inFlight = null;
     failures = 0;
     errorFailures = 0;
     eventVersion = 0;
@@ -122,6 +128,8 @@ class FileWatcher {
      * gate on the end of the initial scan instead of guessing at a sleep duration.
      */
     readyWaiters = [];
+    holds = new Set();
+    idleWaiters = [];
     // The shared ignore matcher (built-in defaults + project .gitignore), built
     // once at start(). Same source of truth the indexer uses, so watcher scope
     // can never diverge from index scope.
@@ -345,6 +353,9 @@ class FileWatcher {
     waitUntilReady(timeoutMs = 10000) {
         if (this.chokidarReady)
             return Promise.resolve();
+        // start() 가 감시를 켜지 못했거나(CODEGRAPH_NO_WATCH=1 등) 이미 멈췄으면 ready 가 영영 오지 않으므로 바로 실패시킴
+        if (!this.watcher)
+            return Promise.reject(new Error('FileWatcher is not running (start() was not called, returned false, or the watcher was stopped)'));
         return new Promise((resolve, reject) => {
             const t = setTimeout(() => {
                 const idx = this.readyWaiters.indexOf(handler);
@@ -368,17 +379,53 @@ class FileWatcher {
             this.flush();
         }, delayMs);
     }
+    /**
+     * tasking 상태로 전환함. 홀더가 하나라도 있으면 동기화를 시작하지 않고, 변경 이벤트는 계속 쌓음.
+     * 진행 중인 동기화가 끝나면 resolve, timeoutMs 안에 안 끝나면 reject.
+     */
+    pause(holder, timeoutMs = 15000) {
+        this.holds.add(holder);
+        if (!this.syncing)
+            return Promise.resolve();
+        return new Promise((resolve, reject) => {
+            const t = setTimeout(() => {
+                const idx = this.idleWaiters.indexOf(handler);
+                if (idx >= 0)
+                    this.idleWaiters.splice(idx, 1);
+                this.resume(holder);
+                reject(new Error(`FileWatcher.pause timed out after ${timeoutMs}ms`));
+            }, timeoutMs);
+            const handler = () => { clearTimeout(t); resolve(); };
+            this.idleWaiters.push(handler);
+        });
+    }
+    /** 홀더를 반납함. 마지막 홀더가 반납하면 watching 으로 돌아가 쌓인 변경을 한 번 동기화함. */
+    resume(holder) {
+        if (!this.holds.delete(holder) || this.holds.size > 0 || this.stopped)
+            return;
+        this.fullSyncPending = true;
+        this.scheduleSync();
+    }
     async flush() {
         // If already syncing, the post-sync check will re-trigger
-        if (this.syncing || this.stopped || !this.chokidarReady)
+        if (this.syncing || this.stopped || !this.chokidarReady || this.holds.size > 0)
             return;
         const generation = this.generation;
         this.syncVersion = this.eventVersion;
         this.syncing = true;
+        let settle;
+        this.inFlight = new Promise((resolve) => { settle = resolve; });
+        // 전체 맞추기가 필요 없고 기다리는 경로가 적으면 그 경로만 넘김(W1). undefined 면 전체 sync
+        const paths = !this.fullSyncPending && this.pendingFiles.size > 0 && this.pendingFiles.size <= MAX_TARGETED_FILES
+            && Date.now() - this.lastFullSyncAt < FULL_RECONCILE_MS
+            ? [...this.pendingFiles.keys()]
+            : undefined;
         try {
-            const result = await this.syncFn();
+            const result = await this.syncFn(paths);
             if (generation !== this.generation)
                 return;
+            if (!paths || result?.full)
+                this.lastFullSyncAt = Date.now();
             this.fullSyncPending = false;
             this.failures = 0;
             this.errorFailures = 0;
@@ -414,6 +461,10 @@ class FileWatcher {
         }
         finally {
             this.syncing = false;
+            this.inFlight = null;
+            settle();
+            for (const cb of this.idleWaiters.splice(0))
+                cb();
             // If pending files remain (mid-sync events, or this sync failed),
             // schedule another pass.
             // 자동 재시도 한도를 넘으면 다음 파일 변경 이벤트가 올 때만 다시 시도함
@@ -423,6 +474,21 @@ class FileWatcher {
                 this.scheduleSync(retryMs);
             }
         }
+    }
+    /**
+     * 기다리던 변경을 지금 맞추고 그 시도가 끝나면 돌아옴(W2, 질의가 감시기를 기다릴 때 씀).
+     * 다른 sync 가 돌고 있으면 그것이 끝나기를 기다린 뒤, 남은 변경이 있을 때만 한 번 더 맞춤. 준비 전이거나 멈췄으면 바로 돌아옴.
+     */
+    async flushNow() {
+        while (this.inFlight)
+            await this.inFlight;
+        if (this.stopped || !this.chokidarReady || (this.pendingFiles.size === 0 && !this.fullSyncPending))
+            return;
+        if (this.debounceTimer) {
+            clearTimeout(this.debounceTimer);
+            this.debounceTimer = null;
+        }
+        await this.flush();
     }
     /**
      * Snapshot of files seen by the watcher since the last successful sync.

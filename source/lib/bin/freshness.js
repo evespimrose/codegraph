@@ -16,15 +16,19 @@ function publishedByWatcher(graph, watcher) {
         && getProvenanceRebuildReason(graph.getDb()) === null;
 }
 
-async function syncForRead(graph, projectPath) {
-    const watcher = await manager.watcherStatus(projectPath);
+async function syncForRead(graph, projectPath, extra = {}) {
+    let watcher = await manager.watcherStatus(projectPath);
+    // 같은 런타임의 감시기가 맞추는 중이거나 기다리는 변경이 있으면 직접 sync 하지 않고 감시기의 맞추기를 기다림(W2)
+    if (!publishedByWatcher(graph, watcher) && watcher.active && watcher.runtimeId === protocol.runtimeId()) {
+        watcher = await manager.flushWatcher(projectPath);
+    }
     if (publishedByWatcher(graph, watcher)) {
         return {
             status: 'current', filesAdded: 0, filesModified: 0, filesRemoved: 0, nodesUpdated: 0, durationMs: 0,
             warnings: watcher.lastSync?.warnings?.length ? watcher.lastSync.warnings : undefined,
         };
     }
-    const options = { respectGitignore: watcher.configuration?.respectGitignore ?? true };
+    const options = { respectGitignore: watcher.configuration?.respectGitignore ?? true, ...extra };
     const deadline = Date.now() + 30000;
     let result;
     do {

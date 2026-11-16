@@ -266,6 +266,24 @@ class FileLock {
         }
     }
     /**
+     * 다른 프로세스(주로 워처의 시작 직후 동기화)가 락을 잠깐 쥐고 있을 때 한도 안에서 기다림.
+     * 한도를 넘으면 acquire() 의 오류를 그대로 던짐.
+     */
+    async acquireWithWait(timeoutMs = 15000, pollMs = 100) {
+        const deadline = Date.now() + timeoutMs;
+        for (;;) {
+            try {
+                this.acquire();
+                return;
+            }
+            catch (err) {
+                if (Date.now() >= deadline)
+                    throw err;
+                await new Promise((resolve) => setTimeout(resolve, pollMs));
+            }
+        }
+    }
+    /**
      * Release the lock
      */
     release() {

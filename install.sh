@@ -167,13 +167,14 @@ if [ "$existing" != "$shim_text" ]; then
     fi
 fi
 
+# 설치 뒤 활성 감시기를 새 런타임으로 옮기지 않고 멈추기만 함(W5). 다음 CLI 사용 때 새 런타임으로 다시 뜸
 if [ "$dry_run" -eq 0 ] && [ "${CODEGRAPH_NO_WATCH:-}" != 1 ] && [ -f "$target/lib/dist/watch/manager.js" ]; then
     "$target/node" - "$target/lib/dist/watch/manager.js" <<'JS'
 const manager = require(process.argv[2]);
 (async () => {
     for (const watcher of await manager.listWatchers()) {
-        const running = await manager.ensureWatcher(watcher.projectPath, { timeoutMs: 30000 });
-        if (!running.active || running.restartPending) throw new Error(`Watcher migration is incomplete for ${watcher.projectPath}: ${running.phase || 'inactive'}`);
+        const stopped = await manager.stopWatcher(watcher.projectPath, { timeoutMs: 30000 });
+        if (stopped.active || stopped.stopPending) throw new Error(`Watcher did not stop: ${watcher.projectPath}`);
     }
 })().catch(error => { console.error(error.message); process.exitCode = 1; });
 JS

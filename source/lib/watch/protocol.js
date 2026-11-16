@@ -60,7 +60,7 @@ function runtimeId() {
     return hash.digest('hex').slice(0, 24);
 }
 
-function request(location, command, timeoutMs = 800) {
+function request(location, command, timeoutMs = 800, extra = {}) {
     return new Promise((resolve) => {
         const state = readJson(location.state);
         let finished = false;
@@ -75,7 +75,7 @@ function request(location, command, timeoutMs = 800) {
         socket.setTimeout(timeoutMs, () => finish({ error: 'timeout' }));
         socket.on('error', error => finish({ error: error.code || error.message }));
         socket.on('end', () => finish({ error: 'connection closed' }));
-        socket.on('connect', () => socket.write(JSON.stringify({ command, token: state?.token, projectId: location.id }) + '\n'));
+        socket.on('connect', () => socket.write(JSON.stringify({ ...extra, command, token: state?.token, projectId: location.id }) + '\n'));
         socket.on('data', chunk => {
             buffer += chunk.toString('utf8');
             if (buffer.length > 1024 * 1024) return finish({ error: 'response too large' });

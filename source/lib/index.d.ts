@@ -55,6 +55,13 @@ export interface IndexOptions {
      * CLI `--no-gitignore` flag. Default `true`.
      */
     respectGitignore?: boolean;
+    /**
+     * sync 끝에서 getDominantFile 저장값을 갱신할지. 감시기의 sync 와 context 명령의 sync 가 true 로 부름.
+     * indexAll 은 이 값과 상관없이 갱신함.
+     */
+    refreshDominant?: boolean;
+    /** 감시기가 넘긴 프로젝트 기준 POSIX 경로. 모두 알려진 파일이면 그 경로만 맞춘다(sync 전용) */
+    paths?: readonly string[];
 }
 /**
  * Main CodeGraph class
@@ -126,6 +133,8 @@ export declare class CodeGraph {
      *
      * Uses a mutex to prevent concurrent indexing operations.
      */
+    pauseWatch(holder: string, timeoutMs?: number): Promise<void>;
+    resumeWatch(holder: string): void;
     indexAll(options?: IndexOptions): Promise<IndexResult>;
     /**
      * Index specific files
@@ -139,6 +148,11 @@ export declare class CodeGraph {
      * Uses a mutex to prevent concurrent indexing operations.
      */
     sync(options?: IndexOptions): Promise<SyncResult>;
+    resolveSyncTargets(paths?: readonly string[]): {
+        paths: string[];
+        existing: string[];
+    } | null;
+    flushWatcher(): Promise<void>;
     /**
      * Check if an indexing operation is currently in progress
      */
@@ -261,6 +275,10 @@ export declare class CodeGraph {
      * Search nodes by text
      */
     searchNodes(query: string, options?: SearchOptions): SearchResult[];
+    /**
+     * Search nodes with BM25 and, when code vectors are enabled, fuse in vector neighbours.
+     */
+    searchNodesHybrid(query: string, options?: SearchOptions): Promise<SearchResult[]>;
     /**
      * Find the project's "primary route file" — the file with the densest
      * concentration of framework-emitted `route` nodes (≥3 routes, ≥30%

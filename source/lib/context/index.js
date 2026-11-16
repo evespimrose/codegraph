@@ -48,6 +48,8 @@ const formatter_1 = require("./formatter");
 const errors_1 = require("../errors");
 const utils_1 = require("../utils");
 const query_utils_1 = require("../search/query-utils");
+const code_vectors_1 = require("../search/code-vectors");
+const search_tuning_1 = require("../search-tuning");
 /**
  * Extract likely symbol names from a natural language query
  *
@@ -553,6 +555,8 @@ class ContextBuilder {
         // === HYBRID SEARCH ===
         // Step 1: Extract potential symbol names from query
         const symbolsFromQuery = extractSymbolsFromQuery(query);
+        // 모델 로딩과 질의 임베딩이 아래 어휘 단계와 겹치도록 먼저 시작함
+        const vectorSearch = (0, code_vectors_1.searchCodeVectors)(this.queries.db, query, opts.searchLimit);
         (0, errors_1.logDebug)('Extracted symbols from query', { query, symbols: symbolsFromQuery });
         // Step 2: Look up exact matches for extracted symbols
         let exactMatches = [];
@@ -958,6 +962,18 @@ class ContextBuilder {
                 }
             }
         }
+        const vectorScore = (0, search_tuning_1.loadSearchTuning)().codeVectorScore;
+        (await vectorSearch).forEach((nodeId, rank) => {
+            const bonus = vectorScore / (1 + rank * 0.2);
+            const existing = searchResults.find((r) => r.node.id === nodeId);
+            if (existing) {
+                existing.score += bonus;
+                return;
+            }
+            const node = this.queries.getNodeById(nodeId);
+            if (node && !((0, query_utils_1.isTestFile)(node.filePath) && !isTestQuery))
+                searchResults.push({ node, score: bonus });
+        });
         // Final sort and truncation — all search channels (exact, text, CamelCase,
         // compound) have now contributed. Sort by score so multi-term matches from
         // later steps can outrank dampened single-term matches from earlier steps.

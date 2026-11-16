@@ -40,6 +40,7 @@ exports.listTextDocumentFiles = listTextDocumentFiles;
 exports.classifyTextDocument = classifyTextDocument;
 exports.detectDocumentFormat = detectDocumentFormat;
 exports.isSecretPath = isSecretPath;
+exports.isBinaryPath = isBinaryPath;
 /**
  * Markdown file discovery for the docs indexer.
  *
@@ -59,6 +60,10 @@ const HTML_EXT = /\.(html?|xhtml)$/i;
 const STRUCTURED_EXT = /\.(jsonc?|ya?ml|toml|xml|ini|cfg|conf|csv|tsv)$/i;
 const TEXT_EXT = /\.(txt|rst|adoc|org|log)$/i;
 const DSL_EXT = /\.ptn$/i;
+// 확장자만으로 바이너리임을 아는 파일은 열지 않음. 텍스트일 수 있는 obj, dae, svg, ma, bytes 는 넣지 않음
+const BINARY_EXT = /\.(png|jpe?g|gif|bmp|tga|psd|exr|hdr|tiff?|ico|webp|dds|ktx2?|wav|mp3|ogg|flac|aiff?|m4a|mp4|mov|avi|webm|mkv|ttf|otf|woff2?|zip|7z|rar|gz|tgz|bz2|xz|unitypackage|dll|exe|pdb|so|dylib|wasm|pdf|docx|xlsx|pptx|fbx|blend1?)$/i;
+// .git 과 .codegraph 아래(sync 중의 잠금 파일 포함)는 목록에 넣지 않음. walkVisibleFiles, 코드 추출 walk, 감시기와 같은 범위임
+const OWN_DATA_PATH = /(?:^|\/)\.(?:git|codegraph)(?:\/|$)/;
 const MAX_TEXT_FILE_BYTES = 8 * 1024 * 1024;
 const SECRET_PATH = /(?:^|\/)(?:(?:\.ssh|\.aws|\.azure|\.kube)(?:\/|$)|(?:\.env(?:\.|$)|\.(?:npmrc|pypirc|netrc|git-credentials)|id_(?:rsa|dsa|ecdsa|ed25519)(?:\.pub)?|[^/]*(?:credential|secret|private[-_.]?key)[^/]*|[^/]+\.(?:pem|p12|pfx|key|jks|keystore))$)/i;
 /**
@@ -88,29 +93,33 @@ function listVisibleFiles(root, opts) {
     // filesystem instead, pruning via the matcher. Otherwise prefer git.
     const found = opts?.respectGitignore === false
         ? walkVisibleFiles(root, ig)
-        : (gitVisibleFiles(root) ?? walkVisibleFiles(root, ig));
+        : (gitVisibleFiles(root, ig) ?? walkVisibleFiles(root, ig));
     return found.filter((abs) => {
         const rel = path.relative(root, abs).split(path.sep).join('/');
         return rel !== '' && !rel.startsWith('..') && !ig.ignores(rel);
     });
 }
-function listTextDocumentFiles(root, opts, visibleFiles) {
+// classify 를 주면 그 판별기(inventory/classifier 의 createDocumentClassifier)가 실제 경로 확인과 판별을 맡음.
+// 실제 경로 확인은 비밀 경로와 소스 파일을 거른 뒤에 함. 소스 파일은 여기서 내용을 보지 않기 때문임
+function listTextDocumentFiles(root, opts, visibleFiles, classify) {
     const files = [];
     for (const absolutePath of visibleFiles ?? listVisibleFiles(root, opts)) {
-        if (!(0, utils_1.isPathWithinRootReal)(absolutePath, root))
-            continue;
         const relativePath = path.relative(root, absolutePath).split(path.sep).join('/');
         if (SECRET_PATH.test(relativePath))
             continue;
         if ((0, grammars_1.isSourceFile)(relativePath) && !DSL_EXT.test(relativePath))
             continue;
-        const document = classifyTextDocument(absolutePath);
+        const document = classify
+            ? classify(absolutePath, relativePath).document
+            : ((0, utils_1.isPathWithinRootReal)(absolutePath, root) ? classifyTextDocument(absolutePath) : null);
         if (document)
             files.push(document);
     }
     return files;
 }
 function classifyTextDocument(absolutePath) {
+    if (BINARY_EXT.test(absolutePath))
+        return null;
     const format = detectDocumentFormat(absolutePath);
     if (format) {
         return isLikelyTextFile(absolutePath)
@@ -137,7 +146,11 @@ function detectDocumentFormat(filePath) {
 function isSecretPath(filePath) {
     return SECRET_PATH.test(filePath.replace(/\\/g, '/'));
 }
-function gitVisibleFiles(root) {
+/** 확장자만으로 바이너리임을 아는 경로인지. 이런 파일은 열지 않음 */
+function isBinaryPath(filePath) {
+    return BINARY_EXT.test(filePath);
+}
+function gitVisibleFiles(root, ig) {
     let out;
     try {
         // --cached + --others --exclude-standard = tracked AND untracked-not-ignored,
@@ -154,6 +167,9 @@ function gitVisibleFiles(root) {
     const files = [];
     for (const rel of out.split('\0')) {
         if (!rel)
+            continue;
+        // .git, .codegraph 아래와 무시 규칙에 걸리는 경로는 stat 하지 않음. 무시 규칙 결과는 listVisibleFiles 의 뒤 거르기와 같음
+        if (OWN_DATA_PATH.test(rel) || (ig && ig.ignores(rel)))
             continue;
         const absolutePath = path.resolve(root, rel);
         try {

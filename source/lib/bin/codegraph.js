@@ -897,7 +897,7 @@ async function main() {
                 const limit = parseInt(options.limit || '10', 10);
                 const syncResult = options.sync === false ? null : await syncForRead(cg, projectPath);
                 if (syncResult && syncResult.status !== 'current') process.exitCode = 1;
-                const rawResults = cg.searchNodes(search, {
+                const rawResults = await cg.searchNodesHybrid(search, {
                     limit,
                     kinds: options.kind ? [options.kind] : undefined,
                 });
@@ -1471,7 +1471,8 @@ async function main() {
                 let freshness = unknownFreshness();
                 let syncWarnings = [];
                 if (options.sync !== false) {
-                    const sync = await syncForRead(cg, projectPath);
+                    // context 는 getDominantFile 저장값을 읽으므로 이 sync 에서 갱신함. query 등 다른 명령의 sync 는 갱신 안 함
+                    const sync = await syncForRead(cg, projectPath, { refreshDominant: true });
                     if (sync.status !== 'current') process.exitCode = 1;
                     freshness = syncFreshness(sync);
                     syncWarnings = sync.warnings ?? [];

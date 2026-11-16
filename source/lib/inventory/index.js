@@ -58,6 +58,8 @@ function refreshFileInventory(db, projectRoot, opts = {}) {
     const documentsEnabled = (0, config_1.resolveDocsEnabled)(db);
     const existingRows = db.prepare('SELECT * FROM file_inventory').all();
     const existing = new Map(existingRows.map((row) => [row.path, row]));
+    // opts.paths 가 있으면(감시기의 국소 sync) 그 경로의 항목만 고치거나 지움
+    const scope = opts.paths ? new Set(opts.paths) : null;
     const sourceHash = db.prepare('SELECT content_hash, errors FROM files WHERE path = ?');
     const documentHash = db.prepare('SELECT content_hash FROM mdast_metadata WHERE file_path = ?');
     const documentErrors = new Map();
@@ -97,7 +99,7 @@ function refreshFileInventory(db, projectRoot, opts = {}) {
         const relativePath = path.relative(projectRoot, absolutePath).split(path.sep).join('/');
         if (!relativePath || relativePath.startsWith('..'))
             continue;
-        const record = (0, classifier_1.classifyFile)(absolutePath, relativePath, documentsEnabled, { sourceHash, documentHash, documentErrors }, projectRoot);
+        const record = (0, classifier_1.classifyFile)(absolutePath, relativePath, documentsEnabled, { sourceHash, documentHash, documentErrors }, projectRoot, opts.classify);
         if (record.status === 'error') {
             try {
                 fs.statSync(absolutePath);
@@ -130,13 +132,18 @@ function refreshFileInventory(db, projectRoot, opts = {}) {
             });
         }
         for (const row of existingRows) {
-            if (!currentPaths.has(row.path)) {
+            if (!currentPaths.has(row.path) && (!scope || scope.has(row.path))) {
                 remove.run(row.path);
                 result.removed++;
             }
         }
     })();
     result.updated = pending.length;
+    if (scope) {
+        // 국소 갱신의 개수는 표 전체 기준으로 돌려줌(sync 의 오류 항목 경고가 전체를 보게)
+        result.byStatus = getFileInventorySummary(db);
+        result.scanned = Object.values(result.byStatus).reduce((sum, count) => sum + count, 0);
+    }
     return result;
 }
 function getFileInventorySummary(db) {

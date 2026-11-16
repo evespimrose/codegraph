@@ -75,7 +75,7 @@
   exports.CODE_VECTOR_KINDS = ['class', 'struct', 'interface', 'trait', 'protocol', 'enum', 'function', 'method', 'type_alias'];
   const BATCH_SIZE = 32;
   function symbolText(row) {
-      const docstring = (row.docstring ?? '').replace(/\s+/g, ' ').slice(0, 300);
+      const docstring = (row.docstring ?? '').replace(/\s+/g, ' ').trim().slice(0, 300);
       return `${row.kind} ${row.qualified_name}\n${row.file_path}\n${row.signature ?? ''}\n${docstring}`.trim();
   }
   function tableExists(db, name) {
@@ -592,6 +592,11 @@
       const builds = {};
       for (const set of run.CODE_SETS)
           builds[set.name] = spawnJson([__filename, 'build', copies[set.root]], configEnv(GRID[4]));
+      // 벡터를 하나도 못 만들면 켠 쪽 측정이 끈 쪽과 같아져 비교가 무의미함. search-tuning.json 을 쓰기 전에 멈춤
+      for (const [name, build] of Object.entries(builds)) {
+          if (!build.enabled || !(build.total > 0))
+              throw new Error(`code vector build produced no vectors for ${name}: ${JSON.stringify(build)}`);
+      }
       const candidates = GRID.map((config) => ({ config, result: measure(copies, config) }));
       const picked = run.pick(candidates, off, run.codeScore, run.codeKeepsHit5);
       const chosenConfig = picked.winner ? picked.winner.config : GRID[4];
@@ -626,6 +631,8 @@
 - 판정: `exit=0` 이면 다음 단계로 감. 그 밖이면 `MODE=BLOCKED`, `CURRENT=멈춤 S8: results-sweep-b.log 확인` 으로 쓰고 멈춤. `codeVectors=false` 도 정상 종료임(벡터가 이기지 못한 측정 결과).
 - 검증: `python -c "import json; r=json.load(open(r'D:/Fork/.AI/context/search-eval/results/sweep-b.json', encoding='utf-8')); t=json.load(open(r'D:/Fork/KIT/tools/codegraph/source/lib/search-tuning.json', encoding='utf-8')); print(t['codeVectors'] == (r['passed'] is True))"`
 - 기대 출력: `True`
+
+- 수정 (2026-11-05, 루트 세션): 처음 실행에서 `run.cjs` 의 `CODEGRAPH_MODEL_ROOT` 기본값이 지워진 옛 설치본(`1.1.2-345c0b4f3c8e`) 경로라 벡터가 0개 만들어졌는데도 `codeVectors=true` 가 써졌음. `run.cjs` 가 전역 shim 이 가리키는 설치 폴더의 모델을 찾고 없으면 멈추게 고쳤고(`sync-speed.cjs` 와 같은 방식), `run-b.cjs` 는 빌드가 벡터를 하나도 못 만들면 `search-tuning.json` 을 쓰기 전에 멈추게 함(7c 반영). 종료 코드 1 은 "그 밖" 판정으로 멈춤.
 
 ### 단계 9: 빌드, 전역 설치, 이 저장소 맞추기(사용자 승인 필요)
 - 안 A 플랜 단계 10 과 같은 명령(10a, 10b, 10c)과 검증을 그대로 씀. 실행 전에 AskUserQuestion 으로 승인을 받고, 승인이 없으면 `CURRENT=S9 승인 대기` 로 쓰고 멈춤.

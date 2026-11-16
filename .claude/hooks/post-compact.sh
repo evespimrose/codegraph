@@ -26,7 +26,7 @@ import json, os
 CORE_RULES = """
 === CORE_RULES (컴팩션 후 자동 복원 · CLAUDE.md RULE 번호와 같음) ===
 
-RULE-1 [SONAR]: 소스 접근 전 codegraph CLI 우선(context → callers/impact → Read(offset+limit)). find·grep -r·rg·소스 전체 Read 는 훅이 막음. state-doctor 가 green 아니면 파생 표현은 참고로만 쓰고 Read 로 확인.
+RULE-1 [SONAR]: 소스 접근 전 codegraph CLI 우선(context → callers/impact → probe-scoped symbols/extract → Read(offset+limit, 200줄 이하)). 셸의 cat·head·grep·rg·find 등 소스 읽기·검색은 전역 source-read-guard 가 막음. state-doctor 가 green 아니면 파생 표현은 참고로만 쓰고 Read 로 확인.
 RULE-2 [RIPER]: 상태는 .claude/memory-bank/<branch>/riper/<slug>.state 파일 하나. 여러 세션이 돌려 쓰며, 동시에 도는 카드는 CURRENT 의 자기 칸만 고침.
 RULE-3 [GATE]: 플랜 파일이 있으면 중·대형 작업. 플랜과 수락 기준 승인(G1), Review Pack 확인(G2)은 사람 몫.
 RULE-4 [WRITE]: 소스 코드를 고치기 전 사용자 승인. 승인된 플랜의 범위 파일만 고침.

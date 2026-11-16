@@ -6,7 +6,7 @@
 ## 전제와 실행 규칙
 - 근거 문서: `.claude/memory-bank/main/plans/main-2026-11-04-codegraph-sync-speed-research.md`, `...-innovate.md` 6~10, 12절. 라벨(W1~W6, K1)의 뜻은 innovate 끝 `## 라벨` 에 있음.
 - 시작 조건: 묶음 1 플랜(`main-2026-11-04-codegraph-sync-speed.md`)의 EXECUTE, REVIEW, G2 가 끝난 뒤에 시작함(innovate 12절). 2a 가 KIT source 가 묶음 1 의 결과와 바이트까지 같은지 확인함.
-- 고치는 곳은 KIT 임: `D:/Fork/KIT/tools/codegraph/source/`, `D:/Fork/KIT/tools/codegraph/install.ps1`, `D:/Fork/KIT/tools/codegraph/install.sh`, `D:/Fork/KIT/tools/codegraph/test/`(새 Pester 시험). 이 저장소(`D:/Fork/codegraph`)는 10단계에서만 바뀜.
+- 고치는 곳은 KIT 임: `D:/Fork/KIT/tools/codegraph/source/`, `D:/Fork/KIT/tools/codegraph/install.ps1`, `D:/Fork/KIT/tools/codegraph/install.sh`, `D:/Fork/KIT/test/`(새 Pester 시험. KIT 의 Pester 시험은 모두 이 폴더에 있음). 이 저장소(`D:/Fork/codegraph`)는 10단계에서만 바뀜.
 - 변경 전 원문은 이 저장소의 `source/` 에 묶음 1 플랜을 그대로 적용한 사본에서 베꼈음. 설치기 원문은 이 저장소의 `install.ps1`, `install.sh` 에서 베꼈고, 2b 가 KIT 의 두 파일이 그것과 같은지 확인함.
 - PLAN 세션이 3~8단계(Pester 제외)를 리눅스 사본에 그대로 적용해 Node 22.23 과 24.16 에서 시험 파일 20개가 모두 통과함을 확인했음. 새 시험과 바뀐 시험 8건 중 7건은 묶음 1 만 있는 소스에서 실패함. 감시기 측정 도구도 기준선과 변경 뒤를 리눅스에서 돌려 봤음. PowerShell 은 이 세션에서 쓸 수 없어 `install.ps1` 과 Pester 시험은 실행해 보지 못했음(문자열 검사와 설치기 안 JS 의 문법만 확인함). 8i `verify` 가 바꾼 소스와 설치기가 시험한 사본과 같은지 확인함(소스 지문 `1d99f2f9…`).
 - 한 단계에 변경이 여럿이면 a, b, c 로 나눔. "변경 전" 이 있는 변경은 replace 임. 원문은 그 파일 안에서 한 번만 나옴. 같은 파일의 변경은 적힌 순서대로 함. 위치의 줄 번호는 그 변경 직전 파일 기준의 참고값임. "새 파일" 은 그 내용으로 파일을 만듦.
@@ -38,7 +38,7 @@
 - `D:/Fork/KIT/tools/codegraph/install.ps1`, `install.sh`: W5
 - `D:/Fork/KIT/tools/codegraph/source/test/watch-speed.test.cjs`: 새 시험
 - `D:/Fork/KIT/tools/codegraph/source/test/freshness.test.cjs`: W2 반영
-- `D:/Fork/KIT/tools/codegraph/test/Codegraph-Installer-WatcherStop.Tests.ps1`: 새 Pester 시험(정적 검사)
+- `D:/Fork/KIT/test/Codegraph-Installer-WatcherStop.Tests.ps1`: 새 Pester 시험(정적 검사)
 - 10단계(사용자 승인 뒤): KIT 배포 zip, `manifest.json`, 전역 설치본, 이 저장소의 `source/`, `grammars/`, `artifacts/`, `build.mjs`, `install.ps1`, `install.sh`, `manifest.json`
 
 ## 단계
@@ -76,8 +76,8 @@
   const DOCS = 100;
   const BULK = 300;
   const RUNS = 3;
-  const EXPECTED_AFTER_DIGEST = '1d99f2f9141bbb57e104f6d1d83d137ab93471968b9f97e064423c8a1d919f53';
-  const EXPECTED_INSTALLERS = { 'install.ps1': '0051db8dd81c75d8f1ce543162b137459ea161ec547874411e67f7f4bae161b6', 'install.sh': '352215fb197d97be6aea88435fdbd88e62145bfc19d703c8a6f53663097545f4' };
+  const EXPECTED_AFTER_DIGEST = '75bb11d58bcd9ef812aeb93b7a44868b54f590ab3bf688733934f6198d3e282d';
+  const EXPECTED_INSTALLERS = { 'install.ps1': '43a5f31fb226d8e72d1aef4f347704f0f7675d519a504906a3db60943815951a', 'install.sh': '352215fb197d97be6aea88435fdbd88e62145bfc19d703c8a6f53663097545f4' };
 
   function sourceDigest(root) {
       const skip = new Set(['node_modules', '.git', '.cache', '.codegraph', '.serena']);
@@ -256,8 +256,9 @@
 - 2a 기대 출력: 첫 줄 `6a94b2980f69f309be614f214ef3eac4ee0c70d401bb9a4c45f4518c548876f3`, 둘째 줄 `exit=0`. `exit=5` 면 `MODE=BLOCKED`, `CURRENT=멈춤 S2: KIT source 가 묶음 1 결과와 다름` 으로 쓰고 멈춤.
 - 2b 설치기 확인: `python -c "import hashlib; h=lambda p: hashlib.sha256(open(p,'rb').read().replace(bytes([13,10]), bytes([10]))).hexdigest(); print(h(r'D:/Fork/KIT/tools/codegraph/install.ps1'), h(r'D:/Fork/KIT/tools/codegraph/install.sh'))"`
 - 2b 기대 출력: `716513e6d97268dbd8c64dc766a4be90e0834f66dc8ca0c78a5832b7f8c1ed4a fde3e8c3d4bb4f2eff8ee8cabd3a0df2bff492b037dbb7224456f9690338f863`. 다르면 `MODE=BLOCKED`, `CURRENT=멈춤 S2: KIT 설치기가 플랜의 원문과 다름` 으로 쓰고 멈춤.
-- 2c 시험 폴더 확인: `ls D:/Fork/KIT/tools/codegraph/test/Codegraph-Installer.Tests.ps1`
-- 2c 기대 출력: `D:/Fork/KIT/tools/codegraph/test/Codegraph-Installer.Tests.ps1`. 없으면 `MODE=BLOCKED`, `CURRENT=멈춤 S2: KIT test 폴더 위치가 다름` 으로 쓰고 멈춤.
+- 2c 시험 폴더 확인: `ls D:/Fork/KIT/test/Codegraph-Installer.Tests.ps1`
+- 2c 기대 출력: `D:/Fork/KIT/test/Codegraph-Installer.Tests.ps1`. 없으면 `MODE=BLOCKED`, `CURRENT=멈춤 S2: KIT test 폴더 위치가 다름` 으로 쓰고 멈춤.
+- 수정 (2026-11-04, 루트 세션): 처음 플랜은 Pester 시험 폴더를 `D:/Fork/KIT/tools/codegraph/test/` 로 적었으나 KIT 에는 그 폴더가 없고 시험은 모두 `D:/Fork/KIT/test/` 에 있음. 실행 세션이 2c 에서 멈춤. 새 시험 경로, 8b 의 설치기 경로(`tools/codegraph/install.ps1`), 8h 와 V7 의 명령을 고침. 이 PC 의 Pester 는 3.4.0 뿐이라 8b 를 Pester 3 문법(`Should Match`)으로, 8h 를 `Invoke-Pester -Script` 로 바꿈. 루트 세션이 고친 8b 를 지금 설치기 사본에 돌려 Pester 3.4.0 에서 2건이 실행되는 것(W5 전이라 둘 다 실패)을 확인함.
 - 2d 기준선(1~3분): `cd D:/Fork/.AI/context/search-eval/ && node watch-speed.cjs baseline > results-watch-baseline.log 2>&1; echo exit=$?`
 - 2d 기대 출력: `exit=0`. 아니면 `MODE=BLOCKED`, `CURRENT=멈춤 S2: results-watch-baseline.log 확인` 으로 쓰고 멈춤.
 - 검증: `python -c "import json; r=json.load(open(r'D:/Fork/.AI/context/search-eval/results/watch-speed-baseline.json', encoding='utf-8')); print(r['watcherActive'], r['editQuery']['allFound'], r['missed'])"`
@@ -822,7 +823,8 @@
                   lastRequestAt = Date.now();
                   socket.setTimeout(FLUSH_WAIT_MS + 2000, () => socket.destroy());
                   const flushed = graph && !initializing ? graph.flushWatcher() : Promise.resolve();
-                  void Promise.race([flushed.catch(() => {}), delay(FLUSH_WAIT_MS)]).then(() => {
+                  // 시간 제한 타이머는 flush 가 먼저 끝나도 남으므로 ref 를 꺼서 멈춘 뒤 프로세스 종료를 붙잡지 않게 함
+                  void Promise.race([flushed.catch(() => {}), delay(FLUSH_WAIT_MS, undefined, { ref: false })]).then(() => {
                       if (!socket.destroyed) socket.end(JSON.stringify(snapshot()) + '\n');
                   });
               } else {
@@ -1009,7 +1011,7 @@
 - 기대 출력 2: `1 0`
 
 ### 단계 8: 시험
-- 파일: `D:/Fork/KIT/tools/codegraph/source/test/watch-speed.test.cjs`, `D:/Fork/KIT/tools/codegraph/test/Codegraph-Installer-WatcherStop.Tests.ps1`, `D:/Fork/KIT/tools/codegraph/source/test/freshness.test.cjs`
+- 파일: `D:/Fork/KIT/tools/codegraph/source/test/watch-speed.test.cjs`, `D:/Fork/KIT/test/Codegraph-Installer-WatcherStop.Tests.ps1`, `D:/Fork/KIT/tools/codegraph/source/test/freshness.test.cjs`
 - 동작: create (8a, 8b), replace (8c, 8d), 그다음 명령 실행
 - 8a 새 파일: `D:/Fork/KIT/tools/codegraph/source/test/watch-speed.test.cjs`
 - 8a 내용:
@@ -1023,6 +1025,7 @@
   const { CodeGraph, FileWatcher } = require('../lib');
   const scanFiles = require('../lib/docs/scan-files');
   const manager = require('../lib/watch/manager');
+  const protocol = require('../lib/watch/protocol');
   const { createStateWriter } = require('../lib/watch/worker');
 
   function environment(context, values) {
@@ -1068,7 +1071,12 @@
       fs.writeFileSync(path.join(root, 'Hold.cs'), 'public class Hold {}');
       await t.waitFor(() => assert.ok(release), { timeout: 5000 });
       for (let index = 0; index <= 200; index++) fs.writeFileSync(path.join(root, `Bulk${index}.cs`), `public class Bulk${index} {}`);
-      await t.waitFor(() => assert.equal(watcher.getPendingFiles().length, 202), { timeout: 10000 });
+      // Windows 는 같은 폴더에 파일이 늘 때 이미 맞춘 Edit.cs 의 change 를 다시 보낼 수 있어 개수 대신 포함 여부를 봄
+      await t.waitFor(() => {
+          const pending = new Set(watcher.getPendingFiles().map(file => file.path));
+          assert.ok(pending.has('Hold.cs'));
+          for (let index = 0; index <= 200; index++) assert.ok(pending.has(`Bulk${index}.cs`));
+      }, { timeout: 10000 });
       release();
       await t.waitFor(() => assert.deepEqual(watcher.getPendingFiles(), []), { timeout: 10000 });
       assert.deepEqual(calls[2], ['Hold.cs']);
@@ -1095,14 +1103,18 @@
 
   test('sync with known paths reconciles only those files without listing the tree', async context => {
       environment(context, { CODEGRAPH_DOCS: '1', CODEGRAPH_DISABLE_EMBEDDINGS: '1' });
-      const root = temporaryRoot(context, 'codegraph-targeted-');
+      const root = fs.mkdtempSync(path.join(os.tmpdir(), 'codegraph-targeted-'));
       execFileSync('git', ['init', '--quiet', root], { windowsHide: true });
       fs.writeFileSync(path.join(root, 'Alpha.cs'), 'public class Alpha { void First() {} }\n');
       fs.writeFileSync(path.join(root, 'Beta.cs'), 'public class Beta { void Keep() {} }\n');
       fs.writeFileSync(path.join(root, 'Notes.md'), '# Notes\n\nfirst\n');
       fs.writeFileSync(path.join(root, 'Other.md'), '# Other\n');
       const graph = CodeGraph.initSync(root);
-      context.after(() => graph.close());
+      // after 훅은 등록 순서대로 돌아서 DB 를 닫은 뒤 폴더를 지우도록 한 훅에 넣음
+      context.after(() => {
+          graph.close();
+          fs.rmSync(root, { recursive: true, force: true });
+      });
       const db = graph.getDb();
       assert.equal((await graph.indexAll()).success, true);
       fs.writeFileSync(path.join(root, 'Alpha.cs'), 'public class Alpha { void First() {} void Second() {} }\n');
@@ -1168,12 +1180,18 @@
       const initial = await CodeGraph.init(root, { index: true });
       initial.close();
       let reader = null;
+      let workerPid = null;
       t.after(async () => {
           reader?.close();
           await manager.stopWatcher(root);
+          // 파이프가 닫힌 뒤에도 감시 프로세스가 잠깐 파일을 쥐고 있어 끝날 때까지 기다림
+          const deadline = Date.now() + 15000;
+          while (workerPid && protocol.livePid(workerPid) && Date.now() < deadline)
+              await new Promise(resolve => setTimeout(resolve, 100));
           fs.rmSync(root, { recursive: true, force: true });
       });
       const started = await manager.ensureWatcher(root, { debounceMs: 60000 });
+      workerPid = started.pid;
       assert.equal(started.active, true);
       await t.waitFor(async () => assert.equal((await manager.flushWatcher(root)).ready, true), { timeout: 30000 });
       fs.writeFileSync(path.join(root, 'Combat.cs'), 'public class Combat { public int Shield() { return 2; } }');
@@ -1186,25 +1204,25 @@
       assert.ok(reader.getDb().prepare('SELECT name FROM nodes WHERE name = ?').get('Shield'));
   });
   ```
-- 8b 새 파일: `D:/Fork/KIT/tools/codegraph/test/Codegraph-Installer-WatcherStop.Tests.ps1`
+- 8b 새 파일: `D:/Fork/KIT/test/Codegraph-Installer-WatcherStop.Tests.ps1`
 - 8b 내용:
   ```powershell
-  # W5: 설치기는 활성 감시기를 새 런타임으로 옮기지 않고 멈추기만 한다. 다음 CLI 사용 때 새 런타임으로 뜬다
+  # W5: 설치기는 활성 감시기를 새 런타임으로 옮기지 않고 멈추기만 함. 다음 CLI 사용 때 새 런타임으로 뜸
   Describe 'CodeGraph installer watcher handling' {
       BeforeAll {
-          $root = Split-Path -Parent $PSScriptRoot
-          $ps1 = Get-Content -Raw -LiteralPath (Join-Path $root 'install.ps1')
-          $sh = Get-Content -Raw -LiteralPath (Join-Path $root 'install.sh')
+          $kitRoot = Split-Path $PSScriptRoot -Parent
+          $ps1 = Get-Content -Raw -LiteralPath (Join-Path $kitRoot 'tools/codegraph/install.ps1')
+          $sh = Get-Content -Raw -LiteralPath (Join-Path $kitRoot 'tools/codegraph/install.sh')
       }
       It 'install.ps1 stops active watchers instead of migrating them' {
-          $ps1 | Should -Match 'function Stop-ActiveWatchers\(\[string\]\$Root\)'
-          $ps1 | Should -Match 'Stop-ActiveWatchers \$target'
-          $ps1 | Should -Not -Match 'Upgrade-Watchers'
-          $ps1 | Should -Not -Match 'ensureWatcher'
+          $ps1 | Should Match 'function Stop-ActiveWatchers\(\[string\]\$Root\)'
+          $ps1 | Should Match 'Stop-ActiveWatchers \$target'
+          $ps1 | Should Not Match 'Upgrade-Watchers'
+          $ps1 | Should Not Match 'ensureWatcher'
       }
       It 'install.sh stops active watchers instead of migrating them' {
-          $sh | Should -Match 'manager\.stopWatcher\(watcher\.projectPath'
-          $sh | Should -Not -Match 'ensureWatcher'
+          $sh | Should Match 'manager\.stopWatcher\(watcher\.projectPath'
+          $sh | Should Not Match 'ensureWatcher'
       }
   }
   ```
@@ -1256,10 +1274,10 @@
 - 8f 기대 출력: 마지막 줄 `exit=0`. `watcher-hooks.test.cjs` 는 변경 전부터 3건 실패라 넣지 않음.
 - 8g 문서·검색 시험: `node --test D:/Fork/KIT/tools/codegraph/source/test/docs-batch.test.cjs D:/Fork/KIT/tools/codegraph/source/test/docs-embed-cache.test.cjs D:/Fork/KIT/tools/codegraph/source/test/docs-embed-tokenization.test.cjs D:/Fork/KIT/tools/codegraph/source/test/docs-model-mismatch.test.cjs D:/Fork/KIT/tools/codegraph/source/test/docs-rerank.test.cjs D:/Fork/KIT/tools/codegraph/source/test/search-tuning.test.cjs D:/Fork/KIT/tools/codegraph/source/test/indexing-csharp.test.cjs D:/Fork/KIT/tools/codegraph/source/test/indexing-csharp-conditional.test.cjs; echo exit=$?`
 - 8g 기대 출력: 마지막 줄 `exit=0`
-- 8h Pester(PowerShell 도구): `Import-Module Pester -MinimumVersion 5.0 -ErrorAction Stop; $r = Invoke-Pester -Path D:/Fork/KIT/tools/codegraph/test/Codegraph-Installer-WatcherStop.Tests.ps1 -PassThru -Output Detailed; if ($r.FailedCount -gt 0 -or $r.PassedCount -lt 2) { exit 1 }`
-- 8h 기대 결과: 종료 코드 0, `Tests Passed: 2`. `Import-Module` 이 실패하면(Pester 5 없음) `CURRENT=멈춤 S8: Pester 5 없음` 으로 쓰고 멈춤.
+- 8h Pester(PowerShell 도구. 이 PC 는 Pester 3.4.0): `Import-Module Pester -ErrorAction Stop; $r = Invoke-Pester -Script D:/Fork/KIT/test/Codegraph-Installer-WatcherStop.Tests.ps1 -PassThru; "passed=$($r.PassedCount) failed=$($r.FailedCount)"; if ($r.FailedCount -gt 0 -or $r.PassedCount -lt 2) { exit 1 }`
+- 8h 기대 결과: 종료 코드 0, 출력 `passed=2 failed=0`. `Import-Module` 이 실패하면 `CURRENT=멈춤 S8: Pester 없음` 으로 쓰고 멈춤.
 - 8i 사본 대조: `node D:/Fork/.AI/context/search-eval/watch-speed.cjs verify; echo exit=$?`
-- 8i 기대 출력: 첫 줄 `1d99f2f9141bbb57e104f6d1d83d137ab93471968b9f97e064423c8a1d919f53`, 다음 두 줄 `install.ps1 0051db8d…`, `install.sh 352215fb…`, 마지막 줄 `exit=0`. `exit=5` 면 `MODE=BLOCKED`, `CURRENT=멈춤 S8: 바꾼 소스나 설치기가 시험한 사본과 다름` 으로 쓰고 멈춤. 8e~8h 중 하나라도 실패하면 `CURRENT=멈춤 S8: <시험 이름>` 으로 쓰고 멈춤.
+- 8i 기대 출력: 첫 줄 `75bb11d58bcd9ef812aeb93b7a44868b54f590ab3bf688733934f6198d3e282d`, 다음 두 줄 `install.ps1 43a5f31f…`, `install.sh 352215fb…`, 마지막 줄 `exit=0`. `exit=5` 면 `MODE=BLOCKED`, `CURRENT=멈춤 S8: 바꾼 소스나 설치기가 시험한 사본과 다름` 으로 쓰고 멈춤. 8e~8h 중 하나라도 실패하면 `CURRENT=멈춤 S8: <시험 이름>` 으로 쓰고 멈춤.
 
 ### 단계 9: 바꾼 뒤 감시기 측정
 - 파일: `D:/Fork/.AI/context/search-eval/results/watch-speed-after.json`, `watch-speed.json`, `watch-speed.md` (명령이 만듦)
@@ -1294,7 +1312,7 @@
 {"id":"V4","kind":"auto","cmd":"node --test D:/Fork/KIT/tools/codegraph/source/test/docs-batch.test.cjs D:/Fork/KIT/tools/codegraph/source/test/docs-embed-cache.test.cjs D:/Fork/KIT/tools/codegraph/source/test/docs-embed-tokenization.test.cjs D:/Fork/KIT/tools/codegraph/source/test/docs-model-mismatch.test.cjs D:/Fork/KIT/tools/codegraph/source/test/docs-rerank.test.cjs D:/Fork/KIT/tools/codegraph/source/test/search-tuning.test.cjs D:/Fork/KIT/tools/codegraph/source/test/indexing-csharp.test.cjs D:/Fork/KIT/tools/codegraph/source/test/indexing-csharp-conditional.test.cjs","expect":"exit0"}
 {"id":"V5","kind":"auto","cmd":"node D:/Fork/.AI/context/search-eval/watch-speed.cjs verify","expect":"exit0"}
 {"id":"V6","kind":"auto","cmd":"node -e \"const r=require('D:/Fork/.AI/context/search-eval/results/watch-speed.json');process.exit(r.passed===true?0:1)\"","expect":"exit0"}
-{"id":"V7","kind":"human","how":"KIT test/Codegraph-Installer.Tests.ps1 에서 설치 뒤 감시기가 새 런타임으로 다시 뜨는지 보는 시험을 '설치 뒤 감시기가 멈춰 있음'을 보도록 고친 뒤, PowerShell 에서 Invoke-Pester -Path D:/Fork/KIT/tools/codegraph/test 를 돌림","expect":"Codegraph-Installer-WatcherStop.Tests.ps1 의 2건을 포함해 모두 통과함. 변경 전부터 실패하던 시험이 있으면 그 이름을 Review Pack 에 적음"}
+{"id":"V7","kind":"human","how":"KIT test/Codegraph-Installer.Tests.ps1 에서 설치 뒤 감시기가 새 런타임으로 다시 뜨는지 보는 시험을 '설치 뒤 감시기가 멈춰 있음'을 보도록 고친 뒤, PowerShell 에서 Invoke-Pester -Script D:/Fork/KIT/test/Codegraph-Installer.Tests.ps1, D:/Fork/KIT/test/Codegraph-Installer-WatcherStop.Tests.ps1 를 돌림","expect":"Codegraph-Installer-WatcherStop.Tests.ps1 의 2건을 포함해 모두 통과함. 변경 전부터 실패하던 시험이 있으면 그 이름을 Review Pack 에 적음"}
 {"id":"V8","kind":"human","how":"D:/Fork/.AI/context/search-eval/results/watch-speed.md 의 표를 봄","expect":"놓친 변경 수가 둘 다 0, 고친 내용이 query 에 반영됨이 둘 다 true, 쉬는 20초 동안 watcher.json 쓰기 횟수가 기준선의 절반 이하, 고친 직후 query 중앙값이 기준선보다 크게 늘지 않음"}
 ```
 

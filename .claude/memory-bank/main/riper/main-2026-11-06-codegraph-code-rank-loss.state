@@ -1,0 +1,9 @@
+MODE=RESEARCH
+STATUS=paused
+TASK=코드 kw 검색: FTS 상위 5 안의 정답이 최종 1위를 놓치는 원인 조사 (12건)
+PLAN_FILE=
+RESEARCH_FILE=.claude/memory-bank/main/plans/main-2026-11-06-codegraph-code-rank-loss-research.md
+BRANCH=main
+STARTED=2026-11-06
+UPDATED=2026-11-06
+CURRENT=INNOVATE 대기. 조사 끝. 원인 유형 T1~T5(이름 가점 80/60, 동명 동점, 정확 이름 보충, 벡터 RRF). 수정 방향은 아직 안 씀

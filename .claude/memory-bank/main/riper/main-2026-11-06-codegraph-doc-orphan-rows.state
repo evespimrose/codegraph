@@ -1,0 +1,9 @@
+MODE=RESEARCH
+STATUS=paused
+TASK=문서 색인 고아 행(FTS·벡터) 생성 경로 조사
+PLAN_FILE=
+RESEARCH_FILE=.claude/memory-bank/main/plans/main-2026-11-06-codegraph-doc-orphan-rows-research.md
+BRANCH=main
+STARTED=2026-11-06
+UPDATED=2026-11-06
+CURRENT=A+B 방향 결정됨. INNOVATE 대기

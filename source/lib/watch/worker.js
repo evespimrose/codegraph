@@ -280,9 +280,10 @@ async function runWatcher(projectPath, options = {}) {
 
 module.exports = { runWatcher, createStateWriter };
 if (require.main === module) {
+    let output = null;
     if (process.env.CODEGRAPH_WATCH_LOG) {
         rotateLog(process.env.CODEGRAPH_WATCH_LOG);
-        const output = fs.createWriteStream(process.env.CODEGRAPH_WATCH_LOG, { flags: 'a' });
+        output = fs.createWriteStream(process.env.CODEGRAPH_WATCH_LOG, { flags: 'a' });
         global.console = new (require('node:console').Console)({ stdout: output, stderr: output });
     }
     const projectPath = process.argv[2] || process.env.CODEGRAPH_WATCH_PROJECT;
@@ -290,5 +291,7 @@ if (require.main === module) {
     let options;
     try { options = configuration ? JSON.parse(Buffer.from(configuration, 'base64url').toString('utf8')) : {}; }
     catch (error) { writeDiagnostic(`${error.message}\n`); process.exitCode = 1; }
-    if (options) runWatcher(projectPath, options).catch(error => { writeDiagnostic(`${error.stack || error}\n`); process.exitCode = 1; });
+    // chokidar 는 close 뒤에도 ref 된 throttle 타이머를 최대 1초 남겨 프로세스가 늦게 끝남. 정리가 끝났으니 바로 종료함
+    const exit = () => process.exit();
+    if (options) runWatcher(projectPath, options).then(() => (output ? output.end(exit) : exit())).catch(error => { writeDiagnostic(`${error.stack || error}\n`); process.exitCode = 1; });
 }

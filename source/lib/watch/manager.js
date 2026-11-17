@@ -33,10 +33,12 @@ async function stopWatcher(projectPath, options = {}) {
     const response = await protocol.request(location, 'stop');
     if (response.error) return watcherStatus(projectPath);
     const deadline = Date.now() + (options.timeoutMs ?? 30000);
+    // IPC 가 닫혀도 워커 프로세스가 끝나기 전에는 Windows 가 프로젝트 폴더 삭제를 거부함. 같은 프로세스에서 돌린 워커는 기다릴 대상이 아님
+    const workerPid = response.pid === process.pid ? null : response.pid;
     while (Date.now() < deadline) {
         await delay(100);
         const status = await watcherStatus(projectPath);
-        if (status.phase === 'stopped') return status;
+        if (status.phase === 'stopped' && !protocol.livePid(workerPid)) return status;
     }
     return { ...await watcherStatus(projectPath), stopPending: true };
 }

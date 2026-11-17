@@ -30,8 +30,8 @@ The installer validates every packaged runtime file against the release integrit
 
 ## Document search
 
-`codegraph docs <query>` searches indexed documents. Reranking is off by default. `--rerank` (or `CODEGRAPH_DOCS_RERANK=1`) turns it on, and `--rerank-depth` sets how many candidates it scores. Measured on 30 queries per corpus, it adds about 2 to 5 seconds per query and changes Hit@1 by at most 10 points, so use it only when a query needs it.
+`codegraph query docs:<query>` searches indexed documents. Reranking is off by default. `--rerank` (or `CODEGRAPH_DOCS_RERANK=1`) turns it on, and `--rerank-depth` sets how many candidates it scores. Measured on 30 queries per corpus, it adds about 2 to 5 seconds per query and changes Hit@1 by at most 10 points, so use it only when a query needs it.
 
-`codegraph docs-batch` runs many queries in one process, so the embedding model loads once. Queries come from `--input <file>` or stdin, one per line. A line that starts with `{` is read as JSON with `q`, and optionally `id` and `limit`. Output is one JSON object per query, followed by a summary line. This command never syncs, starts a watcher, takes a lock, or calls git.
+`codegraph query` answers 1 to n items in one process with one freshness check, so the embedding model also loads once. Plain items search symbols. A `context:`, `callers:`, `callees:`, `impact:`, `docs:`, `backlinks:`, `files:` or `affected:` prefix picks another kind. More items come from `--input <file>` (`-` reads stdin), one per line. A line that starts with `{` is read as JSON with `q`, and optionally `id`, `kind`, and per-item options such as `limit`. With `--json`, the output is one JSON object with `freshness`, `warnings`, and a `results` array in input order. `--no-sync` skips the freshness check.
 
 When stored document vectors came from a different embedding model, search skips the vector step, returns lexical hits, and reports `semanticState: "stale"` with a warning. Run `codegraph sync` to rebuild the vectors.

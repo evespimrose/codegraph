@@ -25,8 +25,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### ✅ 올바른 순서 (codegraph는 MCP가 아니라 CLI — Bash로 직접 호출)
 ```
-1. codegraph context "<intent>" -p <root> / codegraph query "<symbol>" -p <root> → 심볼 위치
-2. codegraph callers "<symbol>" -p <root> / codegraph impact "<symbol>" -p <root> → 영향 범위
+1. codegraph query "<symbol>" "context:<intent>" -p <root> → 심볼 위치 (질의 여러 개는 한 번에 묶음)
+2. codegraph query "callers:<symbol>" "impact:<symbol>" -p <root> → 영향 범위
 3. probe-scoped symbols <file> / probe-scoped extract <file>#<Symbol> → 구조와 본문
 4. Read(offset+limit, 200줄 이하) 로 좌표 구간만 읽음 → 소스 코드
 5. (보완 시만) Glob / Grep

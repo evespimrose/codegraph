@@ -439,39 +439,41 @@ codegraph uninit [path]           # Remove CodeGraph from a project (--force to 
 codegraph index [path]            # Full index (--force to re-index, --quiet for less output)
 codegraph sync [path]             # Incremental update
 codegraph status [path]           # Show statistics
-codegraph query <search>          # Search symbols (--kind, --limit, --json)
-codegraph files [path]            # Show file structure (--format, --filter, --max-depth, --json)
-codegraph context <task>          # Build context for AI (--format, --max-nodes)
-codegraph callers <symbol>        # Find what calls a function/method (--limit, --json)
-codegraph callees <symbol>        # Find what a function/method calls (--limit, --json)
-codegraph impact <symbol>         # Analyze what code is affected by changing a symbol (--depth, --json)
-codegraph affected [files...]     # Find test files affected by changes (see below)
+codegraph query <items...>        # Answer 1..n queries with one freshness check (see below)
 codegraph serve --mcp             # Start MCP server
 ```
 
-### `codegraph affected`
+### `codegraph query`
 
-Traces import dependencies transitively to find which test files are affected by changed source files.
+Answers 1 to n queries in one process with one freshness check. Plain items search symbols. A prefix picks another kind.
 
 ```bash
-codegraph affected src/utils.ts src/api.ts         # Pass files as arguments
-git diff --name-only | codegraph affected --stdin   # Pipe from git diff
-codegraph affected src/auth.ts --filter "e2e/*"     # Custom test file pattern
+codegraph query Editor                                     # Search symbols
+codegraph query Editor callers:Editor.save impact:Editor   # Mix kinds in one call
+codegraph query "context:fix the save flow" --json         # Task context as JSON
+codegraph query "affected:src/utils.ts,src/api.ts"         # Test files affected by changed files
+git diff --name-only | sed 's/^/affected:/' | codegraph query -i -   # One affected item per changed file
 ```
 
-| Option | Description | Default |
-|--------|-------------|---------|
-| `--stdin` | Read file list from stdin | `false` |
-| `-d, --depth <n>` | Max dependency traversal depth | `5` |
-| `-f, --filter <glob>` | Custom glob to identify test files | auto-detect |
-| `-j, --json` | Output as JSON | `false` |
-| `-q, --quiet` | Output file paths only | `false` |
+| Prefix | Answers | Main options |
+|--------|---------|--------------|
+| (none) | Symbol search | `-l, --limit` (10), `-k, --kind` |
+| `context:` | Task context | `-n, --max-nodes`, `-c, --max-code`, `-b, --budget`, `--no-code` |
+| `callers:` / `callees:` | Direct callers or callees | `-l, --limit` (20) |
+| `impact:` | Dependents of a symbol | `-d, --depth` (2) |
+| `docs:` | Document search | `-l, --limit` (10), `--rerank`, `--rerank-depth` |
+| `backlinks:` | Markdown backlinks and forward links | `-d, --depth` (1) |
+| `files:` | Indexed files matching a glob | `--filter`, `--format`, `--max-depth`, `--no-metadata` |
+| `affected:` | Test files affected by comma-separated files | `-d, --depth` (5), `--test-filter` |
+
+`-i, --input <file>` reads more items, one per line (`-` reads stdin). A line that starts with `{` is JSON with `q` and optional `id`, `kind`, and per-item options (`limit`, `nodeKind`, `depth`, `maxNodes`, `maxCode`, `budget`, `code`, `rerank`, `rerankDepth`, `filter`, `format`, `maxDepth`, `metadata`, `testFilter`). `--json` prints one object with `freshness`, `warnings`, and a `results` array in input order. The exit code is 1 when the index is not fresh or any item fails.
 
 **CI/hook example:**
 
 ```bash
 #!/usr/bin/env bash
-AFFECTED=$(git diff --name-only HEAD | codegraph affected --stdin --quiet)
+FILES=$(git diff --name-only HEAD | paste -sd, -)
+AFFECTED=$(codegraph query "affected:$FILES" --json | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>console.log(JSON.parse(s).results[0].affectedTests.join(' ')))")
 if [ -n "$AFFECTED" ]; then
   npx vitest run $AFFECTED
 fi

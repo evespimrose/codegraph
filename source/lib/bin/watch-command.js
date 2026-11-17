@@ -20,7 +20,7 @@ function addWatch(program, resolvePath) {
 }
 
 function autoWatch(program, resolvePath) {
-    const reads = new Set(['query', 'context', 'docs', 'callers', 'callees', 'impact', 'affected', 'files', 'backlinks']);
+    const reads = new Set(['query']);
     const writes = new Set(['init', 'index', 'sync']);
     program.hook('postAction', async (_, command) => {
         if (process.env.CODEGRAPH_NO_WATCH === '1' || process.env.CODEGRAPH_WATCH_WORKER === '1') return;
